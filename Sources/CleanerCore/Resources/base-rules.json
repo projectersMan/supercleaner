@@ -1,0 +1,400 @@
+{
+  "version": "bundled-3",
+  "issuedAt": 813715200,
+  "revokedRuleIDs": [],
+  "rules": [
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "当前用户缓存容器；目录名称不构成再生成证明",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "discovery.user-caches",
+      "category": "cache",
+      "relativePaths": [
+        "Library/Caches"
+      ],
+      "sourceReference": "SRC-APPLE-CACHE-001"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "descendantFiles",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "general.logs",
+      "category": "log",
+      "relativePaths": [
+        "Library/Logs",
+        "Library/DiagnosticReports",
+        "Library/Application Support/CrashReporter"
+      ],
+      "sourceReference": "SRC-APPLE-LOG-001",
+      "fileExtensions": [
+        "log",
+        "txt",
+        "ips",
+        "crash",
+        "json"
+      ],
+      "activeProcessNames": []
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
+      "minimumOSVersion": "13.0",
+      "granularity": "root",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.npm-cache",
+      "protectedRelativePaths": [".npmrc", ".npm/credentials"],
+      "category": "developerCache",
+      "relativePaths": [
+        ".npm/_cacache"
+      ],
+      "sourceReference": "SRC-NPM-CACHE-001",
+      "activeProcessNames": [
+        "node",
+        "npm",
+        "npx",
+        "pnpm",
+        "yarn",
+        "bun"
+      ],
+      "regenerationEvidence": "npm 下载与编译缓存可重新获取；不包含 npm 配置和凭证"
+    },
+    {
+      "minimumAgeDays": 0,
+      "defaultRisk": "blocked",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "root",
+      "maximumDepth": 1,
+      "maximumEntries": 100,
+      "ruleID": "developer.uv-managed-cache",
+      "category": "developerCache",
+      "relativePaths": [".cache/uv"],
+      "sourceReference": "SRC-UV-CACHE-001",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.uv-protection",
+      "ownershipEvidence": "uv 管理的缓存",
+      "regenerationEvidence": "uv 官方要求使用 uv cache clean/prune，禁止直接修改缓存"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.python-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/pip"
+      ],
+      "sourceReference": "SRC-PYTHON-CACHE-001",
+      "activeProcessNames": [
+        "uv",
+        "pip",
+        "pip3",
+        "python",
+        "python3"
+      ],
+      "regenerationEvidence": "pip 下载缓存可由包管理器重新获取"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
+      "minimumOSVersion": "13.0",
+      "granularity": "root",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "Go 官方默认 GOCACHE 在 macOS 用户缓存目录的 go-build 子目录",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.go-build-cache",
+      "ruleID": "developer.go-build-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/go-build"
+      ],
+      "sourceReference": "SRC-GO-BUILD-CACHE-001",
+      "activeProcessNames": [
+        "go",
+        "gopls",
+        "compile",
+        "link"
+      ],
+      "regenerationEvidence": "Go 官方将其定义为构建产物缓存，并提供 go clean -cache 重新生成语义"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "Deno 官方文档定义的 macOS 默认 DENO_DIR",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.governance",
+      "ruleID": "developer.deno-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/deno"
+      ],
+      "sourceReference": "SRC-DENO-CACHE-001",
+      "activeProcessNames": [
+        "deno"
+      ],
+      "regenerationEvidence": "依赖和编译产物可重新获取，但离线与 --cached-only 工作流需要人工确认"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "Cargo 官方定义 registry/cache 为下载的 crate 归档缓存",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.governance",
+      "ruleID": "developer.cargo-download-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        ".cargo/registry/cache"
+      ],
+      "protectedRelativePaths": [
+        ".cargo/credentials",
+        ".cargo/credentials.toml",
+        ".cargo/config",
+        ".cargo/config.toml",
+        ".cargo/bin"
+      ],
+      "sourceReference": "SRC-CARGO-CACHE-001",
+      "activeProcessNames": [
+        "cargo",
+        "rustc",
+        "rust-analyzer"
+      ],
+      "regenerationEvidence": "Cargo 可重新下载归档，但离线构建可能依赖本地缓存，因此不默认选择"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "CocoaPods 官方命令提供按 Pod 或全部清理缓存的语义",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.governance",
+      "ruleID": "developer.cocoapods-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/CocoaPods"
+      ],
+      "sourceReference": "SRC-COCOAPODS-CACHE-001",
+      "activeProcessNames": [
+        "pod",
+        "ruby"
+      ],
+      "regenerationEvidence": "Pod 缓存可由依赖源重新获取，但私有源和离线构建需要人工确认"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "Playwright 官方文档定义的 macOS 浏览器二进制缓存目录",
+      "sourceKind": "official-documentation",
+      "testFixture": "RuleEngineContract.governance",
+      "ruleID": "developer.playwright-browsers",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/ms-playwright"
+      ],
+      "protectedRelativePaths": [
+        "Library/Caches/ms-playwright/daemon"
+      ],
+      "sourceReference": "SRC-PLAYWRIGHT-BROWSERS-001",
+      "activeProcessNames": [
+        "node",
+        "playwright",
+        "chromium",
+        "firefox",
+        "webkit"
+      ],
+      "regenerationEvidence": "浏览器二进制可由 Playwright CLI 重装；daemon 持久会话目录明确保护且不进入可删除候选"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.xcode-derived-data",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Developer/Xcode/DerivedData"
+      ],
+      "sourceReference": "SRC-XCODE-DERIVED-001",
+      "activeBundleIdentifiers": [
+        "com.apple.dt.Xcode"
+      ],
+      "activeProcessNames": [
+        "xcodebuild",
+        "swift",
+        "swift-frontend",
+        "clang"
+      ],
+      "regenerationEvidence": "Xcode DerivedData 是构建和索引产物，可以重新构建"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.gradle-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        ".gradle/caches",
+        ".gradle/daemon",
+        ".gradle/notifications",
+        ".gradle/workers"
+      ],
+      "sourceReference": "SRC-GRADLE-CACHE-001",
+      "activeProcessNames": [
+        "java",
+        "gradle"
+      ],
+      "regenerationEvidence": "Gradle 缓存与 daemon 运行产物可重新生成"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.package-cache",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Caches/Homebrew",
+        ".yarn/cache",
+        "Library/Caches/Yarn",
+        ".bun/install/cache",
+        ".cache/swift-package-manager",
+        "Library/Caches/org.swift.swiftpm"
+      ],
+      "sourceReference": "SRC-PACKAGE-CACHE-001",
+      "activeProcessNames": [
+        "brew",
+        "ruby",
+        "node",
+        "yarn",
+        "bun",
+        "swift"
+      ],
+      "regenerationEvidence": "包下载缓存；离线依赖与当前活动必须人工检查"
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "children",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "developer.state-review",
+      "category": "developerCache",
+      "relativePaths": [
+        "Library/Developer/Xcode/Archives",
+        "Library/Developer/CoreSimulator/Caches",
+        "Library/Developer/XCTestDevices",
+        "Library/Developer/Xcode/iOS DeviceSupport",
+        "Library/Developer/Xcode/macOS DeviceSupport",
+        "Library/Developer/Xcode/watchOS DeviceSupport",
+        "Library/Developer/Xcode/tvOS DeviceSupport"
+      ],
+      "sourceReference": "SRC-XCODE-STATE-001",
+      "activeBundleIdentifiers": [
+        "com.apple.dt.Xcode",
+        "com.apple.iphonesimulator"
+      ],
+      "activeProcessNames": [
+        "xcodebuild",
+        "simctl"
+      ]
+    },
+    {
+      "minimumAgeDays": 30,
+      "defaultRisk": "review",
+      "defaultSelection": false,
+      "minimumOSVersion": "13.0",
+      "granularity": "descendantFiles",
+      "maximumDepth": 8,
+      "maximumEntries": 20000,
+      "ownershipEvidence": "精确的当前用户工具产物目录",
+      "sourceKind": "first-party-tool-convention",
+      "testFixture": "RuleEngineContract",
+      "ruleID": "general.device-firmware",
+      "category": "installerArtifact",
+      "relativePaths": [
+        "Library/iTunes/iPhone Software Updates",
+        "Library/iTunes/iPad Software Updates",
+        "Library/iTunes/iPod Software Updates",
+        "Library/Group Containers/K36BKF7T3D.group.com.apple.configurator/Library/Caches/Firmware"
+      ],
+      "sourceReference": "SRC-APPLE-FIRMWARE-001",
+      "fileExtensions": [
+        "ipsw"
+      ],
+      "activeBundleIdentifiers": [
+        "com.apple.configurator.ui"
+      ],
+      "activeProcessNames": []
+    }
+  ]
+}

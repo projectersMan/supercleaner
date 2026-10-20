@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "bundleIdentifier": "com.example.SuperCleaner",
+  "teamIdentifier": "REPLACE_TEAM_ID",
+  "ruleUpdateURL": "https://updates.example.invalid/rules.json",
+  "applicationUpdateURL": "https://updates.example.invalid/appcast.xml",
+  "rulePublicKey": "REPLACE_WITH_32_BYTE_ED25519_PUBLIC_KEY_BASE64",
+  "applicationPublicKey": "REPLACE_WITH_32_BYTE_ED25519_PUBLIC_KEY_BASE64",
+  "allowedHosts": ["updates.example.invalid"]
+}
