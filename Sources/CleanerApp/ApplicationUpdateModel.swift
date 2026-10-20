@@ -30,10 +30,10 @@ import Sparkle
     override func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
         if let confirmation { complete(confirmation(), reply: reply); return }
         let alert = NSAlert()
-        alert.messageText = "安装更新并重新启动？"
-        alert.informativeText = "更新已经下载并通过验证。现在安装将退出本应用；取消不会安排退出时安装。Helper 需要在新版设置中重新启用。"
-        alert.addButton(withTitle: "安装并重新启动")
-        alert.addButton(withTitle: "取消安装")
+        alert.messageText = L10n.text("安装更新并重新启动？")
+        alert.informativeText = L10n.text("更新已经下载并通过验证。现在安装将退出本应用；取消不会安排退出时安装。Helper 需要在新版设置中重新启用。")
+        alert.addButton(withTitle: L10n.text("安装并重新启动"))
+        alert.addButton(withTitle: L10n.text("取消安装"))
         complete(alert.runModal() == .alertFirstButtonReturn, reply: reply)
     }
     private func complete(_ approved: Bool, reply: (SPUUserUpdateChoice) -> Void) {
@@ -50,7 +50,7 @@ import Sparkle
 
 @MainActor final class ApplicationUpdateModel: NSObject, ObservableObject, SPUUpdaterDelegate {
     @Published private(set) var isBusy = false
-    @Published private(set) var message = "应用更新未配置；本地开发构建不会发起检查。"
+    @Published private(set) var message = L10n.text("应用更新未配置；本地开发构建不会发起检查。")
     private var configuration: ReleaseConfiguration?
     private var updater: SPUUpdater?
     private var driver: ImmediateUpdateDriver?
@@ -71,8 +71,8 @@ import Sparkle
             let identity = try HelperSigningIdentity.current()
             guard identity.applicationIdentifier == config.bundleIdentifier, identity.teamIdentifier == config.teamIdentifier else { throw ReleaseConfigurationError.wrongApplication }
             configuration = config
-            message = "仅手动检查与安装。升级开始前会解除 Helper 注册；取消或失败后可在设置中重新启用。"
-        } catch { message = "应用更新不可用：\(error.localizedDescription)" }
+            message = L10n.text("仅手动检查与安装。升级开始前会解除 Helper 注册；取消或失败后可在设置中重新启用。")
+        } catch { message = L10n.text("应用更新不可用：{0}", String(describing: error.localizedDescription)) }
     }
     var canCheck: Bool { configuration != nil && !isBusy && canStart() }
     var source: String? { configuration?.applicationUpdateURL?.host }
@@ -83,7 +83,7 @@ import Sparkle
         isBusy = true; activityChanged(true)
         validationFailure = nil
         ApplicationUpdateTerminationGuard.allowsTermination = false
-        message = "正在关闭特权会话并解除 Helper 注册…"
+        message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
         Task {
             do {
                 try await prepareHelper()
@@ -105,7 +105,7 @@ import Sparkle
                     updater.sendsSystemProfile = false
                     try updater.start()
                 }
-                message = "正在检查已签名应用更新；下载及安装需要在更新窗口中确认。"
+                message = L10n.text("正在检查已签名应用更新；下载及安装需要在更新窗口中确认。")
                 updater?.checkForUpdates()
             } catch { updater = nil; driver = nil; finish(error: error) }
         }
@@ -137,17 +137,17 @@ import Sparkle
         request.httpShouldHandleCookies = false
         request.setValue(nil, forHTTPHeaderField: "Cookie")
         request.setValue(nil, forHTTPHeaderField: "Authorization")
-        message = "正在下载并验证更新；可以在更新窗口中取消。"
+        message = L10n.text("正在下载并验证更新；可以在更新窗口中取消。")
     }
     func updater(_ updater: SPUUpdater, didExtractUpdate item: SUAppcastItem) {
-        message = "更新已验证；等待安装并重启的明确确认。"
+        message = L10n.text("更新已验证；等待安装并重启的明确确认。")
     }
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) { finish(error: error) }
     private func finish(error: Error?) {
         isBusy = false; activityChanged(false)
         ApplicationUpdateTerminationGuard.allowsTermination = true
-        message = (error ?? validationFailure).map { "应用更新未完成：\($0.localizedDescription)。未自动重试；Helper 可在设置中重新启用。" }
-            ?? "更新流程已结束。Helper 不会自动恢复特权，请在设置中按需启用。"
+        message = (error ?? validationFailure).map { L10n.text("应用更新未完成：{0}。未自动重试；Helper 可在设置中重新启用。", String(describing: $0.localizedDescription)) }
+            ?? L10n.text("更新流程已结束。Helper 不会自动恢复特权，请在设置中按需启用。")
     }
     static func selfCheck(requireProduction: Bool = false) throws {
         defer { ApplicationUpdateTerminationGuard.allowsTermination = true }

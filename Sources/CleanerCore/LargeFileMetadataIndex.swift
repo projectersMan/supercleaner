@@ -77,7 +77,7 @@ public struct IndexedLargeFileScanner: Sendable {
                 childCount: 0,
                 modifiedAt: Date(timeIntervalSince1970: Double(identity.modificationTime)),
                 isReadable: readable,
-                children: readable ? .loaded([]) : .unavailable("无法读取文件"),
+                children: readable ? .loaded([]) : .unavailable(L10n.text("无法读取文件")),
                 identity: identity
             ))
         }

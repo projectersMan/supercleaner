@@ -5,9 +5,9 @@ public enum ReleaseConfigurationError: Error, LocalizedError, Sendable {
     case missing, invalid, wrongApplication
     public var errorDescription: String? {
         switch self {
-        case .missing: "发布更新尚未配置"
-        case .invalid: "发布身份、更新源或签名公钥配置无效"
-        case .wrongApplication: "发布配置不属于当前应用身份"
+        case .missing: L10n.text("发布更新尚未配置")
+        case .invalid: L10n.text("发布身份、更新源或签名公钥配置无效")
+        case .wrongApplication: L10n.text("发布配置不属于当前应用身份")
         }
     }
 }

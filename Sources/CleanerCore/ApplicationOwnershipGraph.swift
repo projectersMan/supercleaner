@@ -24,22 +24,22 @@ public struct ApplicationInstallation: Codable, Hashable, Sendable {
     }
     public var title: String {
         switch source {
-        case .unknown: return "来源未知 / 手动安装"
+        case .unknown: return L10n.text("来源未知 / 手动安装")
         case .appStore: return "Mac App Store"
         case .homebrew: return "Homebrew Cask"
         case .steam: return "Steam"
-        case .packageInstaller: return "macOS 安装收据"
+        case .packageInstaller: return L10n.text("macOS 安装收据")
         }
     }
     public var requiresExternalUninstall: Bool { source == .homebrew || source == .steam || officialUninstaller != nil }
     public var guidance: String {
-        if officialUninstaller != nil { return "发现同签名团队的卸载应用；请先使用官方卸载器，再刷新应用清单。工具产生的修改不属于本应用的恢复记录。" }
+        if officialUninstaller != nil { return L10n.text("发现同签名团队的卸载应用；请先使用官方卸载器，再刷新应用清单。工具产生的修改不属于本应用的恢复记录。") }
         switch source {
-        case .homebrew: return "请使用 Homebrew 卸载此 Cask，再刷新应用清单；不执行 --zap，不替包管理器直接移动应用或关联文件。"
-        case .steam: return "请在 Steam 的管理菜单卸载此游戏，再刷新应用清单；保留游戏存档与 Steam 安装记录。"
-        case .packageInstaller: return "收据仅证明安装来源，不证明独占所有权；保留收据和系统文件，优先使用厂商卸载工具。"
-        case .appStore: return "可审查并可恢复移除应用本体；购买收据和共享容器保留，独占用户数据需单独勾选。"
-        case .unknown: return "仅审查应用本体和独占的可恢复文件；未知安装脚本不自动执行。"
+        case .homebrew: return L10n.text("请使用 Homebrew 卸载此 Cask，再刷新应用清单；不执行 --zap，不替包管理器直接移动应用或关联文件。")
+        case .steam: return L10n.text("请在 Steam 的管理菜单卸载此游戏，再刷新应用清单；保留游戏存档与 Steam 安装记录。")
+        case .packageInstaller: return L10n.text("收据仅证明安装来源，不证明独占所有权；保留收据和系统文件，优先使用厂商卸载工具。")
+        case .appStore: return L10n.text("可审查并可恢复移除应用本体；购买收据和共享容器保留，独占用户数据需单独勾选。")
+        case .unknown: return L10n.text("仅审查应用本体和独占的可恢复文件；未知安装脚本不自动执行。")
         }
     }
     public var packageManagerCommand: String? {
@@ -61,9 +61,9 @@ public struct ApplicationOwnershipNode: Codable, Hashable, Sendable, Identifiabl
     public var requiresExternalUninstall: Bool { installation.requiresExternalUninstall || serviceReferences?.isEmpty == false }
     public var blocksAssociationDeletion: Bool { installation.requiresExternalUninstall }
     public var guidance: String {
-        if ownershipVerified == false { return "关联范围部分受限；已确认归属且没有共享或引用的应用专属文件仍可逐项选择，其余项目继续保护。" }
+        if ownershipVerified == false { return L10n.text("关联范围部分受限；已确认归属且没有共享或引用的应用专属文件仍可逐项选择，其余项目继续保护。") }
         return serviceReferences?.isEmpty == false && !installation.requiresExternalUninstall
-            ? "发现启动服务或应用内后台服务定义。服务文件及仍被引用的项目继续保护；每个独占关联项会单独复核，避免连带删除。"
+            ? L10n.text("发现启动服务或应用内后台服务定义。服务文件及仍被引用的项目继续保护；每个独占关联项会单独复核，避免连带删除。")
             : installation.guidance
     }
 }

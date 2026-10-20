@@ -103,7 +103,7 @@ public actor ScanCoordinator {
         let startedAt = Date()
         var candidates: [CleanupCandidate] = []
         var failures: [ScanFailure] = context.protectionPolicy.isAvailable ? [] : [
-            ScanFailure(scannerID: "protection-policy", message: "保护清单无法读取；所有删除均被阻止")
+            ScanFailure(scannerID: "protection-policy", message: L10n.text("保护清单无法读取；所有删除均被阻止"))
         ]
 
         for batchStart in stride(from: 0, to: scanners.count, by: maxConcurrentScanners) {

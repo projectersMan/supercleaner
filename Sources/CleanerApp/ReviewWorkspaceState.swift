@@ -11,11 +11,11 @@ enum ReviewDispositionFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: "全部"
-        case .recommended: "低风险"
-        case .deepClean: "可重建"
-        case .retain: "默认保留"
-        case .protected: "始终保护"
+        case .all: L10n.text("全部")
+        case .recommended: L10n.text("低风险")
+        case .deepClean: L10n.text("可重建")
+        case .retain: L10n.text("默认保留")
+        case .protected: L10n.text("始终保护")
         }
     }
 

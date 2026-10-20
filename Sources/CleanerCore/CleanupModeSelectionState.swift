@@ -41,9 +41,9 @@ public extension CleanupMode {
 
     var displayTitle: String {
         switch self {
-        case .smart: "推荐"
-        case .deep: "自动清理"
-        case .custom: "手动选择"
+        case .smart: L10n.text("推荐")
+        case .deep: L10n.text("自动清理")
+        case .custom: L10n.text("手动选择")
         }
     }
 }

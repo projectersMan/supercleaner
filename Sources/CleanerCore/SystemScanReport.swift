@@ -190,7 +190,7 @@ public struct SystemScanReport: Sendable {
             skillDuplicatesCollapsedCount = inventory.skillDuplicatesCollapsedCount
             replacementStatus = ScanModuleStatus(module: module, state: inventory.isComplete ? .completed : .limited,
                 startedAt: completedAt, completedAt: completedAt,
-                message: inventory.isComplete ? nil : "部分 Agent 路径未完整检查", limitations: inventory.limitations)
+                message: inventory.isComplete ? nil : L10n.text("部分 Agent 路径未完整检查"), limitations: inventory.limitations)
         }
         nextModules[module] = replacementStatus
         return SystemScanReport(

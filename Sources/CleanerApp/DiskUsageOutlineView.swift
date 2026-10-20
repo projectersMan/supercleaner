@@ -14,7 +14,7 @@ struct DiskUsageOutlineView: View {
             }
             .padding(.horizontal, 18).padding(.vertical, 8)
         }
-        .accessibilityLabel("磁盘占用目录和大文件")
+        .accessibilityLabel(L10n.text("磁盘占用目录和大文件"))
     }
 }
 
@@ -41,20 +41,20 @@ private struct DiskUsageTreeRow: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(children.isEmpty)
-                        .accessibilityLabel(isExpanded ? "折叠 \(node.url.lastPathComponent)" : "展开 \(node.url.lastPathComponent)")
+                        .accessibilityLabel(isExpanded ? L10n.text("折叠 {0}", String(describing: node.url.lastPathComponent)) : L10n.text("展开 {0}", String(describing: node.url.lastPathComponent)))
                     } else {
                         Toggle(
                             isOn: Binding(get: { model.isDiskFileSelected(node) }, set: { _ in model.toggleDiskFile(node) })
                         ) { EmptyView() }
                         .toggleStyle(.checkbox).labelsHidden()
                         .disabled(!node.isReadable)
-                        .accessibilityLabel(model.isDiskFileSelected(node) ? "从计划移除 \(node.url.lastPathComponent)" : "将 \(node.url.lastPathComponent) 加入计划")
+                        .accessibilityLabel(model.isDiskFileSelected(node) ? L10n.text("从计划移除 {0}", String(describing: node.url.lastPathComponent)) : L10n.text("将 {0} 加入计划", String(describing: node.url.lastPathComponent)))
                     }
                     Image(systemName: node.kind == .directory ? "folder.fill" : "doc.fill")
                         .foregroundColor(node.kind == .directory ? .accentColor : .secondary).frame(width: 20)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(node.url.lastPathComponent).font(.headline).lineLimit(2)
-                        if node.kind == .directory { Text("\(node.childCount) 个直接子项").font(.caption).foregroundColor(.secondary) }
+                        if node.kind == .directory { Text(L10n.text("{0} 个直接子项", String(describing: node.childCount))).font(.caption).foregroundColor(.secondary) }
                     }
                     Spacer()
                     Text(ByteCountFormatter.cleanerString(bytes: node.recursiveBytes)).foregroundColor(.secondary)
@@ -68,7 +68,7 @@ private struct DiskUsageTreeRow: View {
                 }
                 .font(.caption).foregroundColor(.secondary)
                 if node.kind == .directory {
-                    Label("目录只用于展开和理解占用，不会作为一个整体加入清理计划。", systemImage: "folder.badge.questionmark")
+                    Label(L10n.text("目录只用于展开和理解占用，不会作为一个整体加入清理计划。"), systemImage: "folder.badge.questionmark")
                         .font(.caption).foregroundColor(.secondary)
                 }
             }
@@ -89,10 +89,10 @@ private struct DiskUsageTreeRow: View {
     }
 
     @ViewBuilder private var metadata: some View {
-        Text("类型：\(node.kind == .directory ? "目录" : "文件")")
-        Text("自身大小：\(ByteCountFormatter.cleanerString(bytes: node.ownBytes))")
-        Text("累计占用：\(ByteCountFormatter.cleanerString(bytes: node.recursiveBytes))")
-        Text("修改时间：\(node.modifiedAt.formatted(date: .abbreviated, time: .shortened))")
+        Text(L10n.text("类型：{0}", String(describing: node.kind == .directory ? L10n.text("目录") : L10n.text("文件"))))
+        Text(L10n.text("自身大小：{0}", String(describing: ByteCountFormatter.cleanerString(bytes: node.ownBytes))))
+        Text(L10n.text("累计占用：{0}", String(describing: ByteCountFormatter.cleanerString(bytes: node.recursiveBytes))))
+        Text(L10n.text("修改时间：{0}", String(describing: node.modifiedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.language.locale)))))
     }
 
     private func performRowAction(clickCount: Int) {

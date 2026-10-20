@@ -180,7 +180,7 @@ public struct DiskUsageScanner: Sendable {
             return DiskUsageNode(
                 url: url, kind: .directory, ownBytes: identity?.size ?? 0,
                 recursiveBytes: identity?.size ?? 0, childCount: 0, modifiedAt: modifiedAt,
-                isReadable: false, children: .unavailable("无法读取目录"), identity: identity
+                isReadable: false, children: .unavailable(L10n.text("无法读取目录")), identity: identity
             )
         }
         if let maximumDepth, depth >= maximumDepth {
@@ -202,7 +202,7 @@ public struct DiskUsageScanner: Sendable {
             return DiskUsageNode(
                 url: url, kind: .directory, ownBytes: identity?.size ?? 0,
                 recursiveBytes: identity?.size ?? 0, childCount: 0, modifiedAt: modifiedAt,
-                isReadable: false, children: .unavailable("无法读取目录"), identity: identity
+                isReadable: false, children: .unavailable(L10n.text("无法读取目录")), identity: identity
             )
         }
         var children: [DiskUsageNode] = []
@@ -237,7 +237,7 @@ public struct DiskUsageScanner: Sendable {
                         childCount: 0,
                         modifiedAt: Date(timeIntervalSince1970: Double(childIdentity.modificationTime)),
                         isReadable: childReadable,
-                        children: childReadable ? .loaded([]) : .unavailable("无法读取文件"),
+                        children: childReadable ? .loaded([]) : .unavailable(L10n.text("无法读取文件")),
                         identity: childIdentity
                     ))
                 } else {

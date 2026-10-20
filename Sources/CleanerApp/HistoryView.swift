@@ -7,8 +7,8 @@ struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("恢复已删除项目").font(.largeTitle.bold())
-                Text("已删除项目可在保留期内恢复，期间仍占用磁盘空间。默认 24 小时后自动彻底删除，也可调整保留时间或立即彻底删除。")
+                Text(L10n.text("恢复已删除项目")).font(.largeTitle.bold())
+                Text(L10n.text("已删除项目可在保留期内恢复，期间仍占用磁盘空间。默认 24 小时后自动彻底删除，也可调整保留时间或立即彻底删除。"))
                     .foregroundColor(.secondary)
             }
             .padding(24)
@@ -28,7 +28,7 @@ struct HistoryView: View {
             }
 
             if model.receipts.isEmpty {
-                EmptyState(title: "还没有删除记录", message: "删除项目后，可在这里恢复或彻底删除。", icon: "clock.arrow.circlepath")
+                EmptyState(title: L10n.text("还没有删除记录"), message: L10n.text("删除项目后，可在这里恢复或彻底删除。"), icon: "clock.arrow.circlepath")
             } else {
                 List(model.receipts) { receipt in
                     ReceiptRow(model: model, receipt: receipt)
@@ -65,7 +65,7 @@ private struct ReceiptRow: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
                         Text(statusTitle).fontWeight(.semibold)
-                        Text(receipt.completedAt.formatted(date: .abbreviated, time: .shortened))
+                        Text(receipt.completedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.language.locale)))
                             .foregroundColor(.secondary)
                     }
                     Text(summaryText).font(.caption).foregroundColor(.secondary)
@@ -76,14 +76,14 @@ private struct ReceiptRow: View {
                 Spacer()
                 if isWorking {
                     ProgressView().controlSize(.small)
-                    Text(model.recoveryActionKind == .purge ? "正在彻底删除" : "正在恢复")
+                    Text(model.recoveryActionKind == .purge ? L10n.text("正在彻底删除") : L10n.text("正在恢复"))
                         .font(.caption).foregroundColor(.secondary)
                 } else if !quarantined.isEmpty {
-                    Button("恢复 \(quarantined.count) 项") { model.requestRestore(receipt) }
-                        .help("恢复到原路径；若路径已有内容，将保存到相邻位置而不覆盖")
-                    Button("彻底删除", role: .destructive) { model.requestPermanentDeletion(receipt) }
+                    Button(L10n.text("恢复 {0} 项", String(describing: quarantined.count))) { model.requestRestore(receipt) }
+                        .help(L10n.text("恢复到原路径；若路径已有内容，将保存到相邻位置而不覆盖"))
+                    Button(L10n.text("彻底删除"), role: .destructive) { model.requestPermanentDeletion(receipt) }
                         .foregroundColor(.red)
-                        .help("仅彻底删除本应用保留的已删除项目；不可恢复")
+                        .help(L10n.text("仅彻底删除本应用保留的已删除项目；不可恢复"))
                 } else {
                     Label(resolvedTitle, systemImage: restored.isEmpty ? "trash.slash" : "arrow.uturn.backward.circle.fill")
                         .font(.caption).foregroundColor(.secondary)
@@ -91,7 +91,7 @@ private struct ReceiptRow: View {
             }
 
             if !quarantined.isEmpty {
-                Label("这 \(quarantined.count) 项仍占用约 \(ByteCountFormatter.cleanerString(bytes: quarantinedBytes))；恢复不会释放空间，彻底删除后才释放。", systemImage: "internaldrive")
+                Label(L10n.text("这 {0} 项仍占用约 {1}；恢复不会释放空间，彻底删除后才释放。", String(describing: quarantined.count), String(describing: ByteCountFormatter.cleanerString(bytes: quarantinedBytes))), systemImage: "internaldrive")
                     .font(.caption).foregroundColor(.secondary).padding(.leading, 46)
                 QuarantineScheduleControls(model: model, receipt: receipt)
                     .padding(.leading, 46)
@@ -102,30 +102,30 @@ private struct ReceiptRow: View {
 
     private var summaryText: String {
         var parts: [String] = []
-        if !quarantined.isEmpty { parts.append("可恢复 \(quarantined.count) 项 · \(ByteCountFormatter.cleanerString(bytes: quarantinedBytes))") }
-        if !restored.isEmpty { parts.append("已恢复 \(restored.count) 项") }
-        if !trashed.isEmpty { parts.append("已移入系统废纸篓 \(trashed.count) 项") }
-        if !deleted.isEmpty { parts.append("已彻底删除 \(deleted.count) 项 · 释放约 \(ByteCountFormatter.cleanerString(bytes: deletedBytes))") }
-        if !unavailable.isEmpty { parts.append("保留内容已不存在 \(unavailable.count) 项") }
-        if parts.isEmpty { parts.append("未移动任何内容") }
+        if !quarantined.isEmpty { parts.append(L10n.text("可恢复 {0} 项 · {1}", String(describing: quarantined.count), String(describing: ByteCountFormatter.cleanerString(bytes: quarantinedBytes)))) }
+        if !restored.isEmpty { parts.append(L10n.text("已恢复 {0} 项", String(describing: restored.count))) }
+        if !trashed.isEmpty { parts.append(L10n.text("已移入系统废纸篓 {0} 项", String(describing: trashed.count))) }
+        if !deleted.isEmpty { parts.append(L10n.text("已彻底删除 {0} 项 · 释放约 {1}", String(describing: deleted.count), String(describing: ByteCountFormatter.cleanerString(bytes: deletedBytes)))) }
+        if !unavailable.isEmpty { parts.append(L10n.text("保留内容已不存在 {0} 项", String(describing: unavailable.count))) }
+        if parts.isEmpty { parts.append(L10n.text("未移动任何内容")) }
         return parts.joined(separator: " · ")
     }
 
     private var resolvedTitle: String {
-        if !restored.isEmpty, (!trashed.isEmpty || !deleted.isEmpty) { return "已恢复或删除" }
-        if !restored.isEmpty { return "已恢复" }
-        if !trashed.isEmpty { return "已移入系统废纸篓" }
-        if !deleted.isEmpty { return "已彻底删除" }
-        if !unavailable.isEmpty { return "保留内容已不存在" }
-        return "没有可恢复内容"
+        if !restored.isEmpty, (!trashed.isEmpty || !deleted.isEmpty) { return L10n.text("已恢复或删除") }
+        if !restored.isEmpty { return L10n.text("已恢复") }
+        if !trashed.isEmpty { return L10n.text("已移入系统废纸篓") }
+        if !deleted.isEmpty { return L10n.text("已彻底删除") }
+        if !unavailable.isEmpty { return L10n.text("保留内容已不存在") }
+        return L10n.text("没有可恢复内容")
     }
 
     private var statusTitle: String {
         switch receipt.overallStatus {
-        case .completed: "删除操作已完成"
-        case .partial: "删除操作部分完成"
-        case .rejected: "删除操作已拒绝"
-        case .failed: "删除操作失败"
+        case .completed: L10n.text("删除操作已完成")
+        case .partial: L10n.text("删除操作部分完成")
+        case .rejected: L10n.text("删除操作已拒绝")
+        case .failed: L10n.text("删除操作失败")
         }
     }
     private var statusIcon: String { receipt.overallStatus == .completed ? "checkmark.circle.fill" : "exclamationmark.triangle.fill" }
@@ -148,21 +148,21 @@ private struct QuarantineScheduleControls: View {
                         Text(countdownText(schedule: schedule, now: context.date))
                             .font(.caption.weight(.semibold))
                         if let deadline = schedule.scheduledDeletionAt {
-                            Text("计划时间：\(deadline.formatted(date: .abbreviated, time: .shortened))")
+                            Text(L10n.text("计划时间：{0}", String(describing: deadline.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.language.locale)))))
                                 .font(.caption2).foregroundColor(.secondary)
                         }
                         if let failure = schedule.failureMessage {
-                            Text("上次尝试失败：\(failure)")
+                            Text(L10n.text("上次尝试失败：{0}", String(describing: failure)))
                                 .font(.caption2).foregroundColor(.orange).lineLimit(2)
                         }
                     }
                 }
             } else {
-                Text("正在建立自动删除计划…").font(.caption).foregroundColor(.secondary)
+                Text(L10n.text("正在建立自动删除计划…")).font(.caption).foregroundColor(.secondary)
             }
             Spacer()
             Picker(
-                "保留时间",
+                L10n.text("保留时间"),
                 selection: Binding(
                     get: { schedule?.policy ?? model.defaultQuarantineRetentionPolicy },
                     set: { model.rescheduleQuarantine(receipt, policy: $0) }
@@ -188,19 +188,19 @@ private struct QuarantineScheduleControls: View {
         let countdown = QuarantineCountdown(schedule: schedule, now: now)
         switch countdown.state {
         case .manual:
-            return "手动保留，不会自动彻底删除"
+            return L10n.text("手动保留，不会自动彻底删除")
         case .due:
             return schedule.policy == .immediate
-                ? "等待 App 移入系统废纸篓"
-                : "已到期，等待 App 完成彻底删除"
+                ? L10n.text("等待 App 移入系统废纸篓")
+                : L10n.text("已到期，等待 App 完成彻底删除")
         case .scheduled:
             let seconds = Int(countdown.remainingSeconds)
             let days = seconds / 86_400
             let hours = (seconds % 86_400) / 3_600
             let minutes = max(1, (seconds % 3_600) / 60)
-            if days > 0 { return "剩余 \(days) 天 \(hours) 小时后自动彻底删除" }
-            if hours > 0 { return "剩余 \(hours) 小时 \(minutes) 分钟后自动彻底删除" }
-            return "剩余约 \(minutes) 分钟后自动彻底删除"
+            if days > 0 { return L10n.text("剩余 {0} 天 {1} 小时后自动彻底删除", String(describing: days), String(describing: hours)) }
+            if hours > 0 { return L10n.text("剩余 {0} 小时 {1} 分钟后自动彻底删除", String(describing: hours), String(describing: minutes)) }
+            return L10n.text("剩余约 {0} 分钟后自动彻底删除", String(describing: minutes))
         }
     }
 }
@@ -214,19 +214,19 @@ private struct PermanentDeletionSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Label("彻底删除", systemImage: "trash.fill")
+            Label(L10n.text("彻底删除"), systemImage: "trash.fill")
                 .font(.title.bold()).foregroundColor(.red)
-            Text("将永久删除本应用保留的已删除项目，共 \(quarantined.count) 项，释放约 \(ByteCountFormatter.cleanerString(bytes: bytes))。此操作不可恢复，也无法撤销。")
+            Text(L10n.text("将永久删除本应用保留的已删除项目，共 {0} 项，释放约 {1}。此操作不可恢复，也无法撤销。", String(describing: quarantined.count), String(describing: ByteCountFormatter.cleanerString(bytes: bytes))))
                 .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             RecoveryItemList(items: quarantined)
-            Label("仅彻底删除这条记录中保留的项目，不会处理原目录或相邻文件。", systemImage: "lock.shield")
+            Label(L10n.text("仅彻底删除这条记录中保留的项目，不会处理原目录或相邻文件。"), systemImage: "lock.shield")
                 .font(.callout).foregroundColor(.secondary)
                 .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                 .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
             HStack {
-                Button("取消") { model.dismissPermanentDeletion() }
+                Button(L10n.text("取消")) { model.dismissPermanentDeletion() }
                 Spacer()
-                Button("彻底删除", role: .destructive) { model.confirmPermanentDeletion() }
+                Button(L10n.text("彻底删除"), role: .destructive) { model.confirmPermanentDeletion() }
                     .buttonStyle(.borderedProminent).tint(.red)
             }
         }
@@ -243,15 +243,15 @@ private struct RestoreConfirmationSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Label("确认恢复", systemImage: "arrow.uturn.backward.circle.fill")
+            Label(L10n.text("确认恢复"), systemImage: "arrow.uturn.backward.circle.fill")
                 .font(.title.bold()).foregroundColor(.accentColor)
-            Text("将恢复以下 \(quarantined.count) 项，共约 \(ByteCountFormatter.cleanerString(bytes: bytes))。如果原路径已有同名内容，会恢复到相邻位置，不会覆盖现有文件。")
+            Text(L10n.text("将恢复以下 {0} 项，共约 {1}。如果原路径已有同名内容，会恢复到相邻位置，不会覆盖现有文件。", String(describing: quarantined.count), String(describing: ByteCountFormatter.cleanerString(bytes: bytes))))
                 .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             RecoveryItemList(items: quarantined)
             HStack {
-                Button("取消") { model.dismissRestoreConfirmation() }
+                Button(L10n.text("取消")) { model.dismissRestoreConfirmation() }
                 Spacer()
-                Button("确认恢复") { model.confirmRestore() }
+                Button(L10n.text("确认恢复")) { model.confirmRestore() }
                     .buttonStyle(.borderedProminent)
             }
         }

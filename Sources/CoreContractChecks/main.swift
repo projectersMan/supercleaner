@@ -8,6 +8,11 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+if CommandLine.arguments.dropFirst().first == "--check-localization" {
+    try runLocalizationContracts()
+    exit(0)
+}
+
 if CommandLine.arguments.dropFirst().first == "--check-installed-uninstall" {
     try await runInstalledUninstallReadOnlyCheck(paths: Array(CommandLine.arguments.dropFirst(2)))
     exit(0)
@@ -85,6 +90,7 @@ if CommandLine.arguments.dropFirst().first == "--validate-application-release", 
     }
 }
 
+try runLocalizationContracts()
 require(RiskLevel.safe.isSelectableByDefault, "safe candidates must be selected by default")
 require(!RiskLevel.review.isSelectableByDefault, "review candidates must require confirmation")
 require(!RiskLevel.blocked.isSelectable, "blocked candidates must never be selectable")

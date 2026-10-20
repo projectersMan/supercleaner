@@ -8,10 +8,10 @@ public enum ApplicationListScope: String, CaseIterable, Sendable {
 
     public var displayTitle: String {
         switch self {
-        case .all: "全部"
-        case .uninstallable: "可卸载"
-        case .running: "运行中"
-        case .systemProtected: "系统保护"
+        case .all: L10n.text("全部")
+        case .uninstallable: L10n.text("可卸载")
+        case .running: L10n.text("运行中")
+        case .systemProtected: L10n.text("系统保护")
         }
     }
 }

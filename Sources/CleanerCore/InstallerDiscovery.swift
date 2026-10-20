@@ -30,14 +30,14 @@ public struct InstallerDiscovery: Sendable {
             return max(0.01, timeLimit - Double(elapsed.seconds) - Double(elapsed.attoseconds) / 1e18)
         }
         let knownRoots: [(String, String)] = [
-            ("Downloads", "下载"), ("Desktop", "桌面"),
-            ("Library/Caches/Homebrew", "Homebrew 缓存"),
-            ("Library/Mobile Documents/com~apple~CloudDocs/Downloads", "iCloud 下载"),
-            ("Library/Containers/com.apple.mail/Data/Library/Mail Downloads", "邮件附件下载"),
-            ("Library/Containers/ru.keepcoder.Telegram/Data/Downloads", "Telegram 下载"),
+            ("Downloads", L10n.text("下载")), ("Desktop", L10n.text("桌面")),
+            ("Library/Caches/Homebrew", L10n.text("Homebrew 缓存")),
+            ("Library/Mobile Documents/com~apple~CloudDocs/Downloads", L10n.text("iCloud 下载")),
+            ("Library/Containers/com.apple.mail/Data/Library/Mail Downloads", L10n.text("邮件附件下载")),
+            ("Library/Containers/ru.keepcoder.Telegram/Data/Downloads", L10n.text("Telegram 下载")),
         ]
         var roots = knownRoots.map { (context.homeDirectory.appendingPathComponent($0.0).standardizedFileURL, $0.1) }
-        roots.append(contentsOf: additionalRoots.map { ($0.standardizedFileURL, "自定义位置") })
+        roots.append(contentsOf: additionalRoots.map { ($0.standardizedFileURL, L10n.text("自定义位置")) })
         var remaining = maximumEntries
         var visited = Set<String>()
         var output: [CleanupCandidate] = []
@@ -86,8 +86,8 @@ public struct InstallerDiscovery: Sendable {
                             url: url, displayName: url.lastPathComponent, category: .installerArtifact,
                             bytes: measured.bytes, risk: risk,
                             evidence: [Evidence(code: "installer-source", summary: source, details: configuredRoot.path),
-                                       Evidence(code: "installer-type", summary: ext == "zip" ? "已验证安装归档结构和完整性" : "安装文件格式：\(ext)"),
-                                       Evidence(code: "manual-selection", summary: "已识别的安装包；安装完成且不再需要时可清理")],
+                                       Evidence(code: "installer-type", summary: ext == "zip" ? L10n.text("已验证安装归档结构和完整性") : L10n.text("安装文件格式：{0}", String(describing: ext))),
+                                       Evidence(code: "manual-selection", summary: L10n.text("已识别的安装包；安装完成且不再需要时可清理"))],
                             identity: identity, source: .general, lastAccessDate: Date(timeIntervalSince1970: Double(identity.modificationTime)),
                             isActive: active, defaultSelection: false
                         )))

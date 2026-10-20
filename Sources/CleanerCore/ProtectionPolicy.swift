@@ -57,7 +57,7 @@ public struct ProtectionPolicy: Sendable {
                 risk: .blocked,
                 evidence: candidate.evidence + [Evidence(
                     code: isAvailable ? "protected-by-policy" : "protection-unavailable",
-                    summary: isAvailable ? "此路径或其内容受到保护" : "保护清单无法读取，暂停删除"
+                    summary: isAvailable ? L10n.text("此路径或其内容受到保护") : L10n.text("保护清单无法读取，暂停删除")
                 )]
             )
         }

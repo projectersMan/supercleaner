@@ -49,7 +49,7 @@ public struct AgentCatalogRegistryStore: Sendable {
             .replacingOccurrences(of: " ", with: "-")
         return AgentCatalogGroup(
             id: normalizedID.isEmpty ? "other" : normalizedID,
-            title: normalizedTitle.isEmpty ? "其他" : normalizedTitle,
+            title: normalizedTitle.isEmpty ? L10n.text("其他") : normalizedTitle,
             icon: inferredIcon(for: normalizedTitle),
             sortOrder: 10_000,
             isInferred: true

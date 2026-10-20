@@ -14,9 +14,10 @@ BUNDLE_ID=${SUPERCLEANER_BUNDLE_ID:-com.example.SuperCleaner}
 [[ ${BUNDLE_ID} =~ '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+){2,}$' ]] || { print -u2 "Invalid Bundle ID"; exit 1; }
 HELPER_ID=${BUNDLE_ID}.helper
 RELEASE_CONFIG=${SUPERCLEANER_RELEASE_CONFIG:-}
-BUILD_NUMBER=${SUPERCLEANER_BUILD_NUMBER:-1}
-DISPLAY_VERSION=${SUPERCLEANER_VERSION:-1.0.0}
-[[ ${BUILD_NUMBER} =~ '^[1-9][0-9]{0,17}$' && ${DISPLAY_VERSION} =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || { print -u2 "Invalid release version or build number"; exit 1; }
+VERSION_VALUES=("${(@f)$(/usr/bin/python3 "${SCRIPT_DIR}/version.py" resolve)}")
+DISPLAY_VERSION=${VERSION_VALUES[1]}
+BUILD_NUMBER=${VERSION_VALUES[2]}
+/usr/bin/python3 "${SCRIPT_DIR}/check-localizations.py"
 
 if [[ ${DEVELOPER_DIR} == */CommandLineTools && -d /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk ]]; then
   export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk
@@ -73,6 +74,9 @@ fi
 /bin/cp -R ${BIN_PATH}/SuperCleaner_CleanerCore.bundle ${APP}/Contents/Resources/
 /bin/cp ${PROJECT_ROOT}/Resources/HelperInfo.plist ${APP}/Contents/Resources/HelperInfo.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${HELPER_ID}" ${APP}/Contents/Resources/HelperInfo.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER}" ${APP}/Contents/Resources/HelperInfo.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${DISPLAY_VERSION}" ${APP}/Contents/Resources/HelperInfo.plist
+/bin/cp -R ${PROJECT_ROOT}/Resources/en.lproj ${PROJECT_ROOT}/Resources/zh-Hans.lproj ${APP}/Contents/Resources/
 /bin/cp ${PROJECT_ROOT}/Resources/LaunchDaemon.plist ${APP}/Contents/Library/LaunchDaemons/${HELPER_ID}.plist
 DAEMON_PLIST=${APP}/Contents/Library/LaunchDaemons/${HELPER_ID}.plist
 /usr/libexec/PlistBuddy -c "Set :Label ${HELPER_ID}" ${DAEMON_PLIST}

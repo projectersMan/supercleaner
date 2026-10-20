@@ -9,12 +9,12 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $model.selection) {
-                Section("清理") {
+                Section(L10n.text("清理")) {
                     ForEach([AppDestination.cleanupCenter, .systemCleanup, .applications, .largeFiles, .agentEnvironment]) { destination in
                         destinationLabel(destination)
                     }
                 }
-                Section("工具") {
+                Section(L10n.text("工具")) {
                     ForEach([AppDestination.recovery, .settings]) { destination in
                         destinationLabel(destination)
                     }
@@ -54,7 +54,7 @@ struct ContentView: View {
         switch destination {
         case .dashboard: DashboardView(model: model)
         case .cleanupCenter: DashboardView(model: model)
-        case .systemCleanup: CleanupReviewView(model: model, destination: .systemCleanup, title: "系统清理")
+        case .systemCleanup: CleanupReviewView(model: model, destination: .systemCleanup, title: L10n.text("系统清理"))
         case .applications: ApplicationsView(model: model)
         case .largeFiles: DiskSpaceView(model: model)
         case .agentEnvironment: AgentEnvironmentView(model: model)

@@ -4,7 +4,7 @@ func runAppNavigationContracts() {
     require(
         AppDestination.allCases.map(\.title) == [
             "概览", "清理中心", "系统清理", "应用卸载", "大文件", "Agent 环境", "恢复记录", "设置",
-        ],
+        ].map { L10n.text($0) },
         "sidebar must expose the approved task-centered destinations"
     )
 
@@ -89,8 +89,9 @@ func runAppNavigationContracts() {
         require(!policy.showsModuleScanControls(for: destination, globalScanIsRunning: false, moduleState: .scanning), "stopped scans must hide module scan controls")
     }
 
-    require(SelectionLabelPolicy.cleanupToggle(name: "Cache", isSelected: false, isBlocked: false) == "将 Cache 加入清理计划", "unchecked cleanup label describes inclusion")
-    require(SelectionLabelPolicy.cleanupToggle(name: "Cache", isSelected: true, isBlocked: false) == "从清理计划移除 Cache", "checked cleanup label describes removal")
-    require(SelectionLabelPolicy.uninstallToggle(name: "Support", isSelected: true, isBlocked: false) == "从卸载计划移除 Support", "checked uninstall label describes removal")
-    require(SelectionLabelPolicy.cleanupToggle(name: "Credential", isSelected: false, isBlocked: true) == "Credential，始终保护", "blocked label describes protection")
+    let english = L10n.language == .english
+    require(SelectionLabelPolicy.cleanupToggle(name: "Cache", isSelected: false, isBlocked: false) == (english ? "Add Cache to cleanup plan" : "将 Cache 加入清理计划"), "unchecked cleanup label describes inclusion")
+    require(SelectionLabelPolicy.cleanupToggle(name: "Cache", isSelected: true, isBlocked: false) == (english ? "Remove Cache from cleanup plan" : "从清理计划移除 Cache"), "checked cleanup label describes removal")
+    require(SelectionLabelPolicy.uninstallToggle(name: "Support", isSelected: true, isBlocked: false) == (english ? "Remove Support from uninstall plan" : "从卸载计划移除 Support"), "checked uninstall label describes removal")
+    require(SelectionLabelPolicy.cleanupToggle(name: "Credential", isSelected: false, isBlocked: true) == (english ? "Credential, always protected" : "Credential，始终保护"), "blocked label describes protection")
 }

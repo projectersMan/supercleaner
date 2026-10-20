@@ -68,31 +68,31 @@ public struct CachedFirmwareScanner: Scanner {
         let active = context.isActive(url)
         var evidence = [Evidence(
             code: "cached-device-firmware",
-            summary: "已发现缓存的 Apple 设备固件",
-            details: "仅识别明确固件缓存目录中的 .ipsw 文件；不会自动加入清理计划。"
+            summary: L10n.text("已发现缓存的 Apple 设备固件"),
+            details: L10n.text("仅识别明确固件缓存目录中的 .ipsw 文件；不会自动加入清理计划。")
         )]
 
         var risk: RiskLevel = .review
         if active {
             risk = .blocked
-            evidence.append(Evidence(code: "active", summary: "当前有任务或进程正在使用"))
+            evidence.append(Evidence(code: "active", summary: L10n.text("当前有任务或进程正在使用")))
         }
         if identity.kind == .symbolicLink {
             risk = .blocked
-            evidence.append(Evidence(code: "symbolic-link", summary: "符号链接不会进入清理计划"))
+            evidence.append(Evidence(code: "symbolic-link", summary: L10n.text("符号链接不会进入清理计划")))
         } else if identity.kind != .file {
             risk = .blocked
-            evidence.append(Evidence(code: "unknown-file-kind", summary: "无法确认这是普通文件"))
+            evidence.append(Evidence(code: "unknown-file-kind", summary: L10n.text("无法确认这是普通文件")))
         }
         if !readable {
             risk = .blocked
-            evidence.append(Evidence(code: "unreadable", summary: "当前权限不足，无法验证文件"))
+            evidence.append(Evidence(code: "unreadable", summary: L10n.text("当前权限不足，无法验证文件")))
         }
         do {
             _ = try context.pathPolicy.validateCandidate(url)
         } catch {
             risk = .blocked
-            evidence.append(Evidence(code: "protected-path", summary: "路径受到安全策略保护"))
+            evidence.append(Evidence(code: "protected-path", summary: L10n.text("路径受到安全策略保护")))
         }
 
         return CleanupCandidate(

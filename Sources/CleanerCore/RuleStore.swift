@@ -117,16 +117,16 @@ public enum RuleStoreError: Error, Equatable, Sendable, LocalizedError {
     case interruptedCommit
     public var errorDescription: String? {
         switch self {
-        case .invalidPublicKey: "规则签名公钥无效或尚未配置"
-        case .invalidSignature: "规则签名验证失败"
-        case .invalidSchema: "规则格式或安全约束无效"
-        case .noCurrentRules: "没有可用的已验证规则"
-        case .noPreviousRules: "没有可回滚的上一份规则"
-        case .downgrade: "规则比已见版本旧，或属于回滚后的旧包重放"
-        case .futureDated: "规则发布时间超出允许的时钟偏差"
-        case .invalidStorage: "规则存储不可读、损坏或发生路径替换"
-        case .storageLimit: "规则及撤销证据超过存储限制"
-        case .interruptedCommit: "规则提交未完成，已保留此前规则"
+        case .invalidPublicKey: L10n.text("规则签名公钥无效或尚未配置")
+        case .invalidSignature: L10n.text("规则签名验证失败")
+        case .invalidSchema: L10n.text("规则格式或安全约束无效")
+        case .noCurrentRules: L10n.text("没有可用的已验证规则")
+        case .noPreviousRules: L10n.text("没有可回滚的上一份规则")
+        case .downgrade: L10n.text("规则比已见版本旧，或属于回滚后的旧包重放")
+        case .futureDated: L10n.text("规则发布时间超出允许的时钟偏差")
+        case .invalidStorage: L10n.text("规则存储不可读、损坏或发生路径替换")
+        case .storageLimit: L10n.text("规则及撤销证据超过存储限制")
+        case .interruptedCommit: L10n.text("规则提交未完成，已保留此前规则")
         }
     }
 }

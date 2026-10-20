@@ -7,9 +7,9 @@ public enum LargeFileSortOrder: String, CaseIterable, Sendable {
 
     public var displayTitle: String {
         switch self {
-        case .size: "按大小"
-        case .selection: "按选择"
-        case .directory: "按目录"
+        case .size: L10n.text("按大小")
+        case .selection: L10n.text("按选择")
+        case .directory: L10n.text("按目录")
         }
     }
 

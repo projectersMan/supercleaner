@@ -23,13 +23,13 @@ public enum QuarantineRetentionPolicy: String, Codable, CaseIterable, Hashable, 
 
     public var displayTitle: String {
         switch self {
-        case .immediate: "立即删除"
-        case .hours24: "24 小时后"
-        case .days2: "2 天后"
-        case .days3: "3 天后"
-        case .week1: "1 周后"
-        case .month1: "1 个月后"
-        case .manual: "手动保留"
+        case .immediate: L10n.text("立即删除")
+        case .hours24: L10n.text("24 小时后")
+        case .days2: L10n.text("2 天后")
+        case .days3: L10n.text("3 天后")
+        case .week1: L10n.text("1 周后")
+        case .month1: L10n.text("1 个月后")
+        case .manual: L10n.text("手动保留")
         }
     }
 }

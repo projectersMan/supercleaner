@@ -2,7 +2,7 @@ import CleanerCore
 import Foundation
 
 func runCleanupModeContracts() {
-    require(CleanupMode.userFacingCases.map(\.displayTitle) == ["自动清理", "手动选择"], "cleanup center must expose automatic and manual modes")
+    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("自动清理"), L10n.text("手动选择")], "cleanup center must expose automatic and manual modes")
     require(CleanupMode.defaultMode == .deep, "automatic cleanup must be the default one-click plan")
 
     let recommended = modeCandidate(name: "Recommended", category: .cache, risk: .safe)
@@ -72,7 +72,7 @@ func runCleanupModeContracts() {
     )
     let centerScope = CleanupScopePolicy().cleanupCenterCandidates(from: [recommended, deep, large, agent])
     require(centerScope.map(\.id) == [recommended.id, deep.id], "cleanup center must include developer cache but exclude large-file and Agent modules")
-    require(CleanupMode.userFacingCases.map(\.displayTitle) == ["自动清理", "手动选择"], "strategy names must communicate automatic versus manual control")
+    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("自动清理"), L10n.text("手动选择")], "strategy names must communicate automatic versus manual control")
     require(ByteCountFormatter.cleanerString(bytes: 0) == "0 KB", "zero-byte formatting")
     require(ByteCountFormatter.cleanerString(bytes: 1) == "< 1 KB", "tiny nonzero values must not appear as zero")
     require(CleanupScopePolicy().candidates(for: .largeFiles, from: [recommended, large, agent]) == [large], "large-file plans stay inside the large-file page")

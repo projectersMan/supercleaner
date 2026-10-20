@@ -7,9 +7,9 @@ public enum ApplicationSortOrder: String, CaseIterable, Sendable {
 
     public var displayTitle: String {
         switch self {
-        case .name: "按名称"
-        case .selection: "按选择"
-        case .directory: "按目录"
+        case .name: L10n.text("按名称")
+        case .selection: L10n.text("按选择")
+        case .directory: L10n.text("按目录")
         }
     }
 

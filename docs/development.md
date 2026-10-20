@@ -4,7 +4,7 @@
 
 - 平台：macOS 13 或更高版本。
 - 语言与 UI：Swift 6、SwiftUI、AppKit。
-- 包管理：Swift Package Manager；当前没有第三方包依赖。
+- 包管理：Swift Package Manager；应用更新使用固定版本的 Sparkle。
 - 推荐使用与目标 SDK 匹配的完整 Xcode。仅有 Command Line Tools 时，脚本会选择本机兼容 SDK，但 XCTest 可能不可用。
 
 常用命令：
@@ -16,6 +16,29 @@ open build/SuperCleaner.app
 ```
 
 `build-app.sh` 构建核心契约、主 App 和 Helper，并组装本地 App。`verify-app.sh` 检查 Bundle、资源、Helper、最低系统版本和签名，并在系统临时目录执行真实隔离/恢复烟雾测试。
+
+### 语言与版本管理
+
+设置页提供 English 和中文（简体），首次启动以及无效偏好均默认英语，不跟随系统语言。选择保存在应用偏好 `appLanguage` 中，下次启动生效；界面会提示先完成当前操作再退出重开。语言切换不重建扫描模型、不丢弃当前选择，也不会中断执行。
+
+`CleanerCore/Localization.swift` 在进程启动时固定本次语言，后台扫描和界面共用它。自有界面与诊断文案维护在 `Sources/CleanerCore/Resources/{en,zh-Hans}.lproj/Localizable.strings`。参数使用 `{0}`、`{1}`，允许翻译调整顺序，但不会重新解释文件名和路径中的占位符。文件名、用户 Skill 文档、第三方规则及历史记录中的原始内容不做自动翻译。原有卸载归属判断使用的标准证据字符串保持不变，仅翻译展示副本；Skill Markdown 的中英文标题识别也保持不变。系统权限说明位于 `Resources/{en,zh-Hans}.lproj/InfoPlist.strings`。
+
+版本从 `0.0.0` 开始，唯一仓库配置为根目录 `Version.json`，包含三段式 `version` 和递增正整数 `build`。每个完成的修改批次仅将第三位加一（如 `0.0.9` → `0.0.10`），第一位和第二位只能根据人类明确要求修改，不自动进位或重置。规则同时记录在根目录 `AGENTS.md`。Info.plist 源文件中的零值只是打包占位符；构建脚本把解析后的同一版本写入主应用和 Helper 的元数据。设置页读取实际安装包元数据；直接运行未打包程序时显示“Unpackaged”，不伪报发行版本。
+
+```bash
+python3 Scripts/version.py show
+python3 Scripts/version.py bump        # 0.0.0 (1) → 0.0.1 (2)
+python3 Scripts/version.py bump patch  # 等价；只增加第三位和构建号
+```
+
+每批修改完成后、最终验证和提交前执行一次递增命令，版本配置与修改一起提交；重跑测试、重复构建或仅推送不会再次递增。命令拒绝 `major`、`minor` 和仅增加 `build` 的普通递增方式。用户明确要求修改前两位时，按要求编辑配置，再为该修改批次递增第三位一次。CI 的 `SUPERCLEANER_VERSION` 必须与配置一致，不能另行覆盖展示版本；`SUPERCLEANER_BUILD_NUMBER` 仍可提供独立的 CI 构建号。构建与发布脚本共用相同验证。正式发布仍必须提供真实的 `SUPERCLEANER_PREVIOUS_BUILD_NUMBER`，新构建号必须更大。版本管理不自动检查更新、发布或上传。
+
+```bash
+python3 -B -m unittest discover -s Tests -p 'test_version.py'
+python3 Scripts/check-localizations.py
+```
+
+构建时自动检查双语键、参数和内置规则说明的覆盖。核心契约验证语言默认值、偏好持久化、参数保护和实际包版本读取；打包验证分别以英语和中文检查资源，并核对主应用与 Helper 版本一致。
 
 `SUPERCLEANER_BUNDLE_ID` 可设置正式主应用标识符，Helper 标识符、Mach service、LaunchDaemon 名称和 BundleProgram 从同一值生成。主 App、Helper、CLI 使用显式签名标识符与 Hardened Runtime；证书签名使用时间戳，ad-hoc 保留明确的开发身份。构建门禁验证 `--self-check`：临时 / 示例 Helper 必须退出 78，且不能启动 listener；正式身份检查不安装、注册或弹授权 UI。
 
@@ -144,7 +167,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 
 - `SUPERCLEANER_RELEASE_CONFIG`：完整公开 JSON 的绝对路径。
 - `SUPERCLEANER_SIGN_IDENTITY`：Developer ID Application 证书名称或 SHA-1。
-- `SUPERCLEANER_VERSION`、`SUPERCLEANER_BUILD_NUMBER`：展示版本 x.y.z 与递增正整数构建号。
+- `SUPERCLEANER_VERSION`：可选，若提供，必须与 `Version.json` 的展示版本一致；`SUPERCLEANER_BUILD_NUMBER` 可提供独立的递增正整数构建号，构建与发布时必须一致。
 - `SUPERCLEANER_PREVIOUS_BUILD_NUMBER`：上次正式构建号；首次发布为 0。必须从真实发布记录取得，门禁不能证明这个人工输入正确。
 - `SUPERCLEANER_NOTARY_PROFILE`、`SUPERCLEANER_SPARKLE_ACCOUNT`：已有公证 Profile / Sparkle Ed25519 Keychain account；脚本不创建或导出私钥。
 

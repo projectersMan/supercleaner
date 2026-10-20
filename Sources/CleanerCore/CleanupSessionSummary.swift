@@ -158,7 +158,7 @@ public struct DefaultCleanupAttemptOutcome: Equatable, Sendable {
                 return DefaultCleanupFailure(
                     candidate: candidate,
                     status: .failed,
-                    reason: receipt.rejectionReason ?? "执行未返回此项目的结果",
+                    reason: receipt.rejectionReason ?? L10n.text("执行未返回此项目的结果"),
                     isRetryable: false
                 )
             }
@@ -194,15 +194,15 @@ private extension OperationResult {
 private extension OperationStatus {
     var failureDescription: String {
         switch self {
-        case .succeeded: "项目已处理"
-        case .skippedIdentityChanged: "文件身份已变化，请重新扫描"
-        case .skippedProtected: "路径安全策略拒绝执行"
-        case .skippedActive: "项目仍在使用"
-        case .skippedCancelled: "项目尚未开始"
-        case .failed: "文件操作失败"
-        case .restored: "项目已恢复"
-        case .restoreConflict: "恢复目标存在冲突"
-        case .sourceMissing: "保留内容已不存在"
+        case .succeeded: L10n.text("项目已处理")
+        case .skippedIdentityChanged: L10n.text("文件身份已变化，请重新扫描")
+        case .skippedProtected: L10n.text("路径安全策略拒绝执行")
+        case .skippedActive: L10n.text("项目仍在使用")
+        case .skippedCancelled: L10n.text("项目尚未开始")
+        case .failed: L10n.text("文件操作失败")
+        case .restored: L10n.text("项目已恢复")
+        case .restoreConflict: L10n.text("恢复目标存在冲突")
+        case .sourceMissing: L10n.text("保留内容已不存在")
         }
     }
 

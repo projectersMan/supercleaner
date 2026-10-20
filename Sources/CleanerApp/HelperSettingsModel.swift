@@ -46,9 +46,9 @@ import Foundation
         defer { finishChange() }
         do {
             try manager.install()
-            message = "已请求系统注册；请在系统设置中批准后验证连接。注册不等于操作已获授权。"
+            message = L10n.text("已请求系统注册；请在系统设置中批准后验证连接。注册不等于操作已获授权。")
         } catch {
-            message = "Helper 未安装：\(error.localizedDescription)"
+            message = L10n.text("Helper 未安装：{0}", String(describing: error.localizedDescription))
         }
     }
 
@@ -59,9 +59,9 @@ import Foundation
             defer { finishChange() }
             do {
                 try await manager.remove()
-                message = "Helper 已解除注册；恢复记录和隔离文件保持原样。"
+                message = L10n.text("Helper 已解除注册；恢复记录和隔离文件保持原样。")
             } catch {
-                message = "Helper 解除注册未完成：\(error.localizedDescription)"
+                message = L10n.text("Helper 解除注册未完成：{0}", String(describing: error.localizedDescription))
             }
         }
     }
@@ -73,9 +73,9 @@ import Foundation
             defer { finishChange() }
             do {
                 try await manager.reregisterAfterUpgrade()
-                message = "已重新注册本版本 Helper；系统可能要求重新批准。"
+                message = L10n.text("已重新注册本版本 Helper；系统可能要求重新批准。")
             } catch {
-                message = "Helper 重新注册失败：\(error.localizedDescription)"
+                message = L10n.text("Helper 重新注册失败：{0}", String(describing: error.localizedDescription))
             }
         }
     }
@@ -91,10 +91,10 @@ import Foundation
                 _ = try await XPCPrivilegedHelperClient(identity: identity).ping()
                 guard canChange() else { throw HelperClientError.unavailable }
                 try session.authorizeUserInteraction()
-                message = "已验证同团队 Helper 并启用最多 5 分钟的受限应用操作；具体项目仍需明确选择、确认和复验。"
+                message = L10n.text("已验证同团队 Helper 并启用最多 5 分钟的受限应用操作；具体项目仍需明确选择、确认和复验。")
             } catch {
                 session.revoke()
-                message = "Helper 会话未启用：\(error.localizedDescription)"
+                message = L10n.text("Helper 会话未启用：{0}", String(describing: error.localizedDescription))
             }
         }
     }
@@ -102,7 +102,7 @@ import Foundation
     func revokeSession() {
         session.revoke()
         authorizationActive = false
-        message = "已关闭本次特权操作授权；普通扫描和恢复记录仍可使用。"
+        message = L10n.text("已关闭本次特权操作授权；普通扫描和恢复记录仍可使用。")
     }
 
     func openApprovalSettings() { manager.openApprovalSettings() }

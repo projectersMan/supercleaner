@@ -101,7 +101,7 @@ func runApplicationContracts() async throws {
     require(restrictedCoverage.applicationListState == .complete, "application discovery must report its own complete state")
     require(restrictedCoverage.associationAnalysisState == .limited, "association analysis must report its independent limited state")
     require(
-        restrictedCoverage.summary == "应用清单完成 · 关联分析 1 个位置受限",
+        restrictedCoverage.summary == L10n.text("应用清单完成 · 关联分析 {0} 个位置受限", "1"),
         "module summary must distinguish discovery coverage from association coverage"
     )
     require(
@@ -113,14 +113,14 @@ func runApplicationContracts() async throws {
     let sensitive = plan.items.filter { $0.containsUserData || $0.isShared }
     require(sensitive.filter(\.isShared).allSatisfy { $0.candidate.risk == .blocked }, "shared content must remain blocked")
     let exactUserData = sensitive.filter {
-        $0.containsUserData && !$0.isShared && $0.candidate.evidence.contains { $0.code == "ownership" && $0.summary.contains("完整 Bundle ID 边界") }
+        $0.containsUserData && !$0.isShared && $0.candidate.evidence.contains { $0.code == "ownership" && $0.summary.contains(L10n.text("完整 Bundle ID 边界")) }
     }
     require(!exactUserData.isEmpty, "the fixture must include a complete-Bundle-ID user-data association")
     require(exactUserData.allSatisfy { $0.candidate.risk.isSelectable }, "exclusively-owned user data must be selectable for explicit removal")
     let exactDisplayNameSupport = sensitive.filter {
         $0.containsUserData && !$0.isShared
             && $0.candidate.url.path.contains("/Library/Application Support/")
-            && $0.candidate.evidence.contains { $0.code == "ownership" && $0.summary.contains("显示名精确匹配") }
+            && $0.candidate.evidence.contains { $0.code == "ownership" && $0.summary.contains(L10n.text("显示名精确匹配")) }
     }
     require(exactDisplayNameSupport.allSatisfy { $0.candidate.risk.isSelectable }, "exact app-specific Application Support folders should remain manually selectable")
     require(sensitive.filter { $0.containsUserData && !$0.isShared && !exactUserData.contains($0) && !exactDisplayNameSupport.contains($0) && !$0.candidate.evidence.contains { $0.code == "app-group-data" } }.allSatisfy { !$0.candidate.risk.isSelectable }, "ambiguous display-name-only user data must remain protected")
@@ -181,8 +181,8 @@ func runApplicationContracts() async throws {
     let systemAnalysis = analyzedInventory.analysis(for: URL(fileURLWithPath: "/System/Applications/System.app"))
     require(runningAnalysis?.state == .protected, "running applications must be protected without traversal")
     require(systemAnalysis?.state == .protected, "system applications must be protected without traversal")
-    require(runningAnalysis?.statusTitle == "运行中 · 暂不可卸载", "running protection must be explicitly temporary")
-    require(systemAnalysis?.statusTitle == "系统保护", "system protection must not be confused with temporary running protection")
+    require(runningAnalysis?.statusTitle == L10n.text("运行中 · 暂不可卸载"), "running protection must be explicitly temporary")
+    require(systemAnalysis?.statusTitle == L10n.text("系统保护"), "system protection must not be confused with temporary running protection")
     var protectedDisclosure = ApplicationUninstallDisclosureState()
     protectedDisclosure.toggle()
     require(protectedDisclosure.isExpanded, "protected application rows must expand even without an uninstall plan")

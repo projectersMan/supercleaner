@@ -11,8 +11,8 @@ struct CleanupReviewView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(title).font(.largeTitle.bold())
                     Text(destination == .systemCleanup
-                         ? "按建议分组展示完整可清理范围；可直接逐项勾选或保留。"
-                         : "查看路径与判断依据；勾选表示加入计划，未勾选表示保留。")
+                         ? L10n.text("按建议分组展示完整可清理范围；可直接逐项勾选或保留。")
+                         : L10n.text("查看路径与判断依据；勾选表示加入计划，未勾选表示保留。"))
                         .foregroundColor(.secondary)
                 }
                 Spacer()
@@ -27,8 +27,8 @@ struct CleanupReviewView: View {
                 ReviewWorkspaceView(
                     model: model,
                     destination: destination,
-                    emptyTitle: "还没有扫描结果",
-                    emptyMessage: "返回概览开始完整扫描。",
+                    emptyTitle: L10n.text("还没有扫描结果"),
+                    emptyMessage: L10n.text("返回概览开始完整扫描。"),
                     emptyIcon: "shield.checkered"
                 )
             }

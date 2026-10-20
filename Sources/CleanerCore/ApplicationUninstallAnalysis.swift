@@ -34,11 +34,11 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
 
     public var statusTitle: String {
         switch state {
-        case .complete: return "分析完整"
-        case .limited: return "可卸载 · 部分未统计"
-        case .unavailable: return "无法分析"
+        case .complete: return L10n.text("分析完整")
+        case .limited: return L10n.text("可卸载 · 部分未统计")
+        case .unavailable: return L10n.text("无法分析")
         case .protected:
-            return application.isRunning ? "运行中 · 暂不可卸载" : "系统保护"
+            return application.isRunning ? L10n.text("运行中 · 暂不可卸载") : L10n.text("系统保护")
         }
     }
 }
@@ -118,47 +118,47 @@ public struct ApplicationModuleCoverage: Codable, Hashable, Sendable {
 
         var issues = discovery.unavailableRoots.map { root in
             ScanLimitation(
-                title: "应用目录不可访问",
+                title: L10n.text("应用目录不可访问"),
                 path: root,
-                impact: "该位置中的应用可能没有出现在应用清单中。",
-                recovery: "检查文件权限；若该目录受 macOS 保护，请在系统设置中允许访问。"
+                impact: L10n.text("该位置中的应用可能没有出现在应用清单中。"),
+                recovery: L10n.text("检查文件权限；若该目录受 macOS 保护，请在系统设置中允许访问。")
             )
         }
         if discovery.budgetLimitedModules.contains(.applications) {
             issues.append(ScanLimitation(
-                title: "应用清单扫描未完成",
-                impact: "达到显式扫描边界，清单可能不完整。",
-                recovery: "移除扫描边界后重新扫描。"
+                title: L10n.text("应用清单扫描未完成"),
+                impact: L10n.text("达到显式扫描边界，清单可能不完整。"),
+                recovery: L10n.text("移除扫描边界后重新扫描。")
             ))
         }
         issues += inventory.associationCoverage.unavailableRoots.map { root in
             ScanLimitation(
-                title: "关联目录不可访问",
+                title: L10n.text("关联目录不可访问"),
                 path: root,
-                impact: "卸载计划可能遗漏该位置中的应用关联文件。",
-                recovery: "允许访问后重新扫描；当前已发现的应用仍可单独审查。"
+                impact: L10n.text("卸载计划可能遗漏该位置中的应用关联文件。"),
+                recovery: L10n.text("允许访问后重新扫描；当前已发现的应用仍可单独审查。")
             )
         }
         issues += individuallyLimited.flatMap { analysis -> [ScanLimitation] in
             if !analysis.limitations.isEmpty { return analysis.limitations }
             return [ScanLimitation(
-                title: analysis.state == .unavailable ? "应用无法分析" : "应用大小分析不完整",
+                title: analysis.state == .unavailable ? L10n.text("应用无法分析") : L10n.text("应用大小分析不完整"),
                 path: analysis.application.bundleURL,
-                impact: analysis.message ?? "该应用的卸载范围不完整。",
-                recovery: "确认应用目录可读并重新扫描。"
+                impact: analysis.message ?? L10n.text("该应用的卸载范围不完整。"),
+                recovery: L10n.text("确认应用目录可读并重新扫描。")
             )]
         }
         limitations = issues
 
         switch (applicationListState, associationAnalysisState) {
         case (.complete, .complete):
-            summary = "应用清单完成 · 关联分析完成"
+            summary = L10n.text("应用清单完成 · 关联分析完成")
         case (.complete, .limited):
-            summary = "应用清单完成 · 关联分析 \(issues.count) 个位置受限"
+            summary = L10n.text("应用清单完成 · 关联分析 {0} 个位置受限", String(describing: issues.count))
         case (.limited, .complete):
-            summary = "应用清单受限 · 已发现应用的关联分析完成"
+            summary = L10n.text("应用清单受限 · 已发现应用的关联分析完成")
         case (.limited, .limited):
-            summary = "应用清单与关联分析均有受限位置"
+            summary = L10n.text("应用清单与关联分析均有受限位置")
         }
     }
 
@@ -236,7 +236,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 application: application,
                 plan: nil,
                 state: .protected,
-                message: "这是由 macOS 管理的系统应用，无论是否运行都不会提供卸载操作。", ownership: ownership
+                message: L10n.text("这是由 macOS 管理的系统应用，无论是否运行都不会提供卸载操作。"), ownership: ownership
             )
         }
         if application.isRunning {
@@ -244,7 +244,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 application: application,
                 plan: nil,
                 state: .protected,
-                message: "应用正在运行，因此暂时不能卸载；退出应用并刷新后即可重新分析。", ownership: ownership
+                message: L10n.text("应用正在运行，因此暂时不能卸载；退出应用并刷新后即可重新分析。"), ownership: ownership
             )
         }
 
@@ -264,8 +264,8 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 message: ownership?.serviceReferences?.isEmpty == false || ownership?.ownershipVerified == false
                     ? ownership?.guidance
                     : ownership?.requiresExternalUninstall == true
-                        ? "可以单独移除应用本体；安装来源记录和关联内容可能保留。完整卸载可使用原安装工具。"
-                        : limited ? "应用本体可卸载；部分文件未完整统计，受影响的关联项保持保护。" : nil,
+                        ? L10n.text("可以单独移除应用本体；安装来源记录和关联内容可能保留。完整卸载可使用原安装工具。")
+                        : limited ? L10n.text("应用本体可卸载；部分文件未完整统计，受影响的关联项保持保护。") : nil,
                 limitations: result.limitations,
                 ownership: ownership
             )
@@ -274,12 +274,12 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 application: application,
                 plan: nil,
                 state: .unavailable,
-                message: "无法验证应用本体：\(ApplicationAnalysisErrorDescription.describe(error))",
+                message: L10n.text("无法验证应用本体：{0}", String(describing: ApplicationAnalysisErrorDescription.describe(error))),
                 limitations: [ScanLimitation(
                     title: ApplicationAnalysisErrorDescription.describe(error),
                     path: application.bundleURL,
-                    impact: "应用本体无法验证，因此没有生成卸载计划。",
-                    recovery: "确认应用仍在原位置并可读取，然后刷新应用。"
+                    impact: L10n.text("应用本体无法验证，因此没有生成卸载计划。"),
+                    recovery: L10n.text("确认应用仍在原位置并可读取，然后刷新应用。")
                 )], ownership: ownership
             )
         }
@@ -290,17 +290,17 @@ enum ApplicationAnalysisErrorDescription {
     static func describe(_ error: Error) -> String {
         if let failure = error as? FileSystemError {
             switch failure {
-            case .missing: return "文件已不存在"
-            case .invalidAttributes: return "无法读取完整文件信息"
-            case .unreadableContent: return "文件不可读取"
+            case .missing: return L10n.text("文件已不存在")
+            case .invalidAttributes: return L10n.text("无法读取完整文件信息")
+            case .unreadableContent: return L10n.text("文件不可读取")
             default: break
             }
         }
-        if error is CancellationError { return "分析已取消" }
+        if error is CancellationError { return L10n.text("分析已取消") }
         let failure = error as NSError
         if (failure.domain == NSCocoaErrorDomain && failure.code == NSFileReadNoPermissionError)
             || (failure.domain == NSPOSIXErrorDomain && [1, 13].contains(failure.code)) {
-            return "没有读取权限"
+            return L10n.text("没有读取权限")
         }
         return failure.localizedDescription
     }

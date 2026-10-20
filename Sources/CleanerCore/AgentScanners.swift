@@ -246,33 +246,33 @@ private enum AgentSemanticClassifier {
 
         if AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: context.homeDirectory)?.kind == .mcpConfiguration
             || MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url) {
-            (kind, category, baselineRisk, reason) = (.mcpConfiguration, .agentMCP, .review, "MCP 配置可能包含凭证，默认保留；仅在明确选择后加入可恢复的删除计划")
+            (kind, category, baselineRisk, reason) = (.mcpConfiguration, .agentMCP, .review, L10n.text("MCP 配置可能包含凭证，默认保留；仅在明确选择后加入可恢复的删除计划"))
         } else if url.standardizedFileURL.path == root.url.standardizedFileURL.path {
-            (kind, category, baselineRisk, reason) = (.providerRoot, .configuration, .blocked, "Agent Provider 根目录不可整体清理")
+            (kind, category, baselineRisk, reason) = (.providerRoot, .configuration, .blocked, L10n.text("Agent Provider 根目录不可整体清理"))
         } else if lowerComponents.contains("skills") || lowerComponents.contains("design_libraries") || lowerName == "skill.md" {
-            (kind, category, baselineRisk, reason) = (.skill, .agentSkill, .review, "Skill 默认保留，只有手动确认后才会加入删除计划")
+            (kind, category, baselineRisk, reason) = (.skill, .agentSkill, .review, L10n.text("Skill 默认保留，只有手动确认后才会加入删除计划"))
         } else if credentialNames.contains(lowerName) || lowerName.contains("credential") || lowerName.contains("token") {
-            (kind, category, baselineRisk, reason) = (.credential, .credential, .blocked, "凭证和令牌永不作为清理候选")
+            (kind, category, baselineRisk, reason) = (.credential, .credential, .blocked, L10n.text("凭证和令牌永不作为清理候选"))
         } else if protectedConfigNames.contains(lowerName) || lowerName.contains("mcp") && ["json", "yaml", "yml", "toml"].contains(url.pathExtension.lowercased()) {
-            (kind, category, baselineRisk, reason) = (.mcpConfiguration, .agentMCP, .review, "MCP 配置可能包含凭证，默认保留；仅在明确选择后加入可恢复的删除计划")
+            (kind, category, baselineRisk, reason) = (.mcpConfiguration, .agentMCP, .review, L10n.text("MCP 配置可能包含凭证，默认保留；仅在明确选择后加入可恢复的删除计划"))
         } else if instructionNames.contains(lowerName) || lowerName.contains("prompt") {
-            (kind, category, baselineRisk, reason) = (.promptOrInstruction, .userKnowledge, .blocked, "提示词、指令和记忆属于用户知识")
+            (kind, category, baselineRisk, reason) = (.promptOrInstruction, .userKnowledge, .blocked, L10n.text("提示词、指令和记忆属于用户知识"))
         } else if lowerComponents.contains("worktrees") || lowerName == "worktrees" {
-            (kind, category, baselineRisk, reason) = (.worktree, .agentWorktree, .blocked, "未验证 Git 状态前禁止清理 worktree")
+            (kind, category, baselineRisk, reason) = (.worktree, .agentWorktree, .blocked, L10n.text("未验证 Git 状态前禁止清理 worktree"))
         } else if lowerComponents.contains("sessions") || lowerName.contains("session") {
-            (kind, category, baselineRisk, reason) = (.session, .agentSession, .review, "会话可能包含可恢复上下文，因此默认保留")
+            (kind, category, baselineRisk, reason) = (.session, .agentSession, .review, L10n.text("会话可能包含可恢复上下文，因此默认保留"))
         } else if reproducibleCacheNames.contains(lowerName), lowerComponents.contains("sandboxes") || lowerComponents.contains("workspaces") {
-            (kind, category, baselineRisk, reason) = (.reproducibleCache, .agentSandbox, isOld && hasCompletionEvidence ? .safe : .review, hasCompletionEvidence ? "已完成沙箱内可重新生成的构建缓存" : "任务完成状态不足，因此默认保留")
+            (kind, category, baselineRisk, reason) = (.reproducibleCache, .agentSandbox, isOld && hasCompletionEvidence ? .safe : .review, hasCompletionEvidence ? L10n.text("已完成沙箱内可重新生成的构建缓存") : L10n.text("任务完成状态不足，因此默认保留"))
         } else if lowerComponents.contains("models") || lowerComponents.contains("huggingface") || lowerComponents.contains("ollama") {
-            (kind, category, baselineRisk, reason) = (.modelCache, .agentModelCache, .review, "模型可以重新下载，但时间和网络成本较高")
+            (kind, category, baselineRisk, reason) = (.modelCache, .agentModelCache, .review, L10n.text("模型可以重新下载，但时间和网络成本较高"))
         } else if packageCacheNames.contains(lowerName) {
-            (kind, category, baselineRisk, reason) = (.packageCache, .agentPackageCache, .review, "可重新下载，但需确认当前工具链未使用")
+            (kind, category, baselineRisk, reason) = (.packageCache, .agentPackageCache, .review, L10n.text("可重新下载，但需确认当前工具链未使用"))
         } else if sourceExtensions.contains(url.pathExtension.lowercased()) {
-            (kind, category, baselineRisk, reason) = (.unknown, .userKnowledge, .blocked, "源代码属于用户资产，始终保护")
+            (kind, category, baselineRisk, reason) = (.unknown, .userKnowledge, .blocked, L10n.text("源代码属于用户资产，始终保护"))
         } else if lowerComponents.contains("sandboxes") || lowerComponents.contains("workspaces") {
-            (kind, category, baselineRisk, reason) = (.sandbox, .agentSandbox, .review, "沙箱可能仍关联任务，因此默认保留")
+            (kind, category, baselineRisk, reason) = (.sandbox, .agentSandbox, .review, L10n.text("沙箱可能仍关联任务，因此默认保留"))
         } else {
-            (kind, category, baselineRisk, reason) = (.unknown, .agentUnknown, .review, "未识别的 Agent 资产默认保留")
+            (kind, category, baselineRisk, reason) = (.unknown, .agentUnknown, .review, L10n.text("未识别的 Agent 资产默认保留"))
         }
 
         let risk: RiskLevel
@@ -283,11 +283,11 @@ private enum AgentSemanticClassifier {
         }
 
         var evidence = [
-            Evidence(code: "agent-provider", summary: "来源：\(root.providerID)"),
+            Evidence(code: "agent-provider", summary: L10n.text("来源：{0}", String(describing: root.providerID))),
             Evidence(code: "agent-semantics", summary: reason),
         ]
-        if isActive { evidence.append(Evidence(code: "active", summary: "当前 Agent 任务正在使用")) }
-        if identity == nil { evidence.append(Evidence(code: "unverifiable", summary: "无法验证文件身份")) }
+        if isActive { evidence.append(Evidence(code: "active", summary: L10n.text("当前 Agent 任务正在使用"))) }
+        if identity == nil { evidence.append(Evidence(code: "unverifiable", summary: L10n.text("无法验证文件身份"))) }
         return AgentClassification(kind: kind, category: category, risk: risk, evidence: evidence)
     }
 }
@@ -416,7 +416,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         globallyOwnedPaths.remove(path)
                         traversals[index].identityFailures += 1
                         unavailableRoots.insert(url)
-                        limitations.append(Self.limitation(url, "无法验证 Agent 路径身份"))
+                        limitations.append(Self.limitation(url, L10n.text("无法验证 Agent 路径身份")))
                         continue
                     }
                     scannedRoots.insert(entry.root.url)
@@ -433,7 +433,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                             kind: classification.kind,
                             category: classification.category,
                             risk: .blocked,
-                            evidence: classification.evidence + [Evidence(code: "protected-path", summary: "路径安全策略禁止清理")]
+                            evidence: classification.evidence + [Evidence(code: "protected-path", summary: L10n.text("路径安全策略禁止清理"))]
                         )
                     }
 
@@ -500,13 +500,13 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                                 })
                             } else if !children.isEmpty {
                                 traversals[index].depthLimited = true
-                                limitations.append(Self.limitation(url, "达到 Agent 扫描深度"))
+                                limitations.append(Self.limitation(url, L10n.text("达到 Agent 扫描深度")))
                             }
                         } catch is CancellationError { throw CancellationError() }
                         catch {
                             traversals[index].readFailures += 1
                             unavailableRoots.insert(url)
-                            limitations.append(Self.limitation(url, "Agent 目录无法读取"))
+                            limitations.append(Self.limitation(url, L10n.text("Agent 目录无法读取")))
                         }
                     }
                     break
@@ -549,7 +549,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         }
         let reachedBudget = traversals.contains { $0.cursor < $0.queue.count || $0.depthLimited }
         for traversal in traversals where traversal.cursor < traversal.queue.count {
-            limitations.append(Self.limitation(traversal.queue[traversal.cursor].url, "达到 Agent 条目预算"))
+            limitations.append(Self.limitation(traversal.queue[traversal.cursor].url, L10n.text("达到 Agent 条目预算")))
         }
         let sortedAssets = assets.sorted { $0.candidate.url.path.localizedStandardCompare($1.candidate.url.path) == .orderedAscending }
         let sortedSkills = skillsByRootPath.values.sorted {
@@ -577,7 +577,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
     }
 
     private static func limitation(_ url: URL, _ title: String) -> ScanLimitation {
-        ScanLimitation(title: title, path: url, impact: "此位置或后代未完整检查，不能声明扫描完整", recovery: "检查权限或缩小扫描范围后重试")
+        ScanLimitation(title: title, path: url, impact: L10n.text("此位置或后代未完整检查，不能声明扫描完整"), recovery: L10n.text("检查权限或缩小扫描范围后重试"))
     }
 
     private struct ProviderTraversal {

@@ -63,7 +63,7 @@ func runUninstallResilienceContracts() async throws {
     let result = analysis.analysis(for: app.id)
     require(result?.plan?.items.contains { $0.candidate.url.path == appURL.path } == true, "an unreadable cache descendant must leave the application bundle uninstallable")
     require(result?.state == .limited, "incomplete cache measurement must be reported as limited, not as an unavailable app")
-    require(result?.limitations.contains { $0.title == "没有读取权限" && $0.path?.lastPathComponent == "restricted.run" } == true, "uninstall diagnostics must preserve the actual permission failure and its path")
+    require(result?.limitations.contains { $0.title == L10n.text("没有读取权限") && $0.path?.lastPathComponent == "restricted.run" } == true, "uninstall diagnostics must preserve the actual permission failure and its path")
     let inspectedCachePath = root.appendingPathComponent("Library/Caches/com.example.resilient").path
     require(result?.plan?.items.first { $0.candidate.url.path == inspectedCachePath }?.candidate.risk == .review, "a partially measured association must be opt-in review, not permanently protected")
     let visited = await fileSystem.visitedPaths()

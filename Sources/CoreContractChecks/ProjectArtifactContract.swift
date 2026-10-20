@@ -37,7 +37,7 @@ func runProjectArtifactContracts() async throws {
     require(Set(report.artifacts.map { $0.candidate.displayName }) == Set(names), "project scanner must find all five requested artifact classes")
     require(report.artifacts.allSatisfy { $0.projectURL.lastPathComponent == "example" && $0.candidate.defaultSelection == false }, "project results must retain ownership and require explicit selection")
     func candidate(_ name: String) -> CleanupCandidate { report.artifacts.first { $0.candidate.displayName == name }!.candidate }
-    require(candidate("build").risk == .blocked && candidate("build").evidence.contains { $0.code == "git-status" && $0.summary.contains("包含 Git") }, "Git tracked artifacts must be protected")
+    require(candidate("build").risk == .blocked && candidate("build").evidence.contains { $0.code == "git-status" && $0.summary == L10n.text("包含 Git 跟踪文件，保持保护") }, "Git tracked artifacts must be protected")
     require(candidate(".build").risk == .blocked && candidate(".build").evidence.contains { $0.code == "nested-git" }, "nested repositories must be protected")
     require(candidate("dist").risk == .blocked && candidate("dist").evidence.contains { $0.code == "deployment-key" }, "deployment keys must protect artifact directory")
     require(candidate("target").risk == .review && candidate("target").evidence.contains { $0.code == "recent-activity" }, "recent artifacts must remain unselected but manually reviewable")

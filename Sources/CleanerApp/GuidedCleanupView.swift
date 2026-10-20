@@ -14,16 +14,16 @@ struct GuidedCleanupView: View {
     var body: some View {
         VStack(spacing: 0) {
             if model.showsScanningPlaceholder(for: .systemCleanup) {
-                EmptyState(title: "正在更新扫描结果", message: "当前报告仍被保留，新报告完成后会重新生成方案。", icon: "magnifyingglass")
+                EmptyState(title: L10n.text("正在更新扫描结果"), message: L10n.text("当前报告仍被保留，新报告完成后会重新生成方案。"), icon: "magnifyingglass")
             } else if centerCandidates.isEmpty {
-                EmptyState(title: "没有建议清理的内容", message: "本次扫描没有发现符合安全规则的系统清理项。", icon: "checkmark.shield")
+                EmptyState(title: L10n.text("没有建议清理的内容"), message: L10n.text("本次扫描没有发现符合安全规则的系统清理项。"), icon: "checkmark.shield")
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         DispositionCandidatesDisclosure(
                             model: model,
-                            title: "建议清理",
-                            subtitle: cleanupCandidates.isEmpty ? "本次扫描没有符合安全规则的可清理项目" : "低风险项目和深度清理候选",
+                            title: L10n.text("建议清理"),
+                            subtitle: cleanupCandidates.isEmpty ? L10n.text("本次扫描没有符合安全规则的可清理项目") : L10n.text("低风险项目和深度清理候选"),
                             icon: "checkmark.shield",
                             candidates: cleanupCandidates,
                             isExpanded: $cleanupExpanded,
@@ -31,10 +31,10 @@ struct GuidedCleanupView: View {
                         )
                         DispositionCandidatesDisclosure(
                             model: model,
-                            title: "建议保留",
+                            title: L10n.text("建议保留"),
                             subtitle: retainedCandidates.isEmpty
-                                ? "本次扫描没有需要保留复核的项目"
-                                : "可在自定义模式中逐项复核；受保护项目仍不能加入删除计划",
+                                ? L10n.text("本次扫描没有需要保留复核的项目")
+                                : L10n.text("可在自定义模式中逐项复核；受保护项目仍不能加入删除计划"),
                             icon: "archivebox",
                             candidates: retainedCandidates,
                             isExpanded: $retainedExpanded,
@@ -74,7 +74,7 @@ private struct DispositionCandidatesDisclosure: View {
                         .font(.caption.weight(.semibold)).foregroundColor(.secondary).frame(width: 12)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "折叠\(title)" : "展开\(title)")
+                .accessibilityLabel(isExpanded ? L10n.text("折叠{0}", String(describing: title)) : L10n.text("展开{0}", String(describing: title)))
                 Image(systemName: icon).foregroundColor(.accentColor).frame(width: 22)
                 Button { model.toggleCleanupCategory(candidates) } label: {
                     Image(systemName: selectionState.icon)
@@ -85,7 +85,7 @@ private struct DispositionCandidatesDisclosure: View {
                 .accessibilityLabel("\(title)，\(selectionState.accessibilityTitle)")
                 Button { isExpanded.toggle() } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(title) \(candidates.count) 项").fontWeight(.medium)
+                        Text(L10n.text("{0} {1} 项", String(describing: title), String(describing: candidates.count))).fontWeight(.medium)
                         Text(subtitle).font(.caption).foregroundColor(.secondary)
                     }
                 }
@@ -115,6 +115,6 @@ private extension SelectionTriState {
         switch self { case .none: "square"; case .partial: "minus.square.fill"; case .all: "checkmark.square.fill" }
     }
     var accessibilityTitle: String {
-        switch self { case .none: "未选择"; case .partial: "部分选择"; case .all: "全部选择" }
+        switch self { case .none: L10n.text("未选择"); case .partial: L10n.text("部分选择"); case .all: L10n.text("全部选择") }
     }
 }

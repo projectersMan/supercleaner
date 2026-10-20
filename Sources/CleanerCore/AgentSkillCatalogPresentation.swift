@@ -7,9 +7,9 @@ public enum AgentSkillDecision: String, Codable, Hashable, Sendable, CaseIterabl
 
     public var displayTitle: String {
         switch self {
-        case .retain: "保留"
-        case .plannedForDeletion: "加入删除计划"
-        case .deletionUnavailable: "不可删除"
+        case .retain: L10n.text("保留")
+        case .plannedForDeletion: L10n.text("加入删除计划")
+        case .deletionUnavailable: L10n.text("不可删除")
         }
     }
 }
@@ -228,18 +228,18 @@ public struct AgentSkillCatalogPresentation: Sendable {
         containsAmbiguousOwnership: Bool
     ) -> String {
         if linkedAssets.isEmpty {
-            return "本轮扫描没有拉出该 Skill 的实体目录内容。"
+            return L10n.text("本轮扫描没有拉出该 Skill 的实体目录内容。")
         }
         if containsAmbiguousOwnership {
-            return "该 Skill 关联的目录与其它 Skill 存在归属重叠，需要先在目录视图中确认。"
+            return L10n.text("该 Skill 关联的目录与其它 Skill 存在归属重叠，需要先在目录视图中确认。")
         }
         if containsProtectedAssets {
-            return "该 Skill 目录内包含当前不可删或仍受保护的内容，因此不能整体加入删除计划。"
+            return L10n.text("该 Skill 目录内包含当前不可删或仍受保护的内容，因此不能整体加入删除计划。")
         }
         if selectableCandidateIDs.isEmpty {
-            return "该 Skill 当前没有可加入删除计划的目录单元。"
+            return L10n.text("该 Skill 当前没有可加入删除计划的目录单元。")
         }
-        return "删除时会把该 Skill 目录下已确认可删的内容一起加入当前计划。"
+        return L10n.text("删除时会把该 Skill 目录下已确认可删的内容一起加入当前计划。")
     }
 
     private static func matches(

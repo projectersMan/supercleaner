@@ -4,12 +4,12 @@ public enum ApplicationUpdateError: Error, LocalizedError, Sendable {
     case invalidVersion, downgrade, untrustedFeed, invalidArchive, busy, helperStillRegistered
     public var errorDescription: String? {
         switch self {
-        case .invalidVersion: "应用构建号必须是正整数"
-        case .downgrade: "拒绝相同或更低构建号的更新"
-        case .untrustedFeed: "更新目录没有通过签名验证"
-        case .invalidArchive: "更新必须是明确发布主机上的完整应用 DMG"
-        case .busy: "请先结束扫描、清理、恢复或其他更新"
-        case .helperStillRegistered: "Helper 尚未解除注册，不能开始应用更新"
+        case .invalidVersion: L10n.text("应用构建号必须是正整数")
+        case .downgrade: L10n.text("拒绝相同或更低构建号的更新")
+        case .untrustedFeed: L10n.text("更新目录没有通过签名验证")
+        case .invalidArchive: L10n.text("更新必须是明确发布主机上的完整应用 DMG")
+        case .busy: L10n.text("请先结束扫描、清理、恢复或其他更新")
+        case .helperStillRegistered: L10n.text("Helper 尚未解除注册，不能开始应用更新")
         }
     }
 }

@@ -185,7 +185,7 @@ public actor QuarantineMaintenanceCoordinator {
                     disposition: .unavailable,
                     status: .sourceMissing,
                     bytes: 0,
-                    message: "保留内容已不存在，已结束恢复记录；未计入本次释放空间"
+                    message: L10n.text("保留内容已不存在，已结束恢复记录；未计入本次释放空间")
                 )
             }
             let deleted = resolutionResults.filter {
@@ -208,7 +208,7 @@ public actor QuarantineMaintenanceCoordinator {
             let updatedReceipt = latestReceipt.applying(resolutionResults: resolutionResults)
             let persistenceFailureReason = AutomaticCleanupFailureReason(
                 code: .historyPersistenceFailed,
-                message: "文件处理已完成，但恢复记录尚未持久化",
+                message: L10n.text("文件处理已完成，但恢复记录尚未持久化"),
                 failedItemCount: failures.count
             )
 
@@ -220,7 +220,7 @@ public actor QuarantineMaintenanceCoordinator {
             if updatedReceipt.hasQuarantinedContent {
                 let failureReason = AutomaticCleanupFailureReason(
                     code: .itemDeletionFailed,
-                    message: failures.compactMap(\.message).first ?? "部分已删除项目未能彻底删除",
+                    message: failures.compactMap(\.message).first ?? L10n.text("部分已删除项目未能彻底删除"),
                     failedItemCount: failures.count
                 )
                 try await scheduleStore.upsert(schedule.recordingAttempt(

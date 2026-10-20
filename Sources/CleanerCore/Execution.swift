@@ -74,18 +74,18 @@ public actor CleanupExecutor {
                 plan: plan,
                 receiptID: receiptID,
                 startedAt: startedAt,
-                reason: "清理计划已过期，请重新扫描"
+                reason: L10n.text("清理计划已过期，请重新扫描")
             )
         }
         let liveVersion: String
         do { liveVersion = try await loadRuleVersion?() ?? currentRuleVersion }
-        catch { return rejected(plan: plan, receiptID: receiptID, startedAt: startedAt, reason: "无法验证当前清理规则") }
+        catch { return rejected(plan: plan, receiptID: receiptID, startedAt: startedAt, reason: L10n.text("无法验证当前清理规则")) }
         if plan.ruleVersion != liveVersion {
             return rejected(
                 plan: plan,
                 receiptID: receiptID,
                 startedAt: startedAt,
-                reason: "清理规则版本已变化，请重新扫描"
+                reason: L10n.text("清理规则版本已变化，请重新扫描")
             )
         }
 
@@ -99,7 +99,7 @@ public actor CleanupExecutor {
             if Task.isCancelled { stoppedByCancellation = true; break }
             let candidate = item.candidate
             if plan.isExpired(at: now()) {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划执行期间已过期，请重新扫描"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划执行期间已过期，请重新扫描")))
                 continue
             }
             progress(ExecutionProgress(completed: index, total: selected.count, currentURL: candidate.url))
@@ -108,7 +108,7 @@ public actor CleanupExecutor {
                 try await loadProtection().validate(candidate.url)
                 try await validateCandidate(candidate)
                 if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
-                    results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "清理规则已变化，请重新扫描"))
+                    results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("清理规则已变化，请重新扫描")))
                     continue
                 }
                 if candidate.category == .application, candidate.source == .application {
@@ -117,11 +117,11 @@ public actor CleanupExecutor {
                     _ = try pathPolicy.validateCandidate(candidate.url)
                 }
             } catch {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "安全策略拒绝执行：\(error)"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
                 continue
             }
             guard !plan.isExpired(at: now()) else {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划在安全校验期间已过期，请重新扫描"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在安全校验期间已过期，请重新扫描")))
                 continue
             }
 
@@ -129,26 +129,26 @@ public actor CleanupExecutor {
             let activityBlocksExecution = candidate.source != .general
                 && (candidate.isActive || currentlyActive)
             guard !activityBlocksExecution else {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedActive, message: "项目仍在使用"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedActive, message: L10n.text("项目仍在使用")))
                 continue
             }
             guard !plan.isExpired(at: now()) else {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划在活跃状态校验期间已过期，请重新扫描"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在活跃状态校验期间已过期，请重新扫描")))
                 continue
             }
 
             do {
                 let currentIdentity = try await fileSystem.identity(at: candidate.url)
                 guard currentIdentity == candidate.identity else {
-                    results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: "文件身份已变化"))
+                    results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("文件身份已变化")))
                     continue
                 }
             } catch {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: "无法重新验证文件身份"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("无法重新验证文件身份")))
                 continue
             }
             guard !plan.isExpired(at: now()) else {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划在文件身份校验期间已过期，请重新扫描"))
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在文件身份校验期间已过期，请重新扫描")))
                 continue
             }
 
@@ -158,14 +158,14 @@ public actor CleanupExecutor {
                     quarantineDirectoryCreated = true
                 }
                 guard !plan.isExpired(at: now()) else {
-                    results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划在隔离目录准备期间已过期，请重新扫描"))
+                    results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在隔离目录准备期间已过期，请重新扫描")))
                     continue
                 }
                 let destination = uniqueDestination(for: candidate, in: planDirectory)
                 let handled = try await privilegedApplications?.moveToQuarantine(candidate: candidate, destination: destination, planID: plan.id) ?? false
                 if !handled {
                     guard !plan.isExpired(at: now()) else {
-                        results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: "计划在权限操作回退前已过期，请重新扫描"))
+                        results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在权限操作回退前已过期，请重新扫描")))
                         continue
                     }
                     try await fileSystem.move(candidate.url, to: destination)
@@ -177,7 +177,7 @@ public actor CleanupExecutor {
                 if verified {
                     results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .quarantined, status: .succeeded, bytes: candidate.bytes))
                 } else {
-                    results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .failed, status: .failed, bytes: candidate.bytes, message: "移动后身份验证失败，日志保留", verificationNotBefore: now().addingTimeInterval(150)))
+                    results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .failed, status: .failed, bytes: candidate.bytes, message: L10n.text("移动后身份验证失败，日志保留"), verificationNotBefore: now().addingTimeInterval(150)))
                 }
             } catch {
                 if error is HelperMutationUncertain {
@@ -193,7 +193,7 @@ public actor CleanupExecutor {
         if stoppedByCancellation {
             let completedIDs = Set(results.map(\.candidateID))
             for item in selected where !completedIDs.contains(item.candidate.id) {
-                results.append(result(for: item.candidate, disposition: .skipped, status: .skippedCancelled, message: "用户停止了尚未开始的项目"))
+                results.append(result(for: item.candidate, disposition: .skipped, status: .skippedCancelled, message: L10n.text("用户停止了尚未开始的项目")))
             }
         }
 
@@ -236,14 +236,14 @@ public actor CleanupExecutor {
                     disposition: .quarantined,
                     status: .succeeded,
                     bytes: candidate.bytes,
-                    message: "启动时恢复了已完成的隔离操作"
+                    message: L10n.text("启动时恢复了已完成的隔离操作")
                 ))
             } else if sourceExists, !destinationExists {
                 let mayBeInFlight = candidate.source == .application && candidate.url.path.hasPrefix("/Applications/")
                     && now() < entry.plan.expiresAt.addingTimeInterval(150) && previousReceipt == nil
                 if mayBeInFlight {
                     results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
-                        disposition: .failed, status: .failed, bytes: candidate.bytes, message: "等待可能的在途 Helper 请求过期；日志保留",
+                        disposition: .failed, status: .failed, bytes: candidate.bytes, message: L10n.text("等待可能的在途 Helper 请求过期；日志保留"),
                         verificationNotBefore: entry.plan.expiresAt.addingTimeInterval(150)))
                     continue
                 }
@@ -251,7 +251,7 @@ public actor CleanupExecutor {
                     for: candidate,
                     disposition: .skipped,
                     status: .skippedCancelled,
-                    message: "应用退出前尚未执行"
+                    message: L10n.text("应用退出前尚未执行")
                 ))
             } else {
                 results.append(OperationResult(
@@ -261,9 +261,9 @@ public actor CleanupExecutor {
                     disposition: .failed,
                     status: .failed,
                     bytes: candidate.bytes,
-                    message: destinationExists && !matchesIdentity ? "隔离路径存在但文件身份不匹配，禁止认定成功" : sourceExists
-                        ? "原路径与隔离路径同时存在，无法判定执行结果"
-                        : "原路径与隔离路径均不存在，无法判定执行结果",
+                    message: destinationExists && !matchesIdentity ? L10n.text("隔离路径存在但文件身份不匹配，禁止认定成功") : sourceExists
+                        ? L10n.text("原路径与隔离路径同时存在，无法判定执行结果")
+                        : L10n.text("原路径与隔离路径均不存在，无法判定执行结果"),
                     verificationNotBefore: previousReceipt?.results.first(where: { $0.candidateID == candidate.id })?.verificationNotBefore != nil
                         || (candidate.source == .application && candidate.url.path.hasPrefix("/Applications/")) ? now().addingTimeInterval(60) : nil
                 ))
@@ -358,12 +358,12 @@ public actor CleanupExecutor {
             guard let item = items[result.candidateID],
                   isOwnedQuarantineURL(item.sourceURL, receipt: entry.receipt, result: result)
             else {
-                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: result.destinationURL, disposition: .skipped, status: .skippedProtected, bytes: result.bytes, message: "恢复源不属于本应用保留的已删除项目"))
+                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: result.destinationURL, disposition: .skipped, status: .skippedProtected, bytes: result.bytes, message: L10n.text("恢复源不属于本应用保留的已删除项目")))
                 continue
             }
             let source = item.sourceURL
             guard let destination = item.destinationURL else {
-                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: "恢复日志缺少目标路径"))
+                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: L10n.text("恢复日志缺少目标路径")))
                 continue
             }
             let sourceExists = await fileSystem.fileExists(source)
@@ -371,9 +371,9 @@ public actor CleanupExecutor {
                 let destinationExists = await fileSystem.fileExists(destination)
                 if item.sourceExistedAtPreparation, destinationExists {
                     let status: OperationStatus = destination == result.originalURL ? .restored : .restoreConflict
-                    restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: status, bytes: result.bytes, message: "启动时恢复了已完成的恢复操作"))
+                    restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: status, bytes: result.bytes, message: L10n.text("启动时恢复了已完成的恢复操作")))
                 } else {
-                    restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: "保留的文件不存在"))
+                    restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: L10n.text("保留的文件不存在")))
                 }
                 continue
             }
@@ -384,7 +384,7 @@ public actor CleanupExecutor {
                     _ = try pathPolicy.validateCandidate(result.originalURL)
                 }
             } catch {
-                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .skipped, status: .skippedProtected, bytes: result.bytes, message: "恢复目标不在安全边界内"))
+                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: source, disposition: .skipped, status: .skippedProtected, bytes: result.bytes, message: L10n.text("恢复目标不在安全边界内")))
                 continue
             }
             do {
@@ -395,7 +395,7 @@ public actor CleanupExecutor {
                     throw HelperMutationUncertain()
                 }
                 let hasConflict = destination != result.originalURL
-                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: hasConflict ? .restoreConflict : .restored, bytes: result.bytes, message: hasConflict ? "原路径已有文件，已恢复到相邻路径" : nil))
+                restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: hasConflict ? .restoreConflict : .restored, bytes: result.bytes, message: hasConflict ? L10n.text("原路径已有文件，已恢复到相邻路径") : nil))
             } catch {
                 restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .failed, status: .failed, bytes: result.bytes, message: String(describing: error)))
             }
@@ -434,7 +434,7 @@ public actor CleanupExecutor {
                     disposition: .skipped,
                     status: .skippedProtected,
                     bytes: result.bytes,
-                    message: "路径不属于本应用保留的已删除项目"
+                    message: L10n.text("路径不属于本应用保留的已删除项目")
                 ))
                 continue
             }
@@ -448,8 +448,8 @@ public actor CleanupExecutor {
                     status: item.sourceExistedAtPreparation ? .succeeded : .sourceMissing,
                     bytes: result.bytes,
                     message: item.sourceExistedAtPreparation
-                        ? "启动时确认已移入系统废纸篓"
-                        : "保留的文件在移动准备前已不存在，无法证明已移入系统废纸篓"
+                        ? L10n.text("启动时确认已移入系统废纸篓")
+                        : L10n.text("保留的文件在移动准备前已不存在，无法证明已移入系统废纸篓")
                 ))
                 continue
             }
@@ -465,7 +465,7 @@ public actor CleanupExecutor {
                     disposition: .trashed,
                     status: .succeeded,
                     bytes: result.bytes,
-                    message: "已移入系统废纸篓"
+                    message: L10n.text("已移入系统废纸篓")
                 ))
             } catch {
                 trashed.append(OperationResult(
@@ -496,7 +496,7 @@ public actor CleanupExecutor {
                     disposition: .skipped,
                     status: .skippedProtected,
                     bytes: result.bytes,
-                    message: "路径不属于本应用保留的已删除项目"
+                    message: L10n.text("路径不属于本应用保留的已删除项目")
                 ))
                 continue
             }
@@ -510,7 +510,7 @@ public actor CleanupExecutor {
                         disposition: .permanentlyDeleted,
                         status: .succeeded,
                         bytes: result.bytes,
-                        message: "启动时确认已完成彻底删除"
+                        message: L10n.text("启动时确认已完成彻底删除")
                     ))
                 } else {
                     deleted.append(OperationResult(
@@ -520,7 +520,7 @@ public actor CleanupExecutor {
                         disposition: .failed,
                         status: .sourceMissing,
                         bytes: result.bytes,
-                        message: "保留的文件在删除准备前已不存在，无法证明彻底删除成功"
+                        message: L10n.text("保留的文件在删除准备前已不存在，无法证明彻底删除成功")
                     ))
                 }
                 continue
@@ -538,7 +538,7 @@ public actor CleanupExecutor {
                     disposition: .permanentlyDeleted,
                     status: .succeeded,
                     bytes: result.bytes,
-                    message: "已彻底删除"
+                    message: L10n.text("已彻底删除")
                 ))
             } catch {
                 deleted.append(OperationResult(

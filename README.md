@@ -1,76 +1,52 @@
 # SuperCleaner
 
-**The first known macOS system cleaner to include dedicated AI agent workspace cleanup.** SuperCleaner brings AI agent environment discovery into a full Mac cleanup workflow, alongside application leftovers, developer build artifacts, caches, and large files. Review what will change, protect important data, and keep eligible cleanup recoverable.
-
-> System cleanup and dedicated AI agent workspace discovery, with review, protection, and recovery built in.
+**The first known macOS system cleaner to include dedicated AI agent workspace cleanup.** SuperCleaner helps you reclaim disk space while keeping cleanup visible, reviewable, and recoverable.
 
 ## Features
 
-- **Find space you can reclaim.** Scan common caches, logs, installers, temporary files, developer artifacts, and large files.
-- **Review before cleanup.** See why each item was found and whether it is safe, needs review, or is blocked. App, large-file, and agent results are never preselected for deletion.
-- **Clean up with recovery in mind.** SuperCleaner rechecks candidates before acting, moves eligible items into its quarantine, and records the operation so you can restore them later.
-- **Uninstall applications carefully.** Review an app and its related files together. Installation ownership and management sources are checked so managed apps can be handed back to their original installer.
-- **Inspect project build artifacts.** Find folders such as `node_modules`, `target`, `.build`, `build`, and `dist`, grouped by project. Tracked files, active projects, nested repositories, and sensitive material are protected.
-- **Clean up with AI agent workspaces in mind.** Discover environments from tools such as Codex, Claude, Cursor, and Trae as part of the same Mac cleanup workflow. Inspect Skills, MCP configurations, sessions, caches, and project worktrees with resource-aware protections; sensitive configuration values are not collected, and protected workspace content is not silently treated as disposable.
-- **Keep control of sensitive paths.** Add files or folders to a persistent protection list that is honored during scanning, planning, and execution.
-- **Use a read-only CLI.** Query scan results, candidate details, cleanup previews, history, and project artifacts as JSON. The CLI does not delete files.
+- Scan caches, logs, temporary files, installers, developer artifacts, and large files.
+- Review evidence and safety status before cleanup; app, large-file, and AI agent results require explicit selection.
+- Plan application uninstallations with related files and installation ownership checks.
+- Find project artifacts such as `node_modules`, `target`, `.build`, `build`, and `dist`, while protecting active projects and tracked content.
+- Discover Codex, Claude, Cursor, Trae, and other AI agent environments. Inspect Skills, MCP configurations, sessions, caches, and worktrees with protections for sensitive data.
+- Quarantine eligible items for recovery, keep an operation history, and protect paths you choose.
 
 ## Get started
 
-SuperCleaner currently builds from source. You need macOS 13 or later and Swift 6 (Xcode or the Xcode Command Line Tools).
+SuperCleaner requires macOS 13 or later and Swift 6. Clone the repository and build the app:
 
 ```bash
-git clone https://github.com/<your-account>/SuperCleaner.git
-cd SuperCleaner
+git clone https://github.com/projectersMan/supercleaner.git
+cd supercleaner
 ./Scripts/build-app.sh
 open build/SuperCleaner.app
 ```
 
-Replace `<your-account>` with the GitHub account or organization hosting the repository. For a local build check, run:
+To run the local build verification:
 
 ```bash
 ./Scripts/verify-app.sh
 ```
 
-Local builds may use ad-hoc signing when no stable Apple signing identity is available. This is suitable for development on your Mac; it is not a notarized public release. See the [development guide](docs/development.md) for signing, verification, and release requirements.
+Local builds may use ad-hoc signing and are intended for development. They are not notarized public releases.
 
 ## How to use
 
-1. **Open SuperCleaner and start a scan** from the Overview. Grant macOS permissions when a scan needs access to protected locations.
-2. **Review the results** in Cleanup Center, Applications, Large Files, Agent Environment, or Project Artifacts. Select individual items to inspect their paths, evidence, and safety status.
-3. **Choose what to act on.** System cleanup offers a default selection for eligible system candidates. Applications, large files, and agent workspace items require your explicit selection. Blocked items cannot be added to a plan.
-4. **Review the plan and confirm.** SuperCleaner revalidates selected files immediately before execution. Eligible items are moved to quarantine rather than being immediately erased.
-5. **Restore or manage completed cleanup** from History. Quarantined items can be restored while they remain available; retention and automatic cleanup settings are managed by the app.
+![SuperCleaner overview showing the scan entry point and cleanup categories](docs/images/cleanup-center.png)
 
-To uninstall an application, open **Applications**, select the app, review its associated items, and confirm the uninstall plan. Some apps are managed by Homebrew, Steam, or another installer and should be removed through that source.
+1. Open SuperCleaner and start a full scan from **Overview**. Grant macOS permissions when prompted for protected locations.
+2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Select an item to inspect its path, evidence, and safety status.
+3. Choose what to include. Eligible system cleanup items can be preselected; application, large-file, and agent workspace findings require your explicit selection. Blocked items cannot be selected.
+4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting and moves eligible items into quarantine.
+5. Open **History** to review completed operations and restore quarantined items while they remain available.
 
-To add a protected path, open **Settings** and add the file or folder to the protection list. Protected paths are excluded from cleanup plans.
-
-## Read-only CLI
-
-The CLI is built into the app bundle at `Contents/MacOS/supercleaner`. These commands return JSON using schema version 1:
-
-```bash
-APP="build/SuperCleaner.app/Contents/MacOS/supercleaner"
-
-"$APP" scan --module general --json
-"$APP" candidates --json
-"$APP" preview --module general --path '/absolute/path/to/candidate' --json
-"$APP" history --json
-"$APP" projects --json
-"$APP" project-preview --path '/absolute/path/to/project/node_modules' --json
-```
-
-Omit `--module` from `scan` to scan all supported modules. `preview` and `project-preview` only create a plan; they do not modify files. The CLI has no delete command. Errors are written to stderr and return a non-zero exit code.
+To uninstall an app, open **Applications**, select it, review its related items, and confirm the plan. Apps managed by Homebrew, Steam, or another installer should be removed through that source. Add paths to the protection list in **Settings** to exclude them from cleanup plans.
 
 ## Privacy and safety
 
-Scanning is read-only. Cleanup requires an explicit plan and confirmation, and candidates are checked again before execution. Eligible items are quarantined for recovery. Sensitive agent configuration values such as command arguments, environment variables, headers, and tokens are not included in MCP summaries. Diagnostic reporting is off by default.
-
-The optional privileged Helper is not required for ordinary user-level cleanup. It only supports a limited set of application and recovery operations after explicit setup, system approval, and temporary session authorization. If it is unavailable, the app does not silently escalate privileges.
-
-## Project status
-
-The repository includes source, local build and verification scripts, and release preparation tooling. Formal signing, notarization, public distribution, clean-Mac upgrade behavior, and the production Helper flow still require release-environment validation. See the [production release checklist](docs/production-release-checklist.md) before distributing builds.
-
-For architecture and implementation details, see [Architecture](docs/architecture.md), [Development](docs/development.md), and [Cleanup rule sources](docs/rule-sources.md).
+- Scanning is read-only. Cleanup requires a reviewed plan and explicit confirmation.
+- Selected items are revalidated before execution; eligible items go to quarantine for recovery.
+- Agent summaries do not collect sensitive MCP values such as command arguments, environment variables, headers, or tokens.
+- Diagnostic reporting is off by default.
+- The optional privileged Helper requires explicit setup, system approval, and temporary session authorization. If it is unavailable, SuperCleaner does not silently escalate privileges.
+- Licensed under **GNU GPL v3.0 only**. See [LICENSE](LICENSE) for the complete terms.

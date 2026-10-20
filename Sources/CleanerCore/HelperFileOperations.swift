@@ -235,6 +235,6 @@ public actor HelperRequestHandler {
             }
             return .init(authorization: .accepted, identity: try operations.perform(request.operation, token: request.token))
         } catch let rejection as HelperRejection { return .init(authorization: .rejected(rejection)) }
-        catch { return .init(authorization: .rejected(.executionFailed), message: "受限文件操作未完成；请检查恢复记录") }
+        catch { return .init(authorization: .rejected(.executionFailed), message: L10n.text("受限文件操作未完成；请检查恢复记录")) }
     }
 }

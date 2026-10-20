@@ -10,14 +10,14 @@ struct DiskSpaceView: View {
             header
             Divider()
             if !model.hasScanResult(for: .largeFiles) {
-                ScanRequiredView(destinationTitle: "大文件") { model.navigateToScan() }
+                ScanRequiredView(destinationTitle: L10n.text("大文件")) { model.navigateToScan() }
             } else if let tree = model.diskUsageTree {
                 if model.largeFileThresholdNeedsRefresh {
                     HStack {
-                        Label("大文件标准已改为 ≥ \(model.largeFileThreshold.shortTitle)，刷新后应用", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                        Label(L10n.text("大文件标准已改为 ≥ {0}，刷新后应用", String(describing: model.largeFileThreshold.shortTitle)), systemImage: "exclamationmark.arrow.triangle.2.circlepath")
                             .foregroundColor(.orange)
                         Spacer()
-                        Button("应用并刷新") { model.refreshModule(.largeFiles) }
+                        Button(L10n.text("应用并刷新")) { model.refreshModule(.largeFiles) }
                             .disabled(model.phase == .scanning)
                     }
                     .padding(.horizontal, 18).padding(.vertical, 10).background(.orange.opacity(0.08))
@@ -26,7 +26,7 @@ struct DiskSpaceView: View {
                 LargeFileFilterBar(model: model, tree: tree, searchText: $searchText)
                 Divider()
                 if tree.roots.isEmpty {
-                    EmptyState(title: "未发现符合条件的大文件", message: "本次扫描未发现达到当前大小标准的文件。", icon: "doc.text.magnifyingglass")
+                    EmptyState(title: L10n.text("未发现符合条件的大文件"), message: L10n.text("本次扫描未发现达到当前大小标准的文件。"), icon: "doc.text.magnifyingglass")
                 } else {
                     DiskUsageOutlineView(model: model, roots: filteredRoots(tree.roots))
                         .frame(maxWidth: .infinity)
@@ -38,8 +38,8 @@ struct DiskSpaceView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("大文件").font(.largeTitle.bold())
-                Text("目录用于理解空间来源；只有具体文件可以勾选，删除前会自动检查。")
+                Text(L10n.text("大文件")).font(.largeTitle.bold())
+                Text(L10n.text("目录用于理解空间来源；只有具体文件可以勾选，删除前会自动检查。"))
                     .foregroundColor(.secondary)
             }
             Spacer()
@@ -78,7 +78,7 @@ private struct LargeFileFilterBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            TextField("搜索文件名或完整路径", text: $searchText)
+            TextField(L10n.text("搜索文件名或完整路径"), text: $searchText)
                 .textFieldStyle(.roundedBorder).frame(minWidth: 180)
                 .onAppear { searchText = model.reviewQuery }
                 .onChange(of: searchText) { value in
@@ -88,7 +88,7 @@ private struct LargeFileFilterBar: View {
                         model.reviewQuery = value
                     }
                 }
-            Picker("排序", selection: $model.largeFileSortOrder) {
+            Picker(L10n.text("排序"), selection: $model.largeFileSortOrder) {
                 ForEach(LargeFileSortOrder.allCases, id: \.self) { order in
                     Text(order.displayTitle).tag(order)
                 }
@@ -96,8 +96,8 @@ private struct LargeFileFilterBar: View {
             .pickerStyle(.menu)
             .fixedSize()
             Spacer()
-            Label(tree.analysisState == .complete ? "目录分析完成" : "系统索引结果", systemImage: tree.analysisState == .complete ? "folder" : "bolt")
-            Label("\(tree.largeFiles.count) 个 ≥ \(ByteCountFormatter.cleanerString(bytes: tree.minimumFileBytes)) 文件", systemImage: "doc")
+            Label(tree.analysisState == .complete ? L10n.text("目录分析完成") : L10n.text("系统索引结果"), systemImage: tree.analysisState == .complete ? "folder" : "bolt")
+            Label(L10n.text("{0} 个 ≥ {1} 文件", String(describing: tree.largeFiles.count), String(describing: ByteCountFormatter.cleanerString(bytes: tree.minimumFileBytes))), systemImage: "doc")
             Text(ByteCountFormatter.cleanerString(bytes: tree.roots.reduce(0) { $0 + $1.recursiveBytes }))
                 .fontWeight(.semibold)
         }

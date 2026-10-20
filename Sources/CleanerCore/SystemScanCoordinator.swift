@@ -156,7 +156,7 @@ public struct SystemScanCoordinator: Sendable {
                     failures: scanned.failures, startedAt: scanned.startedAt, completedAt: scanned.completedAt
                 )
                 let state: ScanModuleState = report.failures.isEmpty ? .completed : .limited
-                let message = report.failures.isEmpty ? nil : "\(report.failures.count) 个区域受限"
+                let message = report.failures.isEmpty ? nil : L10n.text("{0} 个区域受限", String(describing: report.failures.count))
                 let status = ScanModuleStatus(module: .general, state: state, startedAt: report.startedAt, completedAt: report.completedAt, message: message)
                 let outcome = SystemScanOutcome.general(report, status)
                 await moduleResult(outcome.moduleResult(generationID: generationID))
@@ -212,7 +212,7 @@ public struct SystemScanCoordinator: Sendable {
                         state: .completed,
                         startedAt: moduleStartedAt,
                         completedAt: indexedTree.scannedAt,
-                        message: "使用 Spotlight 索引完成大文件扫描"
+                        message: L10n.text("使用 Spotlight 索引完成大文件扫描")
                     )
                     let outcome = SystemScanOutcome.largeFiles(indexedTree, indexedCandidates, status)
                     await moduleResult(outcome.moduleResult(generationID: generationID))
@@ -233,7 +233,7 @@ public struct SystemScanCoordinator: Sendable {
                     ).candidates(from: tree, context: context)
                     let limited = !tree.coverage.unavailableRoots.isEmpty || tree.coverage.budgetLimitedModules.contains(module)
                     let state: ScanModuleState = limited ? .limited : .completed
-                    let message = limited ? "部分目录不可访问或达到扫描预算" : nil
+                    let message = limited ? L10n.text("部分目录不可访问或达到扫描预算") : nil
                     let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: tree.scannedAt, message: message)
                     let outcome = SystemScanOutcome.largeFiles(tree, candidates, status)
                     await moduleResult(outcome.moduleResult(generationID: generationID))
@@ -245,7 +245,7 @@ public struct SystemScanCoordinator: Sendable {
                         let indexedCandidates = (try? await LargeFileScanner(
                             minimumBytes: diskUsageScanner.minimumFileBytes
                         ).candidates(from: indexedTree, context: context)) ?? []
-                        let message = "Spotlight 索引仅提供候选预览；精确目录扫描未完成"
+                        let message = L10n.text("Spotlight 索引仅提供候选预览；精确目录扫描未完成")
                         let status = ScanModuleStatus(
                             module: module,
                             state: .limited,
@@ -285,7 +285,7 @@ public struct SystemScanCoordinator: Sendable {
                     let inventory = try await agentScanner.scanAssetInventory(context: context)
                     let completedAt = Date()
                     let state: ScanModuleState = inventory.isComplete ? .completed : .limited
-                    let message = inventory.isComplete ? nil : "部分 Agent 路径未完整检查"
+                    let message = inventory.isComplete ? nil : L10n.text("部分 Agent 路径未完整检查")
                     let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: completedAt, message: message, limitations: inventory.limitations)
                     let outcome = SystemScanOutcome.agentEnvironment(inventory, status)
                     await moduleResult(outcome.moduleResult(generationID: generationID))

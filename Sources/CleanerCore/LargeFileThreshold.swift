@@ -17,7 +17,7 @@ public enum LargeFileThreshold: UInt64, Codable, CaseIterable, Hashable, Sendabl
         switch self {
         case .mb10: "10 MB"
         case .mb50: "50 MB"
-        case .mb100: "100 MB（推荐）"
+        case .mb100: L10n.text("100 MB（推荐）")
         case .mb500: "500 MB"
         case .gb1: "1 GB"
         }

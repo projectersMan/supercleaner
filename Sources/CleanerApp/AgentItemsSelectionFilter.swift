@@ -1,3 +1,4 @@
+import CleanerCore
 import Foundation
 
 enum AgentItemsSelectionFilter: String, CaseIterable {
@@ -6,8 +7,8 @@ enum AgentItemsSelectionFilter: String, CaseIterable {
 
     var displayTitle: String {
         switch self {
-        case .all: "全部"
-        case .selected: "已选中"
+        case .all: L10n.text("全部")
+        case .selected: L10n.text("已选中")
         }
     }
 }

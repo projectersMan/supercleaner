@@ -25,18 +25,18 @@ struct ReviewWorkspaceView: View {
                 ReviewFilterBar(model: model)
             }
             if model.showsScanningPlaceholder(for: destination) {
-                EmptyState(title: "正在扫描", message: "只读取元数据与必要的引用关系，不执行清理。", icon: "magnifyingglass")
+                EmptyState(title: L10n.text("正在扫描"), message: L10n.text("只读取元数据与必要的引用关系，不执行清理。"), icon: "magnifyingglass")
             } else if allItems.isEmpty {
                 EmptyState(title: emptyTitle, message: emptyMessage, icon: emptyIcon)
             } else if visibleItems.isEmpty {
-                EmptyState(title: "没有符合筛选条件的项目", message: "清除搜索或风险筛选后再查看。已勾选项目不会因此取消。", icon: "line.3.horizontal.decrease.circle")
+                EmptyState(title: L10n.text("没有符合筛选条件的项目"), message: L10n.text("清除搜索或风险筛选后再查看。已勾选项目不会因此取消。"), icon: "line.3.horizontal.decrease.circle")
             } else if destination == .systemCleanup {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         ForEach(visibleItems) { candidate in
                             CleanupCandidateCard(model: model, candidate: candidate)
                                 .contextMenu {
-                                    Button("永久保护此路径") { model.protect(candidate) }
+                                    Button(L10n.text("永久保护此路径")) { model.protect(candidate) }
                                 }
                         }
                     }
@@ -47,7 +47,7 @@ struct ReviewWorkspaceView: View {
                     List(visibleItems, selection: focusBinding) { candidate in
                         CandidateRow(model: model, candidate: candidate)
                             .contextMenu {
-                                Button("永久保护此路径") { model.protect(candidate) }
+                                Button(L10n.text("永久保护此路径")) { model.protect(candidate) }
                             }
                             .tag(candidate.id)
                     }

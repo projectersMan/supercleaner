@@ -6,13 +6,13 @@ public enum UpdateDownloadError: Error, LocalizedError, Sendable, Equatable {
     case disallowedURL, responseRejected, sizeLimit, redirectLimit, timedOut, failed, outputExists
     public var errorDescription: String? {
         switch self {
-        case .disallowedURL: "更新地址不在已配置的 HTTPS 来源内"
-        case .responseRejected: "更新源返回无效状态或内容长度"
-        case .sizeLimit: "更新下载超过大小限制"
-        case .redirectLimit: "更新源重定向超过限制"
-        case .timedOut: "更新下载超时"
-        case .failed: "更新下载失败，当前版本保持不变"
-        case .outputExists: "更新暂存目标已存在或不是安全的新文件"
+        case .disallowedURL: L10n.text("更新地址不在已配置的 HTTPS 来源内")
+        case .responseRejected: L10n.text("更新源返回无效状态或内容长度")
+        case .sizeLimit: L10n.text("更新下载超过大小限制")
+        case .redirectLimit: L10n.text("更新源重定向超过限制")
+        case .timedOut: L10n.text("更新下载超时")
+        case .failed: L10n.text("更新下载失败，当前版本保持不变")
+        case .outputExists: L10n.text("更新暂存目标已存在或不是安全的新文件")
         }
     }
 }

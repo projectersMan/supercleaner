@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
   <key>CFBundleExecutable</key><string>CleanerApp</string>
   <key>CFBundleIdentifier</key><string>com.example.SuperCleaner</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
@@ -9,8 +10,8 @@
   <key>CFBundleDisplayName</key><string>SuperCleaner</string>
   <key>CFBundleIconFile</key><string>AppIcon.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>0.0.0</string>
+  <key>CFBundleVersion</key><string>0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -24,5 +25,5 @@
   <key>SUVerifyUpdateBeforeExtraction</key><true/>
   <key>SUSignedFeedFailureExpirationInterval</key><integer>0</integer>
   <key>NSAppBundlesUsageDescription</key>
-  <string>用于分析并在你明确选择后，将应用及其可恢复关联文件安全移入隔离区。</string>
+  <string>Analyze applications and, after your explicit selection, safely quarantine them and their recoverable associated files.</string>
 </dict></plist>

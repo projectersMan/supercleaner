@@ -145,12 +145,12 @@ public struct CleanupRuleEngine: Scanner {
         // the item; the executor records a failed move and leaves it in place if
         // the owning process or filesystem refuses the operation.
         let risk: RiskLevel = blocked || incomplete ? .blocked : (old ? rule.defaultRisk : .review)
-        if let regeneration = rule.regenerationEvidence { evidence.append(Evidence(code: "regeneration", summary: regeneration)) }
-        if let ownership = rule.ownershipEvidence { evidence.append(Evidence(code: "ownership", summary: ownership)) }
-        if active { evidence.append(Evidence(code: "active", summary: "关联应用或工具正在使用，或活动状态无法验证")) }
-        if blocked { evidence.append(Evidence(code: "protected-content", summary: "包含受保护、敏感或链接内容")) }
-        if incomplete { evidence.append(Evidence(code: "incomplete-inspection", summary: "未完成目录验证，不可删除")) }
-        evidence.append(Evidence(code: "newest-modified", summary: "目录内容按最新修改时间判断"))
+        if let regeneration = rule.regenerationEvidence { evidence.append(Evidence(code: "regeneration", summary: L10n.text(regeneration))) }
+        if let ownership = rule.ownershipEvidence { evidence.append(Evidence(code: "ownership", summary: L10n.text(ownership))) }
+        if active { evidence.append(Evidence(code: "active", summary: L10n.text("关联应用或工具正在使用，或活动状态无法验证"))) }
+        if blocked { evidence.append(Evidence(code: "protected-content", summary: L10n.text("包含受保护、敏感或链接内容"))) }
+        if incomplete { evidence.append(Evidence(code: "incomplete-inspection", summary: L10n.text("未完成目录验证，不可删除"))) }
+        evidence.append(Evidence(code: "newest-modified", summary: L10n.text("目录内容按最新修改时间判断")))
         return CleanupCandidate(
             url: url, displayName: url.lastPathComponent, category: rule.category, bytes: bytes,
             risk: risk, evidence: evidence, identity: identity, source: .general,

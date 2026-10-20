@@ -27,9 +27,9 @@ public struct ScanDiscoverySummary: Equatable, Sendable {
     public func detail(for module: ScanModuleID) -> String? {
         switch module {
         case .general: nil
-        case .applications: "发现 \(applicationCount) 个应用"
-        case .largeFiles: "发现 \(largeFileCount) 个大文件"
-        case .agentEnvironment: "发现 \(agentCount) 个 Agent · \(skillCount) 个 Skill · \(mcpCount) 个 MCP"
+        case .applications: L10n.text("发现 {0} 个应用", String(describing: applicationCount))
+        case .largeFiles: L10n.text("发现 {0} 个大文件", String(describing: largeFileCount))
+        case .agentEnvironment: L10n.text("发现 {0} 个 Agent · {1} 个 Skill · {2} 个 MCP", String(describing: agentCount), String(describing: skillCount), String(describing: mcpCount))
         }
     }
 }

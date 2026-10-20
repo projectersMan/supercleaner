@@ -46,20 +46,20 @@ private enum GeneralScanSupport {
                     candidateRisk = readable ? risk(url, identity, inspection, context) : .blocked
                 } catch {
                     candidateRisk = .blocked
-                    evidence.append(Evidence(code: "protected-path", summary: "路径受到安全策略保护"))
+                    evidence.append(Evidence(code: "protected-path", summary: L10n.text("路径受到安全策略保护")))
                 }
 
                 if active {
-                    evidence.append(Evidence(code: "active", summary: "当前有任务或进程正在使用"))
+                    evidence.append(Evidence(code: "active", summary: L10n.text("当前有任务或进程正在使用")))
                 }
                 if !readable {
-                    evidence.append(Evidence(code: "unreadable", summary: "当前权限不足，无法验证内容"))
+                    evidence.append(Evidence(code: "unreadable", summary: L10n.text("当前权限不足，无法验证内容")))
                 }
                 if identity.kind == .directory && !inspection.isFullyReadable {
-                    evidence.append(Evidence(code: "incomplete-directory-inspection", summary: "目录内存在无法验证的内容"))
+                    evidence.append(Evidence(code: "incomplete-directory-inspection", summary: L10n.text("目录内存在无法验证的内容")))
                 }
                 if identity.kind == .directory && inspection.containsUnsupportedEntry {
-                    evidence.append(Evidence(code: "unsupported-directory-entry", summary: "目录内包含链接或未知类型，未自动推荐"))
+                    evidence.append(Evidence(code: "unsupported-directory-entry", summary: L10n.text("目录内包含链接或未知类型，未自动推荐")))
                 }
                 let age = max(0, context.now.timeIntervalSince1970 - Double(inspection.newestModificationTime))
                 evidence.append(Evidence(code: "last-modified", summary: ageSummary(age)))
@@ -158,7 +158,7 @@ private enum GeneralScanSupport {
 
     static func ageSummary(_ seconds: TimeInterval) -> String {
         let days = max(0, Int(seconds / 86_400))
-        return days == 0 ? "今天修改" : "\(days) 天前修改"
+        return days == 0 ? L10n.text("今天修改") : L10n.text("{0} 天前修改", String(describing: days))
     }
 }
 
@@ -210,8 +210,8 @@ public struct LogScanner: Scanner {
                 }
                 return [Evidence(
                     code: "diagnostic-report",
-                    summary: "macOS 或应用生成的诊断记录",
-                    details: "来自用户诊断目录；仍按最近修改时间和活动状态判断，执行前可逐项检查。"
+                    summary: L10n.text("macOS 或应用生成的诊断记录"),
+                    details: L10n.text("来自用户诊断目录；仍按最近修改时间和活动状态判断，执行前可逐项检查。")
                 )]
             },
             risk: { url, identity, inspection, context in
@@ -267,8 +267,8 @@ public struct IncompleteDownloadScanner: Scanner {
             evidence: { url, _ in [
                 Evidence(
                     code: "incomplete-download",
-                    summary: "下载工具留下的未完成文件",
-                    details: "通过 .\(url.pathExtension.lowercased()) 扩展名识别；确认不再续传后可清理。"
+                    summary: L10n.text("下载工具留下的未完成文件"),
+                    details: L10n.text("通过 .{0} 扩展名识别；确认不再续传后可清理。", String(describing: url.pathExtension.lowercased()))
                 ),
             ] },
             risk: { url, identity, _, context in
@@ -360,8 +360,8 @@ public struct DeveloperArtifactScanner: Scanner {
                 return [Evidence(
                     code: isReviewOnly ? "developer-state-review" : "developer-cache",
                     summary: isReviewOnly
-                        ? "开发环境内容需逐项确认"
-                        : "开发工具生成的可重建缓存"
+                        ? L10n.text("开发环境内容需逐项确认")
+                        : L10n.text("开发工具生成的可重建缓存")
                 )]
             },
             risk: { url, identity, inspection, context in
@@ -431,10 +431,10 @@ public struct LargeFileScanner: Scanner {
             var risk: RiskLevel = active || !node.isReadable ? .blocked : .review
             var evidence = [Evidence(
                 code: "large-file",
-                summary: "大文件仅因体积被发现，不会自动清理"
+                summary: L10n.text("大文件仅因体积被发现，不会自动清理")
             )]
             do { _ = try context.pathPolicy.validateCandidate(node.url) }
-            catch { risk = .blocked; evidence.append(Evidence(code: "protected-path", summary: "路径受到安全策略保护")) }
+            catch { risk = .blocked; evidence.append(Evidence(code: "protected-path", summary: L10n.text("路径受到安全策略保护"))) }
             output.append(context.protectionPolicy.applying(to: CleanupCandidate(
                 url: node.url, displayName: node.url.lastPathComponent, category: category, bytes: node.ownBytes,
                 risk: risk, evidence: evidence, identity: identity, source: .diskAnalysis,

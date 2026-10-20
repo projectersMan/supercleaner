@@ -6,13 +6,13 @@ public enum HelperClientError: Error, LocalizedError, Sendable {
     case unavailable, invalidSignature, invalidConfiguration, notAuthorized, timedOut, invalidResponse, rejected(HelperRejection)
     public var errorDescription: String? {
         switch self {
-        case .unavailable: return "Helper 未启用或连接已中断"
-        case .invalidSignature: return "需要正式签名且同团队的主应用和 Helper"
-        case .invalidConfiguration: return "Helper 发布身份配置无效"
-        case .notAuthorized: return "此会话尚未获得操作授权，或授权已过期"
-        case .timedOut: return "Helper 响应超时；请刷新恢复记录，不自动重试文件操作"
-        case .invalidResponse: return "Helper 返回格式或协议版本无效"
-        case let .rejected(reason): return "Helper 拒绝操作：\(reason.rawValue)"
+        case .unavailable: return L10n.text("Helper 未启用或连接已中断")
+        case .invalidSignature: return L10n.text("需要正式签名且同团队的主应用和 Helper")
+        case .invalidConfiguration: return L10n.text("Helper 发布身份配置无效")
+        case .notAuthorized: return L10n.text("此会话尚未获得操作授权，或授权已过期")
+        case .timedOut: return L10n.text("Helper 响应超时；请刷新恢复记录，不自动重试文件操作")
+        case .invalidResponse: return L10n.text("Helper 返回格式或协议版本无效")
+        case let .rejected(reason): return L10n.text("Helper 拒绝操作：{0}", String(describing: reason.rawValue))
         }
     }
 }

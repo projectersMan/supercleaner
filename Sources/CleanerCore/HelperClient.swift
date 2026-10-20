@@ -103,11 +103,11 @@ public enum HelperRegistrationStatus: String, Sendable {
     case notRegistered, enabled, requiresApproval, notFound, unavailable
     public var title: String {
         switch self {
-        case .notRegistered: "未安装"
-        case .enabled: "系统已批准"
-        case .requiresApproval: "等待系统批准"
-        case .notFound: "未找到已打包 Helper"
-        case .unavailable: "当前构建不可启用"
+        case .notRegistered: L10n.text("未安装")
+        case .enabled: L10n.text("系统已批准")
+        case .requiresApproval: L10n.text("等待系统批准")
+        case .notFound: L10n.text("未找到已打包 Helper")
+        case .unavailable: L10n.text("当前构建不可启用")
         }
     }
 }
@@ -161,7 +161,7 @@ public protocol PrivilegedApplicationOperations: Sendable {
 
 public struct HelperMutationUncertain: Error, LocalizedError, Sendable {
     public init() {}
-    public var errorDescription: String? { "Helper 操作结果待确认；保留日志，待在途请求过期后复验，不自动重试。" }
+    public var errorDescription: String? { L10n.text("Helper 操作结果待确认；保留日志，待在途请求过期后复验，不自动重试。") }
 }
 
 /// Explicit opt-in session. Returning false means no privileged operation was

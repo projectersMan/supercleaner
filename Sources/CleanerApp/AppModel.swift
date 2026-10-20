@@ -408,26 +408,26 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func oneClickStatus(for module: ScanModuleID) -> String? {
-        if oneClickActiveModules.contains(module) { return "正在清理默认项…" }
+        if oneClickActiveModules.contains(module) { return L10n.text("正在清理默认项…") }
         let failures = failedCleanupResult(for: module)
         if failures.itemCount > 0 {
             if let result = oneClickCompletedByModule[module], result.itemCount > 0 {
-                return "已清理 \(result.itemCount) 项 · \(ByteCountFormatter.cleanerString(bytes: result.bytes))　未处理 \(failures.itemCount) 项 · \(ByteCountFormatter.cleanerString(bytes: failures.bytes))"
+                return L10n.text("已清理 {0} 项 · {1}　未处理 {2} 项 · {3}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)), String(describing: failures.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: failures.bytes)))
             }
-            return "未处理 \(failures.itemCount) 项 · \(ByteCountFormatter.cleanerString(bytes: failures.bytes))"
+            return L10n.text("未处理 {0} 项 · {1}", String(describing: failures.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: failures.bytes)))
         }
         if let result = oneClickCompletedByModule[module] {
             return result.itemCount > 0
-                ? "已清理 \(result.itemCount) 项 · \(ByteCountFormatter.cleanerString(bytes: result.bytes))"
-                : "无需清理"
+                ? L10n.text("已清理 {0} 项 · {1}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)))
+                : L10n.text("无需清理")
         }
         guard hasScanResult(for: module) else { return nil }
-        if module == .applications { return "请手动选择要卸载的项目" }
+        if module == .applications { return L10n.text("请手动选择要卸载的项目") }
         let count = defaultCleanupCount(for: module)
-        if count > 0 { return "已默认勾选 \(count) 项" }
+        if count > 0 { return L10n.text("已默认勾选 {0} 项", String(describing: count)) }
         return module == .largeFiles
-            ? "无安全默认项 · 可手动选择"
-            : "无需默认清理"
+            ? L10n.text("无安全默认项 · 可手动选择")
+            : L10n.text("无需默认清理")
     }
 
     func failedCleanupResult(for module: ScanModuleID) -> OneClickCleanupResult {
@@ -506,8 +506,8 @@ private struct ScanPresentationSnapshots: Sendable {
                 }
                 try OfficialApplicationUninstaller.validate(expectedURL, for: application)
                 _ = try await NSWorkspace.shared.openApplication(at: expectedURL, configuration: NSWorkspace.OpenConfiguration())
-                configurationMessage = "已打开官方卸载器；其操作不属于本应用的隔离恢复。完成后请刷新应用。"
-            } catch { configurationMessage = "未打开卸载器：\(error.localizedDescription)" }
+                configurationMessage = L10n.text("已打开官方卸载器；其操作不属于本应用的隔离恢复。完成后请刷新应用。")
+            } catch { configurationMessage = L10n.text("未打开卸载器：{0}", String(describing: error.localizedDescription)) }
         }
     }
 
@@ -598,9 +598,9 @@ private struct ScanPresentationSnapshots: Sendable {
             await reloadHistory()
             await reloadQuarantineSchedules()
             let pendingCount = recovered.flatMap(\.results).filter { $0.verificationNotBefore != nil }.count
-            recoveryMessage = pendingCount > 0 ? "\(pendingCount) 项 Helper 结果仍待复验，日志和隔离路径保持保留" : "已按文件身份复验未完成的清理记录"
+            recoveryMessage = pendingCount > 0 ? L10n.text("{0} 项 Helper 结果仍待复验，日志和隔离路径保持保留", String(describing: pendingCount)) : L10n.text("已按文件身份复验未完成的清理记录")
             recoveryMessageIsError = pendingCount > 0
-        } catch { recoveryMessage = "未完成记录复验失败：\(error.localizedDescription)"; recoveryMessageIsError = true }
+        } catch { recoveryMessage = L10n.text("未完成记录复验失败：{0}", String(describing: error.localizedDescription)); recoveryMessageIsError = true }
     }
 
     func updateDefaultQuarantineRetentionPolicy(_ policy: QuarantineRetentionPolicy) {
@@ -613,7 +613,7 @@ private struct ScanPresentationSnapshots: Sendable {
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
-        panel.prompt = "保护所选路径"
+        panel.prompt = L10n.text("保护所选路径")
         guard panel.runModal() == .OK else { return }
         let urls = panel.urls
         Task { [weak self] in
@@ -621,8 +621,8 @@ private struct ScanPresentationSnapshots: Sendable {
             do {
                 for url in urls { protectionPolicy = try await runtime.protections.protect(url) }
                 reconcileProtectedSelections()
-                configurationMessage = "保护清单已保存；执行前会重新检查"
-            } catch { configurationMessage = "无法保存保护清单：\(error.localizedDescription)" }
+                configurationMessage = L10n.text("保护清单已保存；执行前会重新检查")
+            } catch { configurationMessage = L10n.text("无法保存保护清单：{0}", String(describing: error.localizedDescription)) }
         }
     }
 
@@ -632,8 +632,8 @@ private struct ScanPresentationSnapshots: Sendable {
             do {
                 protectionPolicy = try await runtime.protections.protect(candidate.url)
                 reconcileProtectedSelections()
-                configurationMessage = "已保护 \(candidate.displayName)"
-            } catch { configurationMessage = "无法保存保护清单：\(error.localizedDescription)" }
+                configurationMessage = L10n.text("已保护 {0}", String(describing: candidate.displayName))
+            } catch { configurationMessage = L10n.text("无法保存保护清单：{0}", String(describing: error.localizedDescription)) }
         }
     }
 
@@ -642,8 +642,8 @@ private struct ScanPresentationSnapshots: Sendable {
             guard let self else { return }
             do {
                 protectionPolicy = try await runtime.protections.remove(id: entry.id)
-                configurationMessage = "已取消保护；重新扫描后可重新选择"
-            } catch { configurationMessage = "无法更新保护清单：\(error.localizedDescription)" }
+                configurationMessage = L10n.text("已取消保护；重新扫描后可重新选择")
+            } catch { configurationMessage = L10n.text("无法更新保护清单：{0}", String(describing: error.localizedDescription)) }
         }
     }
 
@@ -659,7 +659,7 @@ private struct ScanPresentationSnapshots: Sendable {
         largeFileThreshold = threshold
         UserDefaults.standard.set(NSNumber(value: threshold.bytes), forKey: Self.largeFileThresholdDefaultsKey)
         if hasCompletedScan {
-            statusMessage = "大文件标准已更新为 ≥ \(threshold.shortTitle)；刷新大文件模块后生效"
+            statusMessage = L10n.text("大文件标准已更新为 ≥ {0}；刷新大文件模块后生效", String(describing: threshold.shortTitle))
         }
     }
 
@@ -679,11 +679,11 @@ private struct ScanPresentationSnapshots: Sendable {
                 )
                 await reloadQuarantineSchedules()
                 recoveryMessage = policy == .manual
-                    ? "已改为手动保留；已删除项目不会自动彻底删除"
-                    : "已更新自动彻底删除时间"
+                    ? L10n.text("已改为手动保留；已删除项目不会自动彻底删除")
+                    : L10n.text("已更新自动彻底删除时间")
                 recoveryMessageIsError = false
             } catch {
-                recoveryMessage = "无法更新自动删除时间：\(error.localizedDescription)"
+                recoveryMessage = L10n.text("无法更新自动删除时间：{0}", String(describing: error.localizedDescription))
                 recoveryMessageIsError = true
             }
         }
@@ -710,8 +710,8 @@ private struct ScanPresentationSnapshots: Sendable {
         cleanupFailures.removeAll()
         phase = .scanning
         statusMessage = systemReport == nil
-            ? "扫描开始后将依次请求桌面、文稿和下载文件夹权限；拒绝某项后会继续扫描其余可访问位置"
-            : "正在重新扫描；需要时将依次请求文件夹权限，完成前继续保留上一次结果"
+            ? L10n.text("扫描开始后将依次请求桌面、文稿和下载文件夹权限；拒绝某项后会继续扫描其余可访问位置")
+            : L10n.text("正在重新扫描；需要时将依次请求文件夹权限，完成前继续保留上一次结果")
         scanProgressByModule = Dictionary(uniqueKeysWithValues: ScanModuleID.allCases.map {
             ($0, ScanModuleStatus(module: $0, state: .waiting))
         })
@@ -736,17 +736,17 @@ private struct ScanPresentationSnapshots: Sendable {
                 state: .cancelled,
                 startedAt: status.startedAt,
                 completedAt: Date(),
-                message: "用户已取消"
+                message: L10n.text("用户已取消")
             )
         }
         if systemReport?.isCommitEligible == true {
             phase = .reviewing
-            statusMessage = "扫描已取消，继续使用上一次完整结果"
+            statusMessage = L10n.text("扫描已取消，继续使用上一次完整结果")
         } else if systemReport != nil {
             phase = .reviewing
-            statusMessage = "扫描已取消；已经完成的模块结果仍可查看"
+            statusMessage = L10n.text("扫描已取消；已经完成的模块结果仍可查看")
         } else {
-            statusMessage = "扫描已取消，没有生成报告，也没有修改文件"
+            statusMessage = L10n.text("扫描已取消，没有生成报告，也没有修改文件")
         }
     }
 
@@ -781,11 +781,11 @@ private struct ScanPresentationSnapshots: Sendable {
         reconcileFocus()
         switch resolvedMode {
         case .smart:
-            statusMessage = "已默认勾选明确安全、非活跃且当前可执行的内容"
+            statusMessage = L10n.text("已默认勾选明确安全、非活跃且当前可执行的内容")
         case .deep:
-            statusMessage = "已加入低风险和可重建内容，可能需要重新下载或构建"
+            statusMessage = L10n.text("已加入低风险和可重建内容，可能需要重新下载或构建")
         case .custom:
-            statusMessage = "手动选择：勾选表示加入当前计划"
+            statusMessage = L10n.text("手动选择：勾选表示加入当前计划")
         }
     }
 
@@ -906,8 +906,8 @@ private struct ScanPresentationSnapshots: Sendable {
             let plan = try planBuilder.build(candidates: candidates(for: selection), selectedIDs: selected)
             executeSelection(plan: plan)
         } catch {
-            statusMessage = "无法删除：\(error.localizedDescription)"
-            phase = .failed(statusMessage ?? "无法删除")
+            statusMessage = L10n.text("无法删除：{0}", String(describing: error.localizedDescription))
+            phase = .failed(statusMessage ?? L10n.text("无法删除"))
         }
     }
 
@@ -920,7 +920,7 @@ private struct ScanPresentationSnapshots: Sendable {
             let plan = try planBuilder.build(candidates: systemCandidates, selectedIDs: selected)
             oneClickActiveModules = [.general]
             oneClickCleanupIsRunning = true
-            statusMessage = "正在执行一键系统清理"
+            statusMessage = L10n.text("正在执行一键系统清理")
             executionProgress = ExecutionProgress(completed: 0, total: plan.selectedItems.count, currentURL: nil)
             oneClickExecutionTask = Task { [weak self] in
                 guard let self else { return }
@@ -945,10 +945,10 @@ private struct ScanPresentationSnapshots: Sendable {
                     await reloadHistory()
                     await reloadQuarantineSchedules()
                     statusMessage = outcome.failures.isEmpty
-                        ? "系统清理完成"
-                        : "系统清理完成；\(outcome.failures.count) 项未处理，可查看原因并安全重试"
+                        ? L10n.text("系统清理完成")
+                        : L10n.text("系统清理完成；{0} 项未处理，可查看原因并安全重试", String(describing: outcome.failures.count))
                 } catch {
-                    statusMessage = "系统清理未完成，执行记录已保留以供启动恢复：\(error.localizedDescription)"
+                    statusMessage = L10n.text("系统清理未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                     deletionResultWarning = statusMessage
                 }
                 oneClickActiveModules.removeAll()
@@ -958,7 +958,7 @@ private struct ScanPresentationSnapshots: Sendable {
         } catch {
             oneClickActiveModules.removeAll()
             oneClickCleanupIsRunning = false
-            statusMessage = "无法开始一键系统清理：\(error.localizedDescription)"
+            statusMessage = L10n.text("无法开始一键系统清理：{0}", String(describing: error.localizedDescription))
         }
     }
 
@@ -986,8 +986,8 @@ private struct ScanPresentationSnapshots: Sendable {
             let plan = try planBuilder.build(candidates: candidates, selectedIDs: selectedIDs)
             executeSelection(plan: plan, recordsDefaultCleanupProgress: true)
         } catch {
-            statusMessage = "无法创建安全重试计划：\(error.localizedDescription)"
-            phase = .failed(statusMessage ?? "无法创建安全重试计划")
+            statusMessage = L10n.text("无法创建安全重试计划：{0}", String(describing: error.localizedDescription))
+            phase = .failed(statusMessage ?? L10n.text("无法创建安全重试计划"))
         }
     }
 
@@ -999,7 +999,7 @@ private struct ScanPresentationSnapshots: Sendable {
         deletionResultWarning = nil
         activeCleanupModules = Set(plan.selectedItems.compactMap { oneClickModule(for: $0.candidate) })
         executionProgress = ExecutionProgress(completed: 0, total: plan.selectedItems.count, currentURL: nil)
-        statusMessage = "正在检查并删除所选项目"
+        statusMessage = L10n.text("正在检查并删除所选项目")
         phase = .executing
         executionTask = Task { [weak self] in
             guard let self else { return }
@@ -1030,12 +1030,12 @@ private struct ScanPresentationSnapshots: Sendable {
                     selectedIDs: selectedIDs
                 ).removing(attemptedCandidates).selectedIDs
                 excludedBaseIDs.subtract(attemptedIDs)
-                phase = receipt.overallStatus == .completed ? .completed : .failed("部分项目未处理，请查看逐项原因")
+                phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分项目未处理，请查看逐项原因"))
                 deletionResult = receipt
             } catch {
-                statusMessage = "删除未完成，执行记录已保留以供启动恢复：\(error.localizedDescription)"
+                statusMessage = L10n.text("删除未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                 deletionResultWarning = statusMessage
-                phase = .failed(statusMessage ?? "删除未完成")
+                phase = .failed(statusMessage ?? L10n.text("删除未完成"))
             }
             activeCleanupModules.removeAll()
             executionTask = nil
@@ -1044,7 +1044,7 @@ private struct ScanPresentationSnapshots: Sendable {
 
     func cancelExecution() {
         executionTask?.cancel()
-        statusMessage = "正在完成当前原子移动，尚未开始的项目将停止"
+        statusMessage = L10n.text("正在完成当前原子移动，尚未开始的项目将停止")
     }
 
     func requestRestore(_ receipt: OperationReceipt) {
@@ -1069,7 +1069,7 @@ private struct ScanPresentationSnapshots: Sendable {
         guard recoveryActionReceiptID == nil else { return }
         recoveryActionReceiptID = receipt.id
         recoveryActionKind = .restore
-        recoveryMessage = "正在恢复已删除项目…"
+        recoveryMessage = L10n.text("正在恢复已删除项目…")
         recoveryMessageIsError = false
         Task { [weak self] in
             guard let self else { return }
@@ -1081,15 +1081,15 @@ private struct ScanPresentationSnapshots: Sendable {
                 await reloadHistory()
                 await reloadQuarantineSchedules()
                 if successful.isEmpty {
-                    recoveryMessage = failures == 0 ? "没有可恢复的已删除项目" : "恢复失败：\(failures) 项仍保留在恢复记录中，可稍后重试"
+                    recoveryMessage = failures == 0 ? L10n.text("没有可恢复的已删除项目") : L10n.text("恢复失败：{0} 项仍保留在恢复记录中，可稍后重试", String(describing: failures))
                 } else if conflicts == 0, failures == 0 {
-                    recoveryMessage = "已恢复 \(successful.count) 项到原路径"
+                    recoveryMessage = L10n.text("已恢复 {0} 项到原路径", String(describing: successful.count))
                 } else {
-                    recoveryMessage = "已恢复 \(successful.count) 项；\(conflicts) 项因路径冲突恢复到相邻位置，\(failures) 项失败"
+                    recoveryMessage = L10n.text("已恢复 {0} 项；{1} 项因路径冲突恢复到相邻位置，{2} 项失败", String(describing: successful.count), String(describing: conflicts), String(describing: failures))
                 }
                 recoveryMessageIsError = successful.isEmpty && failures > 0
             } catch {
-                recoveryMessage = "文件已处理，但恢复记录更新失败：\(error.localizedDescription)"
+                recoveryMessage = L10n.text("文件已处理，但恢复记录更新失败：{0}", String(describing: error.localizedDescription))
                 recoveryMessageIsError = true
             }
             recoveryActionReceiptID = nil
@@ -1113,7 +1113,7 @@ private struct ScanPresentationSnapshots: Sendable {
         purgeConfirmationReceipt = nil
         recoveryActionReceiptID = receipt.id
         recoveryActionKind = .purge
-        recoveryMessage = "正在彻底删除…"
+        recoveryMessage = L10n.text("正在彻底删除…")
         recoveryMessageIsError = false
         Task { [weak self] in
             guard let self else { return }
@@ -1127,14 +1127,14 @@ private struct ScanPresentationSnapshots: Sendable {
                 await reloadQuarantineSchedules()
                 let bytes = deleted.reduce(0) { $0 + $1.bytes }
                 if deleted.isEmpty {
-                    recoveryMessage = failures == 0 ? "没有可彻底删除的已删除项目" : "彻底删除失败：\(failures) 项仍保留在恢复记录中"
+                    recoveryMessage = failures == 0 ? L10n.text("没有可彻底删除的已删除项目") : L10n.text("彻底删除失败：{0} 项仍保留在恢复记录中", String(describing: failures))
                 } else {
-                    recoveryMessage = "已彻底删除 \(deleted.count) 项，释放约 \(ByteCountFormatter.cleanerString(bytes: bytes))"
-                    if failures > 0 { recoveryMessage? += "；\(failures) 项失败并继续保留" }
+                    recoveryMessage = L10n.text("已彻底删除 {0} 项，释放约 {1}", String(describing: deleted.count), String(describing: ByteCountFormatter.cleanerString(bytes: bytes)))
+                    if failures > 0 { recoveryMessage? += L10n.text("；{0} 项失败并继续保留", String(describing: failures)) }
                 }
                 recoveryMessageIsError = deleted.isEmpty && failures > 0
             } catch {
-                recoveryMessage = "文件已处理，但恢复记录更新失败：\(error.localizedDescription)"
+                recoveryMessage = L10n.text("文件已处理，但恢复记录更新失败：{0}", String(describing: error.localizedDescription))
                 recoveryMessageIsError = true
             }
             recoveryActionReceiptID = nil
@@ -1177,7 +1177,7 @@ private struct ScanPresentationSnapshots: Sendable {
         let selectedItems = selection.selectedItems(in: applicationUninstallPlans)
         let summary = selection.summary(plans: applicationUninstallPlans)
         guard !selectedItems.isEmpty else {
-            statusMessage = "请先勾选要卸载的应用或具体项目"
+            statusMessage = L10n.text("请先勾选要卸载的应用或具体项目")
             return
         }
         do {
@@ -1201,20 +1201,20 @@ private struct ScanPresentationSnapshots: Sendable {
                     await reloadQuarantineSchedules()
                     recordCompletedCleanup(receipt, attemptedCandidates: selectedItems.map(\.candidate))
                     await reloadApplicationModule()
-                    phase = receipt.overallStatus == .completed ? .completed : .failed("部分卸载项未处理")
+                    phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分卸载项未处理"))
                     if receipt.overallStatus == .completed {
-                        statusMessage = "已删除 \(summary.applicationCount) 个应用的 \(summary.itemCount) 项，可在恢复记录中撤销"
+                        statusMessage = L10n.text("已删除 {0} 个应用的 {1} 项，可在恢复记录中撤销", String(describing: summary.applicationCount), String(describing: summary.itemCount))
                     }
                     deletionResult = receipt
                 } catch {
-                    statusMessage = "应用卸载未完成，执行记录已保留以供启动恢复：\(error.localizedDescription)"
+                    statusMessage = L10n.text("应用卸载未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                     deletionResultWarning = statusMessage
-                    phase = .failed(statusMessage ?? "应用卸载未完成")
+                    phase = .failed(statusMessage ?? L10n.text("应用卸载未完成"))
                 }
                 activeCleanupModules.removeAll()
                 executionTask = nil
             }
-        } catch { statusMessage = "批量卸载计划无效：\(error.localizedDescription)" }
+        } catch { statusMessage = L10n.text("批量卸载计划无效：{0}", String(describing: error.localizedDescription)) }
     }
 
     @discardableResult
@@ -1288,7 +1288,7 @@ private struct ScanPresentationSnapshots: Sendable {
     private func runScan(token: UUID) async {
         await ScanPermissionPreflight(fileSystem: fileSystem).requestStandardFolderAccess(homeDirectory: home)
         guard !Task.isCancelled, activeScanToken == token else { return }
-        statusMessage = "文件夹权限检查完成，正在扫描支持且可安全访问的位置；不会修改任何文件"
+        statusMessage = L10n.text("文件夹权限检查完成，正在扫描支持且可安全访问的位置；不会修改任何文件")
         let runningBundleIDs = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
         let activePaths = runningBundleIDs.flatMap { bundleID in
             [
@@ -1301,8 +1301,8 @@ private struct ScanPresentationSnapshots: Sendable {
             protectionPolicy = configuration.context.protectionPolicy
             rulesetVersion = configuration.pack.executionVersion
         } catch {
-            phase = .failed("清理规则无法验证")
-            statusMessage = "扫描已停止：\(error.localizedDescription)"
+            phase = .failed(L10n.text("清理规则无法验证"))
+            statusMessage = L10n.text("扫描已停止：{0}", String(describing: error.localizedDescription))
             activeScanToken = nil
             scanTask = nil
             return
@@ -1377,7 +1377,7 @@ private struct ScanPresentationSnapshots: Sendable {
         phase = .reviewing
         scanTask = nil
         let limitedCount = next.modules.values.filter { [.limited, .failed].contains($0.state) }.count
-        statusMessage = limitedCount == 0 ? "完整扫描完成，已生成清理方案" : "扫描完成，\(limitedCount) 个模块存在访问限制"
+        statusMessage = limitedCount == 0 ? L10n.text("完整扫描完成，已生成清理方案") : L10n.text("扫描完成，{0} 个模块存在访问限制", String(describing: limitedCount))
     }
 
     private func installProgressive(
@@ -1457,16 +1457,16 @@ private struct ScanPresentationSnapshots: Sendable {
             protectionPolicy = try await runtime.protections.snapshot()
         } catch {
             protectionPolicy = ProtectionPolicy(homeDirectory: home, isAvailable: false)
-            configurationMessage = "配置无法读取，删除已停用：\(error.localizedDescription)"
+            configurationMessage = L10n.text("配置无法读取，删除已停用：{0}", String(describing: error.localizedDescription))
         }
         do {
             let recovered = try await cleanupExecutionCoordinator.recoverPendingExecutions()
             if !recovered.isEmpty {
-                recoveryMessage = "已恢复 \(recovered.count) 个上次中断的清理批次，并完成真实状态复验"
+                recoveryMessage = L10n.text("已恢复 {0} 个上次中断的清理批次，并完成真实状态复验", String(describing: recovered.count))
                 recoveryMessageIsError = false
             }
         } catch {
-            recoveryMessage = "启动恢复失败，执行日志已保留供下次重试：\(error.localizedDescription)"
+            recoveryMessage = L10n.text("启动恢复失败，执行日志已保留供下次重试：{0}", String(describing: error.localizedDescription))
             recoveryMessageIsError = true
         }
         await reloadHistory()
@@ -1476,7 +1476,7 @@ private struct ScanPresentationSnapshots: Sendable {
                 at: Date()
             )
         } catch {
-            recoveryMessage = "已删除项目自动清除计划加载失败：\(error.localizedDescription)"
+            recoveryMessage = L10n.text("已删除项目自动清除计划加载失败：{0}", String(describing: error.localizedDescription))
             recoveryMessageIsError = true
         }
         await reloadQuarantineSchedules()
@@ -1489,7 +1489,7 @@ private struct ScanPresentationSnapshots: Sendable {
             let loadedReceipts = try await cleanupExecutionCoordinator.receipts()
             receipts = loadedReceipts.sorted { $0.completedAt > $1.completedAt }
         } catch {
-            recoveryMessage = "恢复记录读取失败；当前界面继续保留上一次成功加载的记录：\(error.localizedDescription)"
+            recoveryMessage = L10n.text("恢复记录读取失败；当前界面继续保留上一次成功加载的记录：{0}", String(describing: error.localizedDescription))
             recoveryMessageIsError = true
         }
     }
@@ -1510,24 +1510,24 @@ private struct ScanPresentationSnapshots: Sendable {
             await reloadQuarantineSchedules()
             var completedMessages: [String] = []
             if result.trashedItemCount > 0 {
-                completedMessages.append("已将 \(result.trashedItemCount) 项移入系统废纸篓，可在清空废纸篓前恢复")
+                completedMessages.append(L10n.text("已将 {0} 项移入系统废纸篓，可在清空废纸篓前恢复", String(describing: result.trashedItemCount)))
             }
             if result.deletedItemCount > 0 {
-                completedMessages.append("已按计划彻底删除 \(result.deletedItemCount) 项，释放约 \(ByteCountFormatter.cleanerString(bytes: result.releasedBytes))")
+                completedMessages.append(L10n.text("已按计划彻底删除 {0} 项，释放约 {1}", String(describing: result.deletedItemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.releasedBytes))))
             }
             if result.unavailableItemCount > 0 {
-                completedMessages.append("\(result.unavailableItemCount) 项保留内容已不存在，已结束恢复记录")
+                completedMessages.append(L10n.text("{0} 项保留内容已不存在，已结束恢复记录", String(describing: result.unavailableItemCount)))
             }
             if !completedMessages.isEmpty {
                 recoveryMessage = completedMessages.joined(separator: "；")
                 recoveryMessageIsError = false
             }
             if result.failedItemCount > 0 {
-                recoveryMessage = "自动彻底删除有 \(result.failedItemCount) 项失败；内容仍可从恢复记录找回，将稍后重试"
+                recoveryMessage = L10n.text("自动彻底删除有 {0} 项失败；内容仍可从恢复记录找回，将稍后重试", String(describing: result.failedItemCount))
                 recoveryMessageIsError = true
             }
         } catch {
-            recoveryMessage = "已删除项目自动清除失败：\(error.localizedDescription)"
+            recoveryMessage = L10n.text("已删除项目自动清除失败：{0}", String(describing: error.localizedDescription))
             recoveryMessageIsError = true
             await reloadQuarantineSchedules()
         }
@@ -1613,11 +1613,11 @@ private struct ScanPresentationSnapshots: Sendable {
                 }
                 phase = .reviewing
                 scanTask = nil
-                statusMessage = "模块已刷新；其他模块保留各自的扫描时间"
+                statusMessage = L10n.text("模块已刷新；其他模块保留各自的扫描时间")
             } catch {
-                phase = .failed("模块刷新失败")
+                phase = .failed(L10n.text("模块刷新失败"))
                 scanTask = nil
-                statusMessage = "模块刷新失败：\(error.localizedDescription)"
+                statusMessage = L10n.text("模块刷新失败：{0}", String(describing: error.localizedDescription))
             }
         }
     }
@@ -1630,7 +1630,7 @@ private struct ScanPresentationSnapshots: Sendable {
         selectedIDs.removeAll(); uninstallSelectedIDs.removeAll(); excludedBaseIDs.removeAll()
         cleanupFailures.removeAll(); oneClickCompletedByModule.removeAll()
         restoreConfirmationReceipt = nil; purgeConfirmationReceipt = nil
-        statusMessage = "规则已变更，旧扫描与计划失效；请重新扫描。"
+        statusMessage = L10n.text("规则已变更，旧扫描与计划失效；请重新扫描。")
         phase = .idle
     }
 

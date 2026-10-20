@@ -114,6 +114,13 @@ public struct ApplicationAssociation: Identifiable, Codable, Hashable, Sendable 
     public let references: [ApplicationReferenceLocation]?
     public let isSystemResource: Bool?
 
+    /// Ownership matching still consumes canonical evidence. Translate only its display copy,
+    /// so changing language or wording cannot change deletion eligibility.
+    public var localizedOwnershipEvidence: String {
+        let separator = L10n.language == .english ? "; " : "；"
+        return ownershipEvidence.components(separatedBy: "；").map { L10n.text($0) }.joined(separator: separator)
+    }
+
     public init(url: URL, kind: Kind, ownershipEvidence: String, containsUserData: Bool, isShared: Bool, risk: RiskLevel, ownerBundleURLs: [URL]? = nil, references: [ApplicationReferenceLocation]? = nil, isSystemResource: Bool = false) {
         self.url = url
         self.kind = kind
@@ -481,10 +488,10 @@ public struct UninstallPlanner: Sendable {
         let bundleRisk: RiskLevel = application.isRunning || application.isSystem
             || bundleIdentity.kind != .directory || application.id.path.hasPrefix("/Volumes/") ? .blocked : .review
         let bundleEvidence = application.isRunning
-            ? Evidence(code: "running-app", summary: "应用仍在运行，必须先退出")
+            ? Evidence(code: "running-app", summary: L10n.text("应用仍在运行，必须先退出"))
             : Evidence(code: "app-bundle", summary: ownership?.requiresExternalUninstall == true
-                ? "仅移除应用本体；安装来源记录和关联内容可能保留，可从恢复记录找回应用本体"
-                : "应用本体将删除，可从恢复记录找回")
+                ? L10n.text("仅移除应用本体；安装来源记录和关联内容可能保留，可从恢复记录找回应用本体")
+                : L10n.text("应用本体将删除，可从恢复记录找回"))
         items.append(UninstallItem(candidate: context.protectionPolicy.applying(to: CleanupCandidate(
             url: application.bundleURL,
             displayName: application.name,
@@ -493,9 +500,9 @@ public struct UninstallPlanner: Sendable {
             risk: bundleRisk,
             evidence: [bundleEvidence, Evidence(code: "owner-bundle", summary: application.bundleURL.path),
                        Evidence(code: "owner-bundle-id", summary: application.bundleIdentifier), Evidence(code: "owner-name", summary: application.name)]
-                + (ownership?.requiresExternalUninstall == true ? [Evidence(code: "external-uninstall", summary: ownership?.guidance ?? "请通过安装来源卸载")] : [])
+                + (ownership?.requiresExternalUninstall == true ? [Evidence(code: "external-uninstall", summary: ownership?.guidance ?? L10n.text("请通过安装来源卸载"))] : [])
                 + (limitations.isEmpty && !reachedSizeBudget ? [] : [
-                Evidence(code: "size-estimate", summary: "部分应用文件无法统计，显示大小为已读取部分；应用本体仍可手动卸载"),
+                Evidence(code: "size-estimate", summary: L10n.text("部分应用文件无法统计，显示大小为已读取部分；应用本体仍可手动卸载")),
             ]),
             identity: bundleIdentity,
             source: .application,
@@ -533,13 +540,13 @@ public struct UninstallPlanner: Sendable {
             }
             let incomplete = limitations.count > previousLimitationCount || reachedSizeBudget
             let category: CleanupCategory = association.kind == .cache ? .cache : .applicationSupport
-            let protectionReason: String = association.isShared ? "这是多个应用共用的内容"
-                : association.isSystemResource == true ? "这是系统目录内容"
-                : association.references?.isEmpty == false ? "仍有配置或服务引用此项目"
-                : association.kind == .launchAgent || association.kind == .launchDaemon ? "这是应用启动服务定义；需先停止并注销服务，再移除此文件。仅删除 plist 不会停止已加载的服务。"
-                : ownership?.blocksAssociationDeletion == true ? (ownership?.guidance ?? "应用归属或安装来源尚未验证")
-                : identity.kind == .symbolicLink ? "这是符号链接，目标路径未纳入卸载计划"
-                : "归属证据不足或扫描未完整，暂时不能安全删除"
+            let protectionReason: String = association.isShared ? L10n.text("这是多个应用共用的内容")
+                : association.isSystemResource == true ? L10n.text("这是系统目录内容")
+                : association.references?.isEmpty == false ? L10n.text("仍有配置或服务引用此项目")
+                : association.kind == .launchAgent || association.kind == .launchDaemon ? L10n.text("这是应用启动服务定义；需先停止并注销服务，再移除此文件。仅删除 plist 不会停止已加载的服务。")
+                : ownership?.blocksAssociationDeletion == true ? (ownership?.guidance ?? L10n.text("应用归属或安装来源尚未验证"))
+                : identity.kind == .symbolicLink ? L10n.text("这是符号链接，目标路径未纳入卸载计划")
+                : L10n.text("归属证据不足或扫描未完整，暂时不能安全删除")
             let candidate = context.protectionPolicy.applying(to: CleanupCandidate(
                 url: association.url,
                 displayName: association.url.lastPathComponent,
@@ -547,21 +554,21 @@ public struct UninstallPlanner: Sendable {
                 bytes: bytes,
                 risk: isProtected ? .blocked : incomplete ? .review : association.risk,
                 evidence: [
-                    Evidence(code: "ownership", summary: association.ownershipEvidence),
+                    Evidence(code: "ownership", summary: association.localizedOwnershipEvidence),
                     Evidence(code: "owner-bundle", summary: application.bundleURL.path),
                     Evidence(code: "owner-bundle-id", summary: application.bundleIdentifier),
                     Evidence(code: "owner-name", summary: application.name),
-                    Evidence(code: association.containsUserData ? "user-data" : "recoverable", summary: association.containsUserData ? "可能包含用户创建的数据；仅在归属独占时可选删除" : "可恢复的应用关联文件"),
-                ] + (association.kind == .sharedContainer ? [Evidence(code: "app-group-data", summary: "应用声明的应用组目录；当前清单未发现其他所有者，需单独确认删除。")] : [])
-                + (association.kind == .launchAgent || association.kind == .launchDaemon ? [Evidence(code: "service-definition", summary: "需先停止并注销此启动服务，再移除此文件。仅删除 plist 不会停止已加载的服务。 ")] : [])
+                    Evidence(code: association.containsUserData ? "user-data" : "recoverable", summary: association.containsUserData ? L10n.text("可能包含用户创建的数据；仅在归属独占时可选删除") : L10n.text("可恢复的应用关联文件")),
+                ] + (association.kind == .sharedContainer ? [Evidence(code: "app-group-data", summary: L10n.text("应用声明的应用组目录；当前清单未发现其他所有者，需单独确认删除。"))] : [])
+                + (association.kind == .launchAgent || association.kind == .launchDaemon ? [Evidence(code: "service-definition", summary: L10n.text("需先停止并注销此启动服务，再移除此文件。仅删除 plist 不会停止已加载的服务。 "))] : [])
                 + (association.references ?? []).map { reference in
                     Evidence(code: "reference-location", summary: "\(reference.file.path):\(reference.line)")
-                } + (ownership?.blocksAssociationDeletion == true ? [Evidence(code: "external-uninstall", summary: ownership?.guidance ?? "请通过原安装来源卸载")] : [])
+                } + (ownership?.blocksAssociationDeletion == true ? [Evidence(code: "external-uninstall", summary: ownership?.guidance ?? L10n.text("请通过原安装来源卸载"))] : [])
                 + (isProtected ? [
                     Evidence(code: "protection-reason", summary: protectionReason),
-                    Evidence(code: "size-not-measured", summary: "因安全规则无法访问内容，未统计大小"),
+                    Evidence(code: "size-not-measured", summary: L10n.text("因安全规则无法访问内容，未统计大小")),
                 ] : incomplete ? [
-                    Evidence(code: "size-estimate", summary: "部分内容无法访问，大小为已统计部分；你仍可单独选择此项，删除后可从恢复记录找回。"),
+                    Evidence(code: "size-estimate", summary: L10n.text("部分内容无法访问，大小为已统计部分；你仍可单独选择此项，删除后可从恢复记录找回。")),
                 ] : []),
                 identity: identity,
                 source: .application,
@@ -660,8 +667,8 @@ public struct UninstallPlanner: Sendable {
         ScanLimitation(
             title: ApplicationAnalysisErrorDescription.describe(error),
             path: url,
-            impact: "该位置未完整统计；受影响的关联项不会加入卸载计划，应用本体仍可单独卸载。",
-            recovery: "可检查该位置权限后刷新应用；无需修改受保护文件的权限。"
+            impact: L10n.text("该位置未完整统计；受影响的关联项不会加入卸载计划，应用本体仍可单独卸载。"),
+            recovery: L10n.text("可检查该位置权限后刷新应用；无需修改受保护文件的权限。")
         )
     }
 }

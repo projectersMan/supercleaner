@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SuperCleaner",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "CleanerCore", targets: ["CleanerCore"]),
