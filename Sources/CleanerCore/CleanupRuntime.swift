@@ -52,6 +52,9 @@ public struct CleanupRuntime: Sendable {
         let configuration = try await configuration(includeProjectActivity: candidate.source == .projectArtifacts)
         try configuration.context.protectionPolicy.validate(candidate.url)
         try await CleanupRuleEngine(pack: configuration.pack).validateForExecution(candidate, context: configuration.context)
+        if candidate.source == .historicalApplicationResidue {
+            try await HistoricalResidueExecutionValidator().validate(candidate, context: configuration.context)
+        }
         if candidate.source == .projectArtifacts {
             try await ProjectArtifactScanner(roots: projectRoots.roots()).validateForExecution(candidate, context: configuration.context)
         }

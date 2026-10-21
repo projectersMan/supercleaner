@@ -107,16 +107,33 @@ struct AgentEnvironmentView: View {
                 )
             } else {
                 List {
-                    ForEach(model.visibleAgentMCPConfigurations) { configuration in
-                        MCPConfigurationRow(
-                            model: model,
-                            configuration: configuration,
-                            candidate: model.agentMCPCandidate(for: configuration)
-                        )
+                    Section {
+                        ForEach(model.visibleAgentMCPConfigurations) { configuration in
+                            MCPConfigurationRow(
+                                model: model,
+                                configuration: configuration,
+                                candidate: model.agentMCPCandidate(for: configuration)
+                            )
+                        }
+                    } header: {
+                        HStack {
+                            Label(L10n.text("Agents"), systemImage: "person.2")
+                            Spacer()
+                            Text(L10n.text("{0} 个 MCP", String(describing: model.visibleAgentMCPConfigurations.count)))
+                            Text(ByteCountFormatter.cleanerString(bytes: visibleMCPBytes))
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+    }
+
+    private var visibleMCPBytes: UInt64 {
+        model.visibleAgentMCPConfigurations.reduce(0) { total, configuration in
+            total + (model.agentMCPCandidate(for: configuration)?.bytes ?? 0)
         }
     }
 

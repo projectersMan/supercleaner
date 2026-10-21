@@ -175,7 +175,7 @@ public struct DefaultCleanupAttemptOutcome: Equatable, Sendable {
 private extension CleanupCandidate {
     var defaultCleanupModule: ScanModuleID {
         switch source {
-        case .general: .general
+        case .general, .historicalApplicationResidue: .general
         case .agentWorkspace: .agentEnvironment
         case .diskAnalysis: .largeFiles
         case .application: .applications

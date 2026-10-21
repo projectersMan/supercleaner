@@ -964,7 +964,7 @@ private struct ScanPresentationSnapshots: Sendable {
 
     private func oneClickModule(for candidate: CleanupCandidate) -> ScanModuleID? {
         switch candidate.source {
-        case .general: .general
+        case .general, .historicalApplicationResidue: .general
         case .agentWorkspace: .agentEnvironment
         case .diskAnalysis: .largeFiles
         case .application: .applications

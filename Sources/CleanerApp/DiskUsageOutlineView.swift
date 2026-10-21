@@ -1,4 +1,5 @@
 import CleanerCore
+import AppKit
 import SwiftUI
 
 struct DiskUsageOutlineView: View {
@@ -78,6 +79,13 @@ private struct DiskUsageTreeRow: View {
             .background(model.selectedDiskNodeURL == node.url ? Color.accentColor.opacity(0.08) : Color.clear)
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.12)), alignment: .bottom)
             .onTapGesture { performRowAction(clickCount: 1) }
+            .contextMenu {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([node.url.standardizedFileURL])
+                } label: {
+                    Label(L10n.text("在 Finder 中打开"), systemImage: "folder")
+                }
+            }
             .accessibilityAddTraits(model.selectedDiskNodeURL == node.url ? .isSelected : [])
 
             if isExpanded {

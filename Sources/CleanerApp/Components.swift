@@ -192,6 +192,7 @@ private extension CandidateSource {
     var displayTitle: String {
         switch self {
         case .general: L10n.text("通用扫描")
+        case .historicalApplicationResidue: L10n.text("历史卸载残留")
         case .agentWorkspace: L10n.text("Agent 环境")
         case .application: L10n.text("应用卸载")
         case .diskAnalysis: L10n.text("磁盘分析")

@@ -33,6 +33,7 @@ public enum CleanupCategory: String, Codable, Sendable, CaseIterable, Hashable {
 
 public enum CandidateSource: String, Codable, Sendable, CaseIterable, Hashable {
     case general
+    case historicalApplicationResidue
     case agentWorkspace
     case application
     case diskAnalysis

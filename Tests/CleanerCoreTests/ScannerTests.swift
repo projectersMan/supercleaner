@@ -30,6 +30,33 @@ final class ScannerTests: XCTestCase {
         XCTAssertFalse(report.candidates.isEmpty)
         XCTAssertEqual(report.failures.map(\.scannerID), ["fixture.failure"])
     }
+
+    func testHistoricalResidueSeparatesRebuildableCachesFromReviewData() async {
+        let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+        let now = Date(timeIntervalSince1970: 10_000_000)
+        let cacheRoot = home.appendingPathComponent("Library/Caches", isDirectory: true)
+        let supportRoot = home.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let containersRoot = home.appendingPathComponent("Library/Containers", isDirectory: true)
+        let oldCache = cacheRoot.appendingPathComponent("com.removed.old")
+        let oldSupport = supportRoot.appendingPathComponent("com.removed.old")
+        let emptyContainer = containersRoot.appendingPathComponent("com.removed.empty", isDirectory: true)
+        let entries: [URL: [FixtureEntry]] = [
+            cacheRoot: [
+                FixtureEntry(url: oldCache, size: 100, modified: now.addingTimeInterval(-86_400 * 45)),
+            ],
+            supportRoot: [FixtureEntry(url: oldSupport, size: 300, modified: now.addingTimeInterval(-86_400 * 45))],
+            containersRoot: [FixtureEntry(url: emptyContainer, size: 0, modified: now.addingTimeInterval(-86_400 * 45), kind: .directory)],
+            emptyContainer: [],
+        ]
+        let context = ScanContext(homeDirectory: home, fileSystem: FixtureFileSystem(entries: entries), now: now)
+        let results = await HistoricalResidueScanner().scan(context: context)
+
+        XCTAssertEqual(results.map(\.url.path), [oldCache.path, oldSupport.path, emptyContainer.path].sorted())
+        XCTAssertEqual(results.first { $0.url == oldCache }?.risk, .safe)
+        XCTAssertEqual(results.first { $0.url == oldSupport }?.risk, .review)
+        XCTAssertEqual(results.first { $0.url == emptyContainer }?.risk, .safe)
+        XCTAssertTrue(results.allSatisfy { $0.source == .historicalApplicationResidue })
+    }
 }
 
 private struct FailingScanner: CleanerCore.Scanner {

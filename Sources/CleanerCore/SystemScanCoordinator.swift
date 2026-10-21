@@ -151,8 +151,10 @@ public struct SystemScanCoordinator: Sendable {
                     ],
                     context: context
                 )
+                let consolidated = rulePack.map { CleanupRuleEngine(pack: $0).consolidate(scanned.candidates, home: context.homeDirectory) } ?? scanned.candidates
+                let historicalResidues = await HistoricalResidueScanner().scan(context: context)
                 let report = ScanReport(
-                    candidates: rulePack.map { CleanupRuleEngine(pack: $0).consolidate(scanned.candidates, home: context.homeDirectory) } ?? scanned.candidates,
+                    candidates: consolidated + historicalResidues,
                     failures: scanned.failures, startedAt: scanned.startedAt, completedAt: scanned.completedAt
                 )
                 let state: ScanModuleState = report.failures.isEmpty ? .completed : .limited

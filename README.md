@@ -4,7 +4,7 @@
 
 ## Features
 
-- Scan caches, logs, temporary files, installers, developer artifacts, and large files.
+- Scan caches, logs, temporary files, installers, developer artifacts, historical uninstall remnants, and large files.
 - Review evidence and safety status before cleanup; app, large-file, and AI agent results require explicit selection.
 - Plan application uninstallations with related files and installation ownership checks.
 - Find project artifacts such as `node_modules`, `target`, `.build`, `build`, and `dist`, while protecting active projects and tracked content.
@@ -35,7 +35,7 @@ Local builds may use ad-hoc signing and are intended for development. They are n
 ![SuperCleaner overview showing the scan entry point and cleanup categories](docs/images/cleanup-center.png)
 
 1. Open SuperCleaner and start a full scan from **Overview**. Grant macOS permissions when prompted for protected locations.
-2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Select an item to inspect its path, evidence, and safety status.
+2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Historical uninstall remnants appear in **Cleanup Center**: orphaned caches and verified empty residual directories with complete Bundle ID and application-inventory evidence can be suggested for cleanup, while non-empty application-support data stays in suggested retention for review. Select an item to inspect its path, evidence, and safety status.
 3. Choose what to include. Eligible system cleanup items can be preselected; application, large-file, and agent workspace findings require your explicit selection. Blocked items cannot be selected.
 4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting and moves eligible items into quarantine.
 5. Open **History** to review completed operations and restore quarantined items while they remain available.

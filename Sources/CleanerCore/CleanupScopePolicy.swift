@@ -3,7 +3,7 @@ public struct CleanupScopePolicy: Sendable {
 
     public func cleanupCenterCandidates(from candidates: [CleanupCandidate]) -> [CleanupCandidate] {
         candidates.filter {
-            $0.source == .general && $0.category != .largeFile
+            ($0.source == .general || $0.source == .historicalApplicationResidue) && $0.category != .largeFile
         }
     }
 
