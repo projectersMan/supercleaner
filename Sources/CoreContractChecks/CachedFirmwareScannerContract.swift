@@ -115,6 +115,10 @@ private actor CachedFirmwareContractFileSystem: FileSystemAccess {
     }
 
     func identity(at url: URL) throws -> FileIdentity {
+        if entries.keys.contains(where: { $0.standardizedFileURL.path == url.standardizedFileURL.path }) {
+            return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)),
+                size: 0, modificationTime: 0, kind: .directory)
+        }
         guard let entry = entriesByPath[url.standardizedFileURL.path] else {
             throw FileSystemError.missing(url)
         }

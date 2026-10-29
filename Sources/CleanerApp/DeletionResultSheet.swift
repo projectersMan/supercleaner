@@ -44,18 +44,18 @@ struct DeletionResultSheet: View {
             }
             HStack {
                 Button(L10n.text("查看恢复记录")) {
-                    model.deletionResult = nil
+                    model.dismissDeletionSheet()
                     model.selection = .recovery
                 }
                 if !retryableFailures.isEmpty {
                     Button(L10n.text("安全重试 {0} 项", String(describing: retryableFailures.count))) {
                         let failures = retryableFailures
-                        model.deletionResult = nil
+                        model.dismissDeletionSheet()
                         model.retryCleanupFailures(failures)
                     }
                 }
                 Spacer()
-                Button(L10n.text("完成")) { model.deletionResult = nil }
+                Button(L10n.text("完成")) { model.dismissDeletionSheet() }
                     .buttonStyle(.borderedProminent)
             }
         }

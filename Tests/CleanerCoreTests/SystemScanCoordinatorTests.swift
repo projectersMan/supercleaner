@@ -10,9 +10,9 @@ final class SystemScanCoordinatorTests: XCTestCase {
             fileSystem: EmptySystemScanFileSystem()
         )
 
-        let report = await SystemScanCoordinator().scan(context: context) { event in
+        let report = await SystemScanCoordinator().scan(context: context, progress: { event in
             await recorder.append(event)
-        }
+        })
 
         XCTAssertNotNil(report)
         XCTAssertTrue(report?.isCommitEligible == true)

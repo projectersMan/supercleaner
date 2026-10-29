@@ -24,6 +24,7 @@ private struct DiskUsageTreeRow: View {
     let node: DiskUsageNode
     let depth: Int
     @State private var isExpanded = false
+    @State private var isHovered = false
 
     private var children: [DiskUsageNode] {
         if case let .loaded(children) = node.children {
@@ -76,8 +77,9 @@ private struct DiskUsageTreeRow: View {
             .padding(16)
             .padding(.leading, CGFloat(depth) * 18)
             .contentShape(Rectangle())
-            .background(model.selectedDiskNodeURL == node.url ? Color.accentColor.opacity(0.08) : Color.clear)
+            .background((model.isDiskFileSelected(node) || isHovered) ? Color.accentColor.opacity(0.08) : Color.clear)
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.12)), alignment: .bottom)
+            .onHover { isHovered = $0 }
             .onTapGesture { performRowAction(clickCount: 1) }
             .contextMenu {
                 Button {

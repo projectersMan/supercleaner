@@ -35,3 +35,11 @@
 | `SRC-CARGO-CACHE-001` | [Cargo Home 官方文档](https://doc.rust-lang.org/cargo/guide/cargo-home.html)：`registry/cache` 保存下载的 crate 归档，可重新下载 | 规则根仅覆盖精确下载缓存，不包含凭证、配置和已安装二进制；离线构建风险使其保持 review | Core Engine |
 | `SRC-COCOAPODS-CACHE-001` | [CocoaPods 官方命令参考](https://guides.cocoapods.org/terminal/commands.html)：`pod cache clean` 支持按 Pod 或全部清理 | 精确用户缓存根、pod/ruby 活动检查；私有源和离线依赖使其保持 review | Core Engine |
 | `SRC-PLAYWRIGHT-BROWSERS-001` | [Playwright 官方浏览器文档](https://playwright.dev/docs/browsers)：macOS 浏览器二进制位于 `~/Library/Caches/ms-playwright`，可由 CLI 安装/卸载 | 保持 review；保护同根下 `daemon` 持久会话和浏览器状态；Node/浏览器活动时阻止 | Core Engine |
+
+2026-10-29 系统清理补齐（观察环境：macOS 26.5.2 / 25F84；仅本机目录与应用 Bundle 元数据）：
+
+| Reference | 独立来源与使用事实 | 验证与边界 | Owner |
+|---|---|---|---|
+| `SRC-SYSTEM-APP-CLEANUP-001` | [Chromium user_data_dir](https://github.com/chromium/chromium/blob/main/docs/user_data_dir.md)、[Electron app.getPath](https://www.electronjs.org/docs/latest/api/app#appgetpathname)、[Chrome Cache Storage](https://developer.chrome.com/docs/workbox/access-caches-from-the-window)；本机 Chrome、ChatGPT、微信 4.1.15、Trae CN、Lark 的目录元数据观察 | `SystemCleanupContract` 自建夹具；精确归属的普通应用缓存内容完整且无敏感文件即可默认清理，不设年龄门槛；明确批准的 Chrome CacheStorage/ScriptCache 可默认清理；运行中仅允许精确应用缓存根进入隔离，日志、共享缓存及其它应用离线内容仍需手动确认；聊天、登录状态和用户文件不进入专项根；执行前复核 | System Clean Up |
+
+实现与限制见 `system-cleanup-scanning.md`。应用扫描覆盖元数据、文件大小和路径，不以读取私人文件内容作为规则证据。

@@ -38,10 +38,11 @@ final class PathPolicyTests: XCTestCase {
         XCTAssertThrowsError(try PathPolicy(homeDirectory: home).validateCandidate(link))
     }
 
-    func testApplicationScopeAllowsOnlyDirectNonSystemBundles() throws {
+    func testApplicationScopeAllowsFoldersButRejectsEmbeddedAndSystemBundles() throws {
         let policy = PathPolicy(homeDirectory: home)
         XCTAssertNoThrow(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Example.app")))
-        XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Nested/Example.app")))
+        XCTAssertNoThrow(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Nested/Example.app")))
+        XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Host.app/Contents/Nested.app")))
         XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/System/Applications/Example.app")))
         XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Example")))
     }

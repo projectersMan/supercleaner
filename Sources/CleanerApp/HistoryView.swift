@@ -177,7 +177,10 @@ private struct QuarantineScheduleControls: View {
                     Text(policy.displayTitle).tag(policy)
                 }
             }
-            .pickerStyle(.menu).frame(width: 130)
+            .pickerStyle(.menu)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 260, alignment: .trailing)
+            .layoutPriority(1)
             .disabled(schedule == nil || model.recoveryActionReceiptID != nil)
         }
         .padding(10)

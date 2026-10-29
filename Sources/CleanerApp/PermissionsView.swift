@@ -46,7 +46,7 @@ struct PermissionsView: View {
     private var helperSection: some View {
         HelperSettingsSection(
             helper: model.helper,
-            operationsBusy: model.phase == .executing || model.phase == .scanning,
+            operationsBusy: model.phase == .executing || model.isScanRunning,
             requestInstall: { confirmsHelperInstall = true },
             requestReregistration: { confirmsHelperRegistration = true }
         )
@@ -160,7 +160,7 @@ extension PermissionsView {
                         .foregroundColor(.orange)
                     Spacer()
                     Button(L10n.text("应用并刷新")) { model.refreshModule(.largeFiles) }
-                        .disabled(model.phase == .scanning)
+                        .disabled(model.isScanRunning)
                 }
             }
         }

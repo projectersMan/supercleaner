@@ -16,6 +16,17 @@ func runPlanningExecutionContracts() async throws {
     let plan = try builder.build(candidates: [safe], selectedIDs: [safe.id], now: now)
     require(plan.engineVersion == "1.0" && plan.ruleVersion == "rules-1", "plan must bind engine and rules")
 
+    let cancelledFS = ExecutionContractFileSystem(entries: [safe.url: safe.identity])
+    let cancelledExecutor = CleanupExecutor(fileSystem: cancelledFS, quarantineRoot: URL(fileURLWithPath: "/tmp/cleaner-cancelled-validation"),
+        currentRuleVersion: "rules-1", now: { now }, validateCandidate: { _ in
+            withUnsafeCurrentTask { $0?.cancel() }
+        })
+    let cancellationTask = Task { await cancelledExecutor.execute(plan: plan) }
+    let validationCancelledReceipt = await cancellationTask.value
+    let cancelledMutations = await cancelledFS.mutations()
+    require(validationCancelledReceipt.results.first?.status == .skippedCancelled && cancelledMutations.isEmpty,
+            "stopping during ownership validation must prevent the pending move")
+
     let changedFS = ExecutionContractFileSystem(entries: [safe.url: contractCandidate(path: safe.url.path, risk: .safe, inode: 99).identity])
     let changedExecutor = CleanupExecutor(fileSystem: changedFS, pathPolicy: PathPolicy(), quarantineRoot: URL(fileURLWithPath: "/tmp/cleaner-quarantine"), currentRuleVersion: "rules-1", now: { now })
     let changedReceipt = await changedExecutor.execute(plan: plan)
@@ -617,6 +628,26 @@ func runPlanningExecutionContracts() async throws {
     }.value
     require(cancelledReceipt.overallStatus == .partial, "cancelled execution was reported complete")
     require(cancelledReceipt.results.contains { $0.status == .skippedCancelled }, "cancelled items were absent from receipt")
+
+    let streamedFS = ExecutionContractFileSystem(entries: [safe.url: safe.identity, second.url: second.identity])
+    let streamedExecutor = CleanupExecutor(fileSystem: streamedFS, quarantineRoot: URL(fileURLWithPath: "/tmp/cleaner-streamed-results"), currentRuleVersion: "rules-1", now: { now })
+    let streamedReceipt = await Task {
+        await streamedExecutor.execute(plan: cancelPlan) { progress in
+            if progress.result?.status == .succeeded { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+    }.value
+    require(streamedReceipt.results.filter { $0.status == .succeeded }.count == 1
+        && streamedReceipt.results.filter { $0.status == .skippedCancelled }.count == 1,
+        "each verified file effect must be published before the next item starts")
+
+    let missingFS = ExecutionContractFileSystem(entries: [:])
+    let missingExecutor = CleanupExecutor(fileSystem: missingFS, quarantineRoot: URL(fileURLWithPath: "/tmp/cleaner-missing-source"),
+        currentRuleVersion: "rules-1", now: { now }, validateCandidate: { _ in
+            require(false, "missing source must not trigger expensive ownership validation")
+        })
+    let missingReceipt = await missingExecutor.execute(plan: plan)
+    require(missingReceipt.results.first?.status == .sourceMissing && missingReceipt.results.first?.disposition == .skipped,
+            "confirmed absent source must be reported separately from unreadable/protected files")
 }
 
 private func contractCandidate(path: String, risk: RiskLevel, inode: UInt64 = 2) -> CleanupCandidate {

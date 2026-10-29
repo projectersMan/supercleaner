@@ -15,6 +15,7 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
     public let message: String?
     public let limitations: [ScanLimitation]
     public let ownership: ApplicationOwnershipNode?
+    public let runtimeObservation: ApplicationRuntimeObservation?
 
     public init(
         application: InstalledApplication,
@@ -22,7 +23,8 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         state: ApplicationUninstallCoverageState,
         message: String? = nil,
         limitations: [ScanLimitation] = [],
-        ownership: ApplicationOwnershipNode? = nil
+        ownership: ApplicationOwnershipNode? = nil,
+        runtimeObservation: ApplicationRuntimeObservation? = nil
     ) {
         self.application = application
         self.plan = plan
@@ -30,11 +32,12 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         self.message = message
         self.limitations = limitations
         self.ownership = ownership
+        self.runtimeObservation = runtimeObservation
     }
 
     public var statusTitle: String {
         switch state {
-        case .complete: return L10n.text("分析完整")
+        case .complete: return L10n.text("基础分析完成")
         case .limited: return L10n.text("可卸载 · 部分未统计")
         case .unavailable: return L10n.text("无法分析")
         case .protected:
@@ -86,6 +89,14 @@ public struct ApplicationUninstallInventory: Codable, Hashable, Sendable {
 
     public var plans: [UninstallPlan] {
         analyses.compactMap(\.plan)
+    }
+
+    public func observing(_ observations: [URL: ApplicationRuntimeObservation]) -> Self {
+        Self(applicationInventory: applicationInventory, analyses: analyses.map { analysis in
+            ApplicationUninstallAnalysis(application: analysis.application, plan: analysis.plan, state: analysis.state,
+                message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership,
+                runtimeObservation: observations[analysis.id] ?? analysis.runtimeObservation)
+        }, associationCoverage: associationCoverage, ownershipGraph: ownershipGraph)
     }
 
     public var moduleCoverage: ApplicationModuleCoverage {

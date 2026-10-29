@@ -1,11 +1,6 @@
 import Foundation
 import Security
 
-private enum ApplicationOwnershipMatch: Equatable {
-    case bundleIdentifierBoundary
-    case displayName
-}
-
 public struct InstalledApplication: Identifiable, Codable, Hashable, Sendable {
     public var id: URL { bundleURL }
     public let bundleURL: URL
@@ -16,8 +11,10 @@ public struct InstalledApplication: Identifiable, Codable, Hashable, Sendable {
     public let isSystem: Bool
     public let teamIdentifier: String?
     public let applicationGroups: [String]?
+    public let associatedBundleIdentifiers: [String]?
 
-    public init(bundleURL: URL, bundleIdentifier: String, name: String, version: String?, isRunning: Bool, isSystem: Bool, teamIdentifier: String? = nil, applicationGroups: [String]? = nil) {
+    public init(bundleURL: URL, bundleIdentifier: String, name: String, version: String?, isRunning: Bool, isSystem: Bool, teamIdentifier: String? = nil, applicationGroups: [String]? = nil, associatedBundleIdentifiers: [String]? = nil) {
+        self.associatedBundleIdentifiers = associatedBundleIdentifiers
         self.bundleURL = bundleURL
         self.bundleIdentifier = bundleIdentifier
         self.name = name
@@ -35,8 +32,10 @@ public struct ApplicationBundleMetadata: Codable, Hashable, Sendable {
     public let version: String?
     public let teamIdentifier: String?
     public let applicationGroups: [String]?
+    public let associatedBundleIdentifiers: [String]?
 
-    public init(bundleIdentifier: String, name: String, version: String?, teamIdentifier: String? = nil, applicationGroups: [String]? = nil) {
+    public init(bundleIdentifier: String, name: String, version: String?, teamIdentifier: String? = nil, applicationGroups: [String]? = nil, associatedBundleIdentifiers: [String]? = nil) {
+        self.associatedBundleIdentifiers = associatedBundleIdentifiers
         self.bundleIdentifier = bundleIdentifier
         self.name = name
         self.version = version
@@ -72,7 +71,41 @@ public struct BundleApplicationMetadataProvider: ApplicationMetadataProviding {
             let entitlements = facts[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
             groups = (entitlements?["com.apple.security.application-groups"] as? [String])?.sorted()
         }
-        return ApplicationBundleMetadata(bundleIdentifier: identifier, name: name, version: version, teamIdentifier: team, applicationGroups: groups)
+        return ApplicationBundleMetadata(bundleIdentifier: identifier, name: name, version: version, teamIdentifier: team, applicationGroups: groups,
+            associatedBundleIdentifiers: embeddedIdentifiers(in: bundleURL, identifier: identifier, team: team))
+    }
+
+    private func embeddedIdentifiers(in bundleURL: URL, identifier: String, team: String?) -> [String] {
+        let manager = FileManager.default
+        var found = Set<String>(), entries = 0
+        var queue: [(URL, Int)] = ["XPCServices", "PlugIns", "Helpers", "Applications", "Library/LoginItems", "Library/LaunchServices"].map {
+            (bundleURL.appendingPathComponent("Contents/" + $0), 0)
+        }
+        while !queue.isEmpty, entries < 512 {
+            let (root, depth) = queue.removeFirst()
+            guard root.resolvingSymlinksInPath().path == root.standardizedFileURL.path,
+                  let children = try? manager.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: .skipsHiddenFiles) else { continue }
+            for child in children.sorted(by: { $0.path < $1.path }) {
+                entries += 1
+                guard entries <= 512, let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+                      values.isDirectory == true, values.isSymbolicLink != true,
+                      child.resolvingSymlinksInPath().path == child.standardizedFileURL.path else { continue }
+                if ["app", "xpc", "appex", "bundle"].contains(child.pathExtension.lowercased()),
+                   let bundle = Bundle(url: child), let childID = bundle.bundleIdentifier, childID != identifier {
+                    var sameTeam = false
+                    if let team {
+                        var code: SecStaticCode?, info: CFDictionary?
+                        if SecStaticCodeCreateWithPath(child as CFURL, [], &code) == errSecSuccess, let code,
+                           SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSBasicValidateOnly), nil) == errSecSuccess,
+                           SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+                           let facts = info as? [String: Any] { sameTeam = facts[kSecCodeInfoTeamIdentifier as String] as? String == team }
+                    }
+                    if childID.hasPrefix(identifier + ".") || sameTeam { found.insert(childID) }
+                }
+                if depth < 5, child.pathExtension.lowercased() != "framework" { queue.append((child, depth + 1)) }
+            }
+        }
+        return found.sorted()
     }
 }
 
@@ -101,8 +134,19 @@ public struct ApplicationAssociation: Identifiable, Codable, Hashable, Sendable 
         case webData
         case launchDaemon
         case privilegedHelper
+        case diagnosticReport
+        case applicationScripts, cookies, plugin, installationReceipt, temporary, searchIndex
     }
 
+    public enum RemovalPolicy: String, Codable, Hashable, Sendable { case recoverable, referenceOnly }
+    public let removalPolicy: RemovalPolicy?
+
+    public enum OwnershipBasis: String, Codable, Hashable, Sendable {
+        case bundleDataDeclaration, diagnosticReportIdentity, crashReporterRecord, diagnosticNameOnly
+        case bundleIdentifier, applicationGroup, displayName, serviceDefinition, compatibilityHint
+    }
+    public let ownershipBasis: OwnershipBasis?
+    public let declarationSource: String?
     public var id: URL { url }
     public let url: URL
     public let kind: Kind
@@ -121,7 +165,10 @@ public struct ApplicationAssociation: Identifiable, Codable, Hashable, Sendable 
         return ownershipEvidence.components(separatedBy: "；").map { L10n.text($0) }.joined(separator: separator)
     }
 
-    public init(url: URL, kind: Kind, ownershipEvidence: String, containsUserData: Bool, isShared: Bool, risk: RiskLevel, ownerBundleURLs: [URL]? = nil, references: [ApplicationReferenceLocation]? = nil, isSystemResource: Bool = false) {
+    public init(url: URL, kind: Kind, ownershipEvidence: String, containsUserData: Bool, isShared: Bool, risk: RiskLevel, ownerBundleURLs: [URL]? = nil, references: [ApplicationReferenceLocation]? = nil, isSystemResource: Bool = false, ownershipBasis: OwnershipBasis? = nil, declarationSource: String? = nil, removalPolicy: RemovalPolicy? = nil) {
+        self.removalPolicy = removalPolicy
+        self.ownershipBasis = ownershipBasis
+        self.declarationSource = declarationSource
         self.url = url
         self.kind = kind
         self.ownershipEvidence = ownershipEvidence
@@ -185,11 +232,13 @@ public struct ApplicationScanner: Sendable {
     private let metadataProvider: any ApplicationMetadataProviding
     private let ownershipBuilder: ApplicationOwnershipGraphBuilder
     private let applicationRoots: [URL]?
+    private let diagnosticScanner: ApplicationDiagnosticScanner
 
-    public init(metadataProvider: any ApplicationMetadataProviding = BundleApplicationMetadataProvider(), ownershipBuilder: ApplicationOwnershipGraphBuilder = ApplicationOwnershipGraphBuilder(), applicationRoots: [URL]? = nil) {
+    public init(metadataProvider: any ApplicationMetadataProviding = BundleApplicationMetadataProvider(), ownershipBuilder: ApplicationOwnershipGraphBuilder = ApplicationOwnershipGraphBuilder(), applicationRoots: [URL]? = nil, diagnosticScanner: ApplicationDiagnosticScanner = ApplicationDiagnosticScanner()) {
         self.metadataProvider = metadataProvider
         self.ownershipBuilder = ownershipBuilder
         self.applicationRoots = applicationRoots
+        self.diagnosticScanner = diagnosticScanner
     }
 
     public func installedApplications(
@@ -285,7 +334,8 @@ public struct ApplicationScanner: Sendable {
                             isRunning: runningBundleIdentifiers.union(context.runningBundleIdentifiers).contains(metadata.bundleIdentifier),
                             isSystem: url.path.hasPrefix("/System/Applications/"),
                             teamIdentifier: metadata.teamIdentifier,
-                            applicationGroups: metadata.applicationGroups
+                            applicationGroups: metadata.applicationGroups,
+                            associatedBundleIdentifiers: metadata.associatedBundleIdentifiers
                         ))
                         continue
                     }
@@ -337,109 +387,49 @@ public struct ApplicationScanner: Sendable {
 
     public func associationIndex(
         for applications: [InstalledApplication],
-        context: ScanContext
+        context: ScanContext,
+        resourceURL: URL? = nil
     ) async -> ApplicationAssociationIndex {
-        struct RootSpec: Sendable {
-            let relativePath: String
-            let kind: ApplicationAssociation.Kind
-            let containsUserData: Bool
-            let isShared: Bool
-        }
-        let specs = [
-            RootSpec(relativePath: "Library/Caches", kind: .cache, containsUserData: false, isShared: false),
-            RootSpec(relativePath: "Library/Application Support", kind: .applicationSupport, containsUserData: true, isShared: false),
-            RootSpec(relativePath: "Library/Preferences", kind: .preference, containsUserData: false, isShared: false),
-            RootSpec(relativePath: "Library/Saved Application State", kind: .savedState, containsUserData: false, isShared: false),
-            RootSpec(relativePath: "Library/Containers", kind: .container, containsUserData: true, isShared: false),
-        ]
-
         var output = Dictionary(uniqueKeysWithValues: applications.map { ($0.id, [ApplicationAssociation]()) })
         var scannedRoots: [URL] = []
         var unavailableRoots: [URL] = []
-        var remaining = 20_000
         var limited = false
-        let deadline = Date().addingTimeInterval(20)
-        for spec in specs {
-            if Task.isCancelled { limited = true; break }
-            let root = context.homeDirectory.appendingPathComponent(spec.relativePath, isDirectory: true)
-            guard await context.fileSystem.fileExists(root) else { continue }
-            guard await context.fileSystem.isReadable(root) else {
-                unavailableRoots.append(root)
-                continue
+        let declarationDeadline = Date().addingTimeInterval(15)
+        var declarations: [URL: [ApplicationAssociation]] = [:]
+        var declarationsComplete = true
+        let needsDeclarations = resourceURL == nil || resourceURL?.deletingLastPathComponent().standardizedFileURL.path
+            == context.homeDirectory.appendingPathComponent("Library/Application Support").standardizedFileURL.path
+        for application in needsDeclarations ? applications : [] {
+            if Task.isCancelled || Date() >= declarationDeadline {
+                limited = true; declarationsComplete = false; break
             }
-            let children: [URL]
-            do {
-                children = try await context.fileSystem.children(of: root)
-                scannedRoots.append(root)
-            } catch {
-                unavailableRoots.append(root)
-                continue
-            }
-            for url in children {
-                guard remaining > 0, Date() < deadline, !Task.isCancelled else { limited = true; break }
-                remaining -= 1
-                for application in applications {
-                    guard let ownershipMatch = ownershipMatch(
-                        url: url,
-                        application: application,
-                        shared: spec.isShared
-                    ) else { continue }
-                    let risk: RiskLevel
-                    if application.isRunning || spec.isShared {
-                        risk = .blocked
-                    } else if spec.kind == .cache, ownershipMatch == .bundleIdentifierBoundary {
-                        risk = .safe
-                    } else {
-                        risk = .review
-                    }
-                    output[application.id, default: []].append(ApplicationAssociation(
-                        url: url,
-                        kind: spec.kind,
-                        ownershipEvidence: ownershipEvidence(for: ownershipMatch),
-                        containsUserData: spec.containsUserData,
-                        isShared: spec.isShared,
-                        risk: risk
-                    ))
-                }
-            }
+            declarations[application.id] = await ApplicationDataDiscovery().associations(for: application, context: context)
         }
+        // A truncated identity pass could miss another owner of a custom root.
+        // Do not grant new deletion rights from that partial declaration set.
+        if declarationsComplete {
+            for (owner, values) in declarations { output[owner, default: []] += values }
+        }
+        // A declaration does not grant ownership of a shared search boundary.
+        let sharedRootPaths = Set(ApplicationAssociationPathRegistry.roots(home: context.homeDirectory).map { $0.url.path })
+        output = output.mapValues { $0.filter { !sharedRootPaths.contains($0.url.standardizedFileURL.path)
+            && !ApplicationDiagnosticScanner.isDiagnosticDirectory($0.url, home: context.homeDirectory) } }
+        let diagnostics = await diagnosticScanner.scan(applications: applications, context: context)
+        for (owner, values) in diagnostics.associations { output[owner, default: []] += values }
+        if let resourceURL {
+            output = output.mapValues { $0.filter { $0.url.standardizedFileURL.path == resourceURL.standardizedFileURL.path } }
+        }
+        scannedRoots += diagnostics.coverage.scannedRoots
+        unavailableRoots += diagnostics.coverage.unavailableRoots
+        limited = limited || !diagnostics.coverage.budgetLimitedModules.isEmpty
         return await ownershipBuilder.build(
             applications: applications, associations: output,
-            coverage: CoverageSummary(scannedRoots: scannedRoots, unavailableRoots: unavailableRoots, budgetLimitedModules: limited ? [.applications] : []), context: context
+            coverage: CoverageSummary(scannedRoots: scannedRoots, unavailableRoots: unavailableRoots, budgetLimitedModules: limited ? [.applications] : []), context: context,
+            resourceURL: resourceURL
         )
     }
 
-    private func ownershipMatch(
-        url: URL,
-        application: InstalledApplication,
-        shared: Bool
-    ) -> ApplicationOwnershipMatch? {
-        var stem = url.lastPathComponent.lowercased()
-        for suffix in [".savedstate", ".plist"] where stem.hasSuffix(suffix) {
-            stem.removeLast(suffix.count)
-        }
-        let bundleID = application.bundleIdentifier.lowercased()
-        let appName = application.name.lowercased()
-        if stem == bundleID || stem.hasPrefix(bundleID + ".") {
-            return .bundleIdentifierBoundary
-        }
-        if shared {
-            let groupID = "group." + bundleID
-            if stem == groupID || stem.hasPrefix(groupID + ".") {
-                return .bundleIdentifierBoundary
-            }
-        }
-        return stem == appName ? .displayName : nil
-    }
 
-    private func ownershipEvidence(for match: ApplicationOwnershipMatch) -> String {
-        switch match {
-        case .bundleIdentifierBoundary:
-            return "名称与完整 Bundle ID 边界匹配"
-        case .displayName:
-            return "名称仅与应用显示名精确匹配"
-        }
-    }
 }
 
 public struct UninstallPlanner: Sendable {
@@ -522,6 +512,7 @@ public struct UninstallPlanner: Sendable {
                 continue
             }
             let isProtected = association.isShared || association.risk == .blocked || identity.kind == .symbolicLink
+                || association.removalPolicy == .referenceOnly
                 || ownership?.blocksAssociationDeletion == true
             let previousLimitationCount = limitations.count
             let bytes: UInt64
@@ -539,10 +530,11 @@ public struct UninstallPlanner: Sendable {
                 )
             }
             let incomplete = limitations.count > previousLimitationCount || reachedSizeBudget
-            let category: CleanupCategory = association.kind == .cache ? .cache : .applicationSupport
+            let category: CleanupCategory = association.kind == .cache ? .cache : association.kind == .diagnosticReport ? .log : .applicationSupport
             let protectionReason: String = association.isShared ? L10n.text("这是多个应用共用的内容")
                 : association.isSystemResource == true ? L10n.text("这是系统目录内容")
                 : association.references?.isEmpty == false ? L10n.text("仍有配置或服务引用此项目")
+                : association.removalPolicy == .referenceOnly && association.kind != .launchAgent && association.kind != .launchDaemon ? L10n.text("此项目用于关联核对；安装记录或已注册组件需通过原安装来源移除")
                 : association.kind == .launchAgent || association.kind == .launchDaemon ? L10n.text("这是应用启动服务定义；需先停止并注销服务，再移除此文件。仅删除 plist 不会停止已加载的服务。")
                 : ownership?.blocksAssociationDeletion == true ? (ownership?.guidance ?? L10n.text("应用归属或安装来源尚未验证"))
                 : identity.kind == .symbolicLink ? L10n.text("这是符号链接，目标路径未纳入卸载计划")
@@ -559,7 +551,10 @@ public struct UninstallPlanner: Sendable {
                     Evidence(code: "owner-bundle-id", summary: application.bundleIdentifier),
                     Evidence(code: "owner-name", summary: application.name),
                     Evidence(code: association.containsUserData ? "user-data" : "recoverable", summary: association.containsUserData ? L10n.text("可能包含用户创建的数据；仅在归属独占时可选删除") : L10n.text("可恢复的应用关联文件")),
-                ] + (association.kind == .sharedContainer ? [Evidence(code: "app-group-data", summary: L10n.text("应用声明的应用组目录；当前清单未发现其他所有者，需单独确认删除。"))] : [])
+                ] + (association.removalPolicy == .referenceOnly ? [Evidence(code: "association-reference-only", summary: L10n.text("此项目用于关联核对；安装记录或已注册组件需通过原安装来源移除"))] : [])
+                + (association.kind == .diagnosticReport ? [Evidence(code: "diagnostic-file", summary: association.localizedOwnershipEvidence)] : [])
+                + (association.declarationSource.map { [Evidence(code: "data-declaration-source", summary: $0)] } ?? [])
+                + (association.kind == .sharedContainer ? [Evidence(code: "app-group-data", summary: L10n.text("应用声明的应用组目录；当前清单未发现其他所有者，需单独确认删除。"))] : [])
                 + (association.kind == .launchAgent || association.kind == .launchDaemon ? [Evidence(code: "service-definition", summary: L10n.text("需先停止并注销此启动服务，再移除此文件。仅删除 plist 不会停止已加载的服务。 "))] : [])
                 + (association.references ?? []).map { reference in
                     Evidence(code: "reference-location", summary: "\(reference.file.path):\(reference.line)")

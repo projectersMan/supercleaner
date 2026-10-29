@@ -8,7 +8,7 @@ struct ApplicationsView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("应用卸载")).font(.largeTitle.bold())
-                Text(L10n.text("扫描已准备好每个应用的卸载范围；按需勾选，可展开核对具体项目并批量删除。"))
+                Text(L10n.text("基础扫描识别应用归属；运行观察补充关联线索。展开核对后选择卸载内容，用户数据需手动确认。"))
                     .foregroundColor(.secondary)
             }
             .padding(24)
@@ -65,7 +65,7 @@ struct ApplicationsView: View {
             Button { model.refreshApplications() } label: {
                 Label(model.isLoadingApplications ? L10n.text("分析中") : L10n.text("刷新应用"), systemImage: "arrow.clockwise")
             }
-            .disabled(model.isLoadingApplications || model.phase == .scanning || model.phase == .executing)
+            .disabled(model.isLoadingApplications || model.deepScanningApplicationID != nil || model.isScanRunning || model.phase == .executing)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
@@ -79,6 +79,8 @@ private struct ApplicationUninstallRow: View {
     let analysis: ApplicationUninstallAnalysis?
     @State private var disclosure = ApplicationUninstallDisclosureState()
     @State private var confirmUninstaller = false
+    @State private var confirmDeepScan = false
+    @State private var isHovered = false
 
     private var plan: UninstallPlan? { analysis?.plan }
     /// Keep the summary count and size aligned with rows that show an enabled checkbox.
@@ -94,7 +96,9 @@ private struct ApplicationUninstallRow: View {
     fileprivate static func isSelectable(_ item: UninstallItem) -> Bool {
         item.candidate.risk.isSelectable && !item.candidate.isActive && !item.isShared
     }
-    private var isSelectedRow: Bool { model.selectedApplicationID == application.id }
+    private var hasSelectedItems: Bool {
+        plan?.items.contains(where: { model.uninstallSelectedIDs.contains($0.id) }) == true
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -137,13 +141,21 @@ private struct ApplicationUninstallRow: View {
                 } else {
                     protectedContent
                 }
+                deepScanContent
                 if let ownership = analysis?.ownership { ownershipContent(ownership) }
             }
         }
-        .background(isSelectedRow ? Color.accentColor.opacity(0.08) : Color.clear)
+        .background(hasSelectedItems || isHovered ? Color.accentColor.opacity(0.08) : Color.clear)
         .overlay(Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.08)), alignment: .bottom)
+        .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.16), value: disclosure.isExpanded)
-        .accessibilityAddTraits(isSelectedRow ? .isSelected : [])
+        .accessibilityAddTraits(hasSelectedItems ? .isSelected : [])
+        .alert(L10n.text("启动应用进行深度关联扫描？"), isPresented: $confirmDeepScan) {
+            Button(L10n.text("取消"), role: .cancel) {}
+            Button(L10n.text("启动并观察")) { model.startApplicationDeepScan(application, allowLaunch: true) }
+        } message: {
+            Text(L10n.text("会尝试在后台真正启动此应用，短暂观察它打开的文件；应用仍可能显示窗口、联网或修改数据。结束后只请求退出本次启动的实例，不会强制退出。采样不能证明全部文件已发现。"))
+        }
         .alert(L10n.text("打开官方卸载器？"), isPresented: $confirmUninstaller) {
             Button(L10n.text("取消"), role: .cancel) {}
             Button(L10n.text("打开")) {
@@ -154,6 +166,57 @@ private struct ApplicationUninstallRow: View {
         } message: {
             Text(L10n.text("会再次验证应用与卸载器签名。官方工具的修改不属于本应用的隔离恢复；请在工具内确认具体操作。"))
         }
+    }
+
+    private var deepScanContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !application.isSystem {
+                HStack {
+                    if model.deepScanningApplicationID == application.id {
+                        Button(L10n.text("停止观察")) { model.cancelApplicationDeepScan() }
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button(L10n.text("深度关联扫描")) {
+                            if application.isRunning { model.startApplicationDeepScan(application, allowLaunch: false) }
+                            else { confirmDeepScan = true }
+                        }
+                        .disabled(!model.canStartApplicationDeepScan)
+                    }
+                    Text(L10n.text("仅采样当前打开的文件，不能据此直接删除。"))
+                        .font(.caption).foregroundColor(.secondary)
+                }
+            }
+            if let message = model.deepScanMessages[application.id] {
+                Text(message).font(.caption).foregroundColor(.secondary)
+            }
+            if let observation = analysis?.runtimeObservation {
+                Text(observation.summary).font(.caption).foregroundColor(.secondary)
+                ForEach(observation.directories, id: \.self) { directory in
+                    HStack(alignment: .top) {
+                        Image(systemName: "eye")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(directory.path).font(.caption.monospaced()).textSelection(.enabled)
+                            Text(observationLabel(for: directory))
+                                .font(.caption2).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button(L10n.text("在访达中查看")) { NSWorkspace.shared.activateFileViewerSelecting([directory]) }
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 66).padding(.trailing, 18).padding(.vertical, 10)
+    }
+
+    private func observationLabel(for directory: URL) -> String {
+        if let item = analysis?.plan?.items.first(where: { $0.candidate.url.standardizedFileURL.path == directory.standardizedFileURL.path }) {
+            return ApplicationUninstallRow.isSelectable(item)
+                ? L10n.text("已列入上方卸载清单，可勾选删除")
+                : L10n.text("已列入上方清单，请查看该项的保护原因")
+        }
+        return L10n.text("观察到访问 · 可删除性以卸载清单的归属校验为准")
     }
 
     private func ownershipContent(_ ownership: ApplicationOwnershipNode) -> some View {
@@ -181,7 +244,7 @@ private struct ApplicationUninstallRow: View {
             }
             if ownership.installation.officialUninstaller != nil {
                 Button(L10n.text("打开官方卸载器…")) { confirmUninstaller = true }
-                    .disabled(model.phase == .scanning || model.phase == .executing)
+                    .disabled(model.isScanRunning || model.phase == .executing)
             }
             if !ownership.configurationReferences.isEmpty {
                 Text(L10n.text("配置引用（保留配置，仅报告位置）")).font(.caption.weight(.semibold))
@@ -210,6 +273,7 @@ private struct ApplicationUninstallRow: View {
                     .font(.title3).foregroundColor(state == .none ? .secondary : .accentColor)
             }
             .buttonStyle(.plain)
+            .disabled(model.isDeletionInProgress)
             .help(state == .all ? L10n.text("取消选择此应用的可卸载项目") : L10n.text("手动选择此应用的全部可卸载项目"))
         } else {
             Image(systemName: "lock.square").font(.title3).foregroundColor(.secondary).frame(width: 18)
@@ -297,13 +361,20 @@ private struct UninstallItemRow: View {
                     .font(.body).foregroundColor(model.isUninstallItemSelected(item) ? .accentColor : .secondary)
             }
             .buttonStyle(.plain)
-            .disabled(!isSelectable)
+            .disabled(!isSelectable || model.isDeletionInProgress)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.candidate.category == .application
                     ? L10n.text("{0} · 应用本体", String(describing: item.candidate.displayName))
                     : item.candidate.displayName)
                     .font(.callout.weight(.medium)).lineLimit(1)
                 Text(item.candidate.url.path).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)
+                if let diagnostic = item.candidate.evidence.first(where: { $0.code == "diagnostic-file" }) {
+                    Text(diagnostic.summary).font(.caption2).foregroundColor(.secondary)
+                }
+                if let declaration = item.candidate.evidence.first(where: { $0.code == "data-declaration-source" }) {
+                    Text(L10n.text("应用包声明的数据目录 · 用户数据需手动确认"))
+                        .font(.caption2).foregroundColor(.secondary).help(declaration.summary)
+                }
             }
             Spacer()
             Text(sizeDescription)
@@ -349,12 +420,14 @@ private struct ItemProtectionBadge: View {
         let reason = item.candidate.evidence.first { $0.code == "protection-reason" }?.summary ?? ""
         let isService = item.candidate.evidence.contains { $0.code == "service-definition" }
         let isExternal = item.candidate.evidence.contains { $0.code == "external-uninstall" }
+        let isReferenceOnly = item.candidate.evidence.contains { $0.code == "association-reference-only" }
         let isSystem = reason.contains(L10n.text("系统目录"))
         let isReferenced = reason.contains(L10n.text("引用"))
         let title = item.isShared ? L10n.text("其他应用共用")
             : isService ? L10n.text("需先停止服务")
             : isExternal && !isSelectable ? L10n.text("请使用原安装器")
             : isSystem ? L10n.text("系统目录保护")
+            : isReferenceOnly ? L10n.text("仅关联展示")
             : isReferenced ? L10n.text("仍有项目引用")
             : protected ? L10n.text("归属待确认")
             : isSelected ? L10n.text("已选择") : nil

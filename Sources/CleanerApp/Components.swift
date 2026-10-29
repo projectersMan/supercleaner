@@ -113,10 +113,17 @@ struct CleanupCandidateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             CandidateRow(model: model, candidate: candidate)
+            if candidate.requiresExplicitSelection == true {
+                Label(L10n.text("必须逐项手动选择；清理后离线内容或共享缓存可能不可用"), systemImage: "hand.raised")
+                    .font(.caption).foregroundColor(.orange)
+            }
             Text(candidate.url.path)
                 .font(.caption.monospaced()).foregroundColor(.secondary)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-
+            if let failure = model.cleanupFailures.first(where: { $0.candidate.id == candidate.id }) {
+                Label(failure.reason, systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundColor(.orange)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -341,6 +348,7 @@ struct DimensionActionBar: View {
             } else if model.phase == .executing {
                 ProgressView().controlSize(.small)
                 Button(L10n.text("停止后续项目")) { model.cancelExecution() }
+                    .disabled(model.isStoppingDeletion)
             } else if summary.itemCount > 0 {
                 Button(L10n.text("清空选择")) { model.clearUninstallSelection() }
             }
@@ -349,7 +357,7 @@ struct DimensionActionBar: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(model.isCurrentModuleScanning || model.phase == .executing || !model.canExecuteUninstallBatch)
+            .disabled(!model.canExecuteUninstallBatch)
         }
     }
 
@@ -368,12 +376,13 @@ struct DimensionActionBar: View {
             } else if model.phase == .executing {
                 ProgressView().controlSize(.small)
                 Button(L10n.text("停止后续项目")) { model.cancelExecution() }
+                    .disabled(model.isStoppingDeletion)
                 deleteButton.disabled(true)
             } else {
                 if !selected.isEmpty {
                     Button(L10n.text("清空选择")) { model.clearCurrentSelection() }
                 }
-                deleteButton.disabled(selected.isEmpty || !model.hasCompletedScan || model.phase == .scanning || model.oneClickCleanupIsRunning)
+                deleteButton.disabled(!model.canExecuteSelection)
             }
         }
     }

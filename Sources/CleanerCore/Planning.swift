@@ -48,7 +48,12 @@ public struct PlanBuilder: Sendable {
             catch { throw PlanBuilderError.protectedSelection(candidate.id) }
         }
 
-        let items = candidates.map { candidate in
+        let ordered = candidates.enumerated().sorted { left, right in
+            let leftBody = left.element.source == .application && left.element.category == .application
+            let rightBody = right.element.source == .application && right.element.category == .application
+            return leftBody == rightBody ? left.offset < right.offset : !leftBody
+        }.map(\.element)
+        let items = ordered.map { candidate in
             PlanItem(
                 candidate: candidate,
                 isSelected: selectedIDs.contains(candidate.id),

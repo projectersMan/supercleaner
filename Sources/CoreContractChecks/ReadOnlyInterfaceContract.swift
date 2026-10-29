@@ -23,7 +23,7 @@ func runReadOnlyInterfaceContracts() async throws {
     let preview = try await ReadOnlyInterface.run(ReadOnlyRequest(arguments: ["preview", "--module", "general", "--home", home.path, "--path", cache.path]), runtime: runtime)
     require(preview.plan?.selectedItems.map { $0.candidate.url.resolvingSymlinksInPath().path } == [cache.resolvingSymlinksInPath().path], "preview must bind selected path to scanned candidate")
     let defaults = try await ReadOnlyInterface.run(ReadOnlyRequest(arguments: ["preview", "--module", "general", "--home", home.path]), runtime: runtime)
-    require(defaults.plan?.selectedItems.isEmpty == true, "preview must not default-select unknown caches")
+    require(defaults.plan?.selectedItems.map { $0.candidate.url.resolvingSymlinksInPath().path } == [cache.resolvingSymlinksInPath().path], "default preview must reflect selectable System and other applications items")
     let history = try await ReadOnlyInterface.run(ReadOnlyRequest(arguments: ["history", "--home", home.path]), runtime: runtime)
     require(history.receipts?.isEmpty == true, "missing history must produce an empty read-only result")
     let support = home.appendingPathComponent("Library/Application Support/SuperCleaner")

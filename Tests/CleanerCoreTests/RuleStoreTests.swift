@@ -4,6 +4,21 @@ import XCTest
 @testable import CleanerCore
 
 final class RuleStoreTests: XCTestCase {
+    func testExecutionFingerprintChangesWhenRulesAreInstalled() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let key = Curve25519.Signing.PrivateKey()
+        let store = RuleStore(directory: root, publicKey: key.publicKey.rawRepresentation)
+        let before = try await store.executionStateFingerprint()
+        let pack = RulePack(version: "1", issuedAt: Date(), rules: [], revokedRuleIDs: [])
+        let data = try JSONEncoder().encode(pack)
+
+        try await store.install(update: SignedRuleUpdate(packData: data, signature: try key.signature(for: data)))
+
+        let after = try await store.executionStateFingerprint()
+        XCTAssertNotEqual(before, after)
+    }
+
     func testRejectsInvalidSignatureAndOnDiskTampering() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

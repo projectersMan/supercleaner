@@ -45,8 +45,11 @@ struct ContentView: View {
             model.helper.refresh()
             model.applicationDidBecomeActive()
         }
-        .sheet(item: $model.deletionResult) { receipt in
-            DeletionResultSheet(model: model, receipt: receipt)
+        .sheet(isPresented: Binding(
+            get: { model.showsDeletionSheet },
+            set: { if !$0 { model.dismissDeletionSheet() } }
+        )) {
+            DeletionOperationSheet(model: model)
         }
     }
 
@@ -69,7 +72,7 @@ struct ContentView: View {
 
     private var showsOneClickBar: Bool {
         guard model.selection == .cleanupCenter || model.selection == .dashboard else { return false }
-        return model.phase == .scanning || model.systemReport != nil
+        return model.isScanRunning || model.systemReport != nil
     }
 
     private func destinationLabel(_ destination: AppDestination) -> some View {

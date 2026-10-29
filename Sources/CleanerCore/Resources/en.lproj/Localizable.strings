@@ -882,3 +882,111 @@
 "文件" = "File";
 "其他应用 / 副本仍拥有此资源" = "Other applications or copies still own this resource";
 "仍有配置或服务引用" = "Configuration or service references remain";
+
+"仅采样当前打开的文件，不能据此直接删除。" = "Samples currently open files only; observations do not authorize deletion.";
+
+"会尝试在后台真正启动此应用，短暂观察它打开的文件；应用仍可能显示窗口、联网或修改数据。结束后只请求退出本次启动的实例，不会强制退出。采样不能证明全部文件已发现。" = "This will try to launch the app in the background and briefly sample its open files. The app may still show windows, connect to the network, or change data. Afterwards, only the instance started here will be asked to quit, without force quitting. Sampling cannot find every associated file.";
+
+"停止观察" = "Stop observing";
+
+"启动并观察" = "Launch and observe";
+
+"启动应用进行深度关联扫描？" = "Launch this app for a deeper association scan?";
+
+"在访达中查看" = "Show in Finder";
+
+"基础分析完成" = "Basic analysis finished";
+
+"基础分析完成，正在补充运行中的应用关联。" = "Basic analysis finished. Observing running apps for additional associations.";
+
+"基础扫描识别应用归属；运行观察补充关联线索。展开核对后选择卸载内容，用户数据需手动确认。" = "Basic scans identify app ownership; runtime observations add association clues. Expand to review uninstall items. User data requires manual selection.";
+
+"已完成 {0} 次打开文件采样；短暂访问和未使用功能可能未被记录。访问记录不等于可删除。" = "Finished {0} open-file samples. Brief accesses and unused features may be missed. Observed use does not authorize deletion.";
+
+"应用包声明的数据目录 · 用户数据需手动确认" = "Data directory declared by the app · Select user data manually";
+
+"应用包明确声明用户数据目录" = "The app bundle explicitly declares this user data directory";
+
+"应用实例可能已由其他操作启动；扫描结束后不会自动退出它。" = "This instance may have been started elsewhere and will not be quit automatically.";
+
+"无法开始观察：{0}" = "Could not start observing: {0}";
+
+"正在准备观察；基础扫描结果已保留。" = "Preparing to observe. Basic scan results are retained.";
+
+"正在采样打开文件；结果会逐步补充，未观察到的访问仍可能存在。" = "Sampling open files and adding results as they arrive. Other accesses may remain unobserved.";
+
+"正在采样运行中应用的打开文件" = "Sampling open files of running apps";
+
+"深度关联扫描" = "Deep association scan";
+
+"观察到访问 · 可删除性以卸载清单的归属校验为准" = "Observed access · Deletion eligibility depends on ownership checks in the uninstall list";
+
+"观察已停止，已发现的路径保留；这不是完整访问记录。" = "Observation stopped. Discovered paths are retained; this is not a complete access trace.";
+
+"观察已取消；基础扫描结果已保留。" = "Observation cancelled. Basic scan results are retained.";
+
+"观察已结束，应用尚未退出；请手动退出后刷新，才能卸载。" = "Observation finished, but the app is still running. Quit it manually and refresh before uninstalling.";
+
+"部分进程或打开文件不可读取，观察范围受限；基础扫描结果仍然有效。" = "Some processes or open files could not be read. Observation coverage is limited; basic scan results remain valid.";
+
+"崩溃记录文件名、UUID 格式及应用可执行名称一致" = "Crash record filename, UUID format, and application executable name match";
+
+"诊断文件仅有名称线索，归属尚未确认" = "Only a diagnostic filename clue is available; ownership is unconfirmed";
+
+"诊断报告内的应用标识或进程路径匹配" = "The diagnostic report matches the application identifier or process path";
+
+"诊断文件身份缺失或冲突，归属尚未确认" = "Diagnostic identity is missing or conflicting; ownership is unconfirmed";
+"已处理 {0}/{1} 项" = "Processed {0}/{1} items";
+"正在停止…" = "Stopping…";
+"当前项目处理结束后停止，已经删除的项目可从恢复记录找回。" = "Stopping after the current item finishes. Deleted items can be restored from Recovery.";
+"正在整理删除结果…" = "Finishing deletion results…";
+"正在准备删除…" = "Preparing to delete…";
+"处理完成后会显示结果；已删除项目可从恢复记录找回。" = "Results will appear when processing finishes. Deleted items can be restored from Recovery.";
+"此项目用于关联核对；安装记录或已注册组件需通过原安装来源移除" = "This item is retained for association checks. Remove installation records or registered components through the original installer.";
+"兼容规则发现的关联线索，尚未确认独占归属" = "A compatibility rule suggests an association; exclusive ownership is unconfirmed";
+"已列入上方卸载清单，可勾选删除" = "Already in the uninstall list above; select it to delete";
+"已列入上方清单，请查看该项的保护原因" = "Already listed above; see that item's protection reason";
+"仅关联展示" = "Association only";
+
+/* System cleanup discovery and partial coverage */
+"共享缓存" = "Shared cache";
+"其它清理项" = "Other cleanup items";
+"已保留完成验证的项目；未完整检查的内容不会自动清理" = "Verified items are retained; incompletely inspected content will not be cleaned automatically";
+"应用列表部分不可访问" = "Some applications could not be inspected";
+"应用日志" = "Application logs";
+"微信日志" = "WeChat logs";
+"微信缓存" = "WeChat cache";
+"必须逐项手动选择；清理后离线内容或共享缓存可能不可用" = "Select individually; offline content or shared caches may be unavailable after cleanup";
+"应用运行中，缓存可能立即重新生成；离线页面可能暂时不可用" = "The app is running, so caches may regenerate immediately; offline pages may be temporarily unavailable";
+"已默认勾选 {0} 项；运行中缓存可能重新生成" = "{0} items selected by default; active caches may regenerate";
+"检查目录访问权限，关闭相关应用后重新扫描" = "Check folder access, close the associated application, then scan again";
+"沙盒缓存" = "Sandbox cache";
+"派生缓存" = "Derived cache";
+"浏览器缓存" = "Browser cache";
+"目录无法完整检查" = "Folder inspection incomplete";
+"部分完成" = "Partially complete";
+"位置已发生变化" = "Location changed during scan";
+"扫描已取消" = "Scan canceled";
+"清理规则暂时无法读取" = "Cleanup rules are temporarily unavailable";
+"系统与其它应用" = "System and other applications";
+"网页离线内容" = "Offline website content";
+"达到扫描数量上限" = "Scan entry limit reached";
+"达到扫描数量或深度上限" = "Scan entry or depth limit reached";
+"达到扫描深度上限" = "Scan depth limit reached";
+"部分位置未完成扫描（{0}）" = "Some locations were not fully scanned ({0})";
+"访问受限" = "Access restricted";
+"达到扫描上限" = "Scan limit reached";
+"扫描期间发生变化" = "Changed during scan";
+"其它原因" = "Other reasons";
+"已达到安全扫描预算；缩小扫描范围后重新扫描可检查更多内容" = "The safe scan budget was reached; narrow the scan scope and scan again to inspect more content";
+"关闭相关应用后重新扫描" = "Close the related app and scan again";
+"部分路径可能受 macOS 完全磁盘访问限制。授权后重新扫描；仍受限的路径通常是其它文件权限或系统保护。" = "Some paths may be blocked by macOS Full Disk Access. Grant access and scan again; paths that remain restricted are usually blocked by other file permissions or system protection.";
+"打开完全磁盘访问设置" = "Open Full Disk Access Settings";
+"可尝试开启完全磁盘访问并重新扫描；若仍不可读，此位置可能受其它文件权限或 macOS 保护" = "Try enabling Full Disk Access and scan again. If this location remains unreadable, another file permission or macOS protection may apply.";
+"建议检查完全磁盘访问权限" = "Check Full Disk Access";
+"仍然开始扫描" = "Scan Anyway";
+"打开系统设置" = "Open System Settings";
+"完全磁盘访问由 macOS 管理，SuperCleaner 不能自行获取。开启后重新扫描可能发现更多可清理项；不开启也可以继续扫描可访问的位置。" = "Full Disk Access is controlled by macOS; SuperCleaner cannot grant it automatically. Enabling it and scanning again may find more cleanup items. You can also continue scanning accessible locations without it.";
+"部分内容不可读取或已变化" = "Some content could not be read or has changed";
+"缓存可能需要重新下载，日志将不再保留" = "Caches may need to be downloaded again; logs will no longer be available";
+"应用运行中，缓存可能立即重新生成" = "The app is running, so the cache may regenerate immediately";

@@ -141,7 +141,11 @@ public struct SystemScanReport: Sendable {
             materializedCandidates.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        coverage = Self.combinedCoverage(applicationInventory.coverage, diskUsageTree.coverage, agentScanCoverage)
+        let generalLimitations = modules[.general]?.limitations ?? []
+        let generalCoverage = CoverageSummary(scannedRoots: generalCandidates.map(\.url),
+            unavailableRoots: generalLimitations.compactMap(\.path),
+            budgetLimitedModules: generalLimitations.contains { $0.reason == .budget } ? [.general] : [])
+        coverage = Self.combinedCoverage(Self.combinedCoverage(applicationInventory.coverage, diskUsageTree.coverage, agentScanCoverage), generalCoverage, CoverageSummary())
     }
 
     public func replacing(
@@ -168,7 +172,12 @@ public struct SystemScanReport: Sendable {
             message: nil
         )
         switch payload {
-        case let .general(report): general = report.candidates
+        case let .general(report):
+            general = report.candidates
+            replacementStatus = ScanModuleStatus(module: module,
+                state: report.failures.isEmpty ? .completed : .limited,
+                startedAt: report.startedAt, completedAt: report.completedAt,
+                limitations: report.failures.map(\.limitation))
         case let .applications(inventory):
             applicationAnalysis = inventory
             let coverage = inventory.moduleCoverage

@@ -54,8 +54,10 @@ public struct ScanLimitation: Identifiable, Codable, Hashable, Sendable {
     public let path: URL?
     public let impact: String
     public let recovery: String
+    public let reason: ScanFailure.Reason?
 
-    public init(title: String, path: URL? = nil, impact: String, recovery: String) {
+    public init(title: String, path: URL? = nil, impact: String, recovery: String, reason: ScanFailure.Reason? = nil) {
+        self.reason = reason
         self.title = title
         self.path = path?.standardizedFileURL
         self.impact = impact

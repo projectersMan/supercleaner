@@ -139,16 +139,15 @@ public enum ReadOnlyInterface {
         let pack = configuration.pack
         let report: ReadOnlyScanDocument
         if request.module == .general {
-            let engine = CleanupRuleEngine(pack: pack)
-            let result = await ScanCoordinator().scan(using: engine.scanners + [InstallerScanner(), IncompleteDownloadScanner()], context: context)
+            let result = await SystemCleanupScanner().scan(context: context, pack: pack)
             guard !Task.isCancelled else { throw ReadOnlyInterfaceError.cancelled }
             report = ReadOnlyScanDocument(
                 metadata: ScanGenerationMetadata(startedAt: result.startedAt, completedAt: result.completedAt, rulesetVersion: pack.executionVersion),
                 scanStatus: result.failures.isEmpty ? "complete" : "partial",
                 modules: [ScanModuleStatus(module: .general, state: result.failures.isEmpty ? .completed : .limited,
                                           startedAt: result.startedAt, completedAt: result.completedAt,
-                                          limitations: result.failures.map { ScanLimitation(title: $0.scannerID, impact: $0.message, recovery: "Fix access or scan limits and retry") })],
-                coverage: CoverageSummary(), candidates: engine.consolidate(result.candidates, home: request.home),
+                                          limitations: result.failures.map(\.limitation))],
+                coverage: result.coverage, candidates: result.candidates,
                 applications: [], agentSkills: [], mcpConfigurations: [], protectionAvailable: context.protectionPolicy.isAvailable
             )
         } else if let module = request.module {
@@ -181,8 +180,10 @@ public enum ReadOnlyInterface {
         if request.command == .preview {
             let available = Dictionary(report.candidates.map { ($0.url.resolvingSymlinksInPath().standardizedFileURL.path, $0) }, uniquingKeysWith: { first, _ in first })
             for path in request.selectedPaths where available[path] == nil { throw ReadOnlyInterfaceError.unknownPath(path) }
+            let defaultCandidates = CleanupScopePolicy().cleanupCenterCandidates(from: report.candidates)
+            let defaultSelectedIDs = CleanupRecommendationPolicy().defaultSelectedIDs(for: defaultCandidates)
             let selected = request.selectedPaths.isEmpty
-                ? report.candidates.filter { $0.source == .general && $0.risk == .safe && $0.defaultSelection == true }
+                ? defaultCandidates.filter { defaultSelectedIDs.contains($0.id) }
                 : request.selectedPaths.compactMap { available[$0] }
             plan = try PlanBuilder(ruleVersion: pack.executionVersion, protectionPolicy: context.protectionPolicy)
                 .build(candidates: selected, selectedIDs: Set(selected.map(\.id)))

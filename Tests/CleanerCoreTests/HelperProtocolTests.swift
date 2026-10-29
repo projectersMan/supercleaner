@@ -11,7 +11,9 @@ final class HelperProtocolTests: XCTestCase {
 
         let wrong = await authorizer.authorize(operation: .moveToQuarantine(path: "/Library/Caches/other", destination: "/Library/Application Support/SuperCleaner/Quarantine/example"), token: token, currentIdentity: identity, now: Date(timeIntervalSince1970: 100))
         XCTAssertEqual(wrong, .rejected(.operationMismatch))
-        XCTAssertEqual(await authorizer.authorize(operation: allowed, token: token, currentIdentity: identity, now: Date(timeIntervalSince1970: 100)), .accepted)
-        XCTAssertEqual(await authorizer.authorize(operation: allowed, token: token, currentIdentity: identity, now: Date(timeIntervalSince1970: 100)), .rejected(.replayedNonce))
+        let accepted = await authorizer.authorize(operation: allowed, token: token, currentIdentity: identity, now: Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(accepted, .accepted)
+        let replayed = await authorizer.authorize(operation: allowed, token: token, currentIdentity: identity, now: Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(replayed, .rejected(.replayedNonce))
     }
 }

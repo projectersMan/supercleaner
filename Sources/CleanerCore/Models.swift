@@ -75,6 +75,16 @@ public struct FileIdentity: Codable, Hashable, Sendable {
     }
 }
 
+public struct CleanupApplication: Codable, Hashable, Sendable {
+    public let bundleIdentifier: String
+    public let name: String
+    public let kind: String
+    public let bundleURL: URL?
+    public init(bundleIdentifier: String, name: String, kind: String, bundleURL: URL? = nil) {
+        self.bundleIdentifier = bundleIdentifier; self.name = name; self.kind = kind; self.bundleURL = bundleURL
+    }
+}
+
 public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public let url: URL
@@ -89,6 +99,9 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
     public let isActive: Bool
     public let ruleID: String?
     public let defaultSelection: Bool?
+    /// A positive restriction, independent of risk and automatic/deep modes.
+    public let requiresExplicitSelection: Bool?
+    public let cleanupApplication: CleanupApplication?
 
     public init(
         id: UUID = UUID(),
@@ -103,7 +116,9 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         lastAccessDate: Date?,
         isActive: Bool,
         ruleID: String? = nil,
-        defaultSelection: Bool? = nil
+        defaultSelection: Bool? = nil,
+        requiresExplicitSelection: Bool? = nil,
+        cleanupApplication: CleanupApplication? = nil
     ) {
         self.id = id
         self.url = url
@@ -118,6 +133,8 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         self.isActive = isActive
         self.ruleID = ruleID
         self.defaultSelection = defaultSelection
+        self.requiresExplicitSelection = requiresExplicitSelection
+        self.cleanupApplication = cleanupApplication
     }
 
     public func replacing(risk: RiskLevel, evidence: [Evidence]) -> CleanupCandidate {
@@ -125,7 +142,8 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
             id: id, url: url, displayName: displayName, category: category, bytes: bytes,
             risk: risk, evidence: evidence, identity: identity, source: source,
             lastAccessDate: lastAccessDate, isActive: isActive,
-            ruleID: ruleID, defaultSelection: defaultSelection
+            ruleID: ruleID, defaultSelection: defaultSelection,
+            requiresExplicitSelection: requiresExplicitSelection, cleanupApplication: cleanupApplication
         )
     }
 }
@@ -144,7 +162,7 @@ public struct PlanItem: Identifiable, Codable, Hashable, Sendable {
 
     public init(candidate: CleanupCandidate, isSelected: Bool? = nil, action: Action = .quarantine, evidenceDigest: String = "") {
         self.candidate = candidate
-        self.isSelected = candidate.risk.isSelectable && (isSelected ?? (candidate.defaultSelection ?? candidate.risk.isSelectableByDefault))
+        self.isSelected = candidate.risk.isSelectable && (isSelected ?? (candidate.requiresExplicitSelection == true ? false : (candidate.defaultSelection ?? candidate.risk.isSelectableByDefault)))
         self.action = action
         self.evidenceDigest = evidenceDigest
     }

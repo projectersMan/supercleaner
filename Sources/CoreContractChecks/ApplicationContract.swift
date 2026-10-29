@@ -6,11 +6,18 @@ func runApplicationContracts() async throws {
     let appURL = URL(fileURLWithPath: "/Applications/Example.app", isDirectory: true)
     let application = InstalledApplication(bundleURL: appURL, bundleIdentifier: "com.example.app", name: "Example", version: "1.0", isRunning: false, isSystem: false)
     let contractFileSystem = ApplicationContractFileSystem(home: home, appURL: appURL)
+    let fixtureCacheRootIdentity = try await contractFileSystem.identity(at: home.appendingPathComponent("Library/Caches"))
+    require(fixtureCacheRootIdentity.kind == .directory, "enumerable association fixture roots must expose directory identities")
+    do {
+        _ = try await contractFileSystem.identity(at: home.appendingPathComponent("Library/NotInFixture"))
+        require(false, "an unknown association fixture path must report missing rather than invent an identity")
+    } catch FileSystemError.missing { }
     let context = ScanContext(homeDirectory: home, fileSystem: contractFileSystem)
     let associations = try await ApplicationScanner().associations(for: application, context: context)
 
     require(!associations.contains { $0.url.lastPathComponent == "com.example.app2" }, "bundle ID prefix collision must not match")
-    require(associations.contains { $0.url.lastPathComponent == "com.example.app" }, "exact bundle ID should match")
+    require(associations.contains { $0.url.lastPathComponent == "com.example.app" },
+            "exact bundle ID should match; actual fixture associations: " + associations.map { $0.url.path }.joined(separator: ", "))
     require(
         associations.first { $0.kind == .cache && $0.url.lastPathComponent == "com.example.app" }?.risk == .safe,
         "an inactive app's exactly-owned cache must be safe for default cleanup"
@@ -79,8 +86,8 @@ func runApplicationContracts() async throws {
         "an unreadable association root must not discard matches from readable roots"
     )
     require(
-        restrictedIndex.coverage.unavailableRoots == [
-            home.appendingPathComponent("Library/Containers", isDirectory: true)
+        restrictedIndex.coverage.unavailableRoots.map { $0.standardizedFileURL.path } == [
+            home.appendingPathComponent("Library/Containers", isDirectory: true).standardizedFileURL.path
         ],
         "association coverage must identify the exact unreadable root"
     )
@@ -105,7 +112,7 @@ func runApplicationContracts() async throws {
         "module summary must distinguish discovery coverage from association coverage"
     )
     require(
-        restrictedCoverage.limitations.first?.path == home.appendingPathComponent("Library/Containers", isDirectory: true),
+        restrictedCoverage.limitations.first?.path?.standardizedFileURL.path == home.appendingPathComponent("Library/Containers", isDirectory: true).standardizedFileURL.path,
         "module limitations must preserve the exact path for user inspection"
     )
 
@@ -397,7 +404,10 @@ private actor DeepApplicationSizeContractFileSystem: FileSystemAccess {
         identities = values
     }
 
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
+        return identity
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
@@ -452,9 +462,16 @@ private actor ApplicationContractFileSystem: FileSystemAccess {
         childrenByPath = [appURL.path: [nestedExecutable], caches.path: Array(urls[1...4]), support.path: [urls[5], urls[7]], groups.path: [urls[6]]]
         var identityPairs = urls.map { ($0.path, FileIdentity(device: 1, inode: UInt64(bitPattern: Int64($0.path.hashValue)), size: 100, modificationTime: 1, kind: .directory)) }
         identityPairs.append((nestedExecutable.path, FileIdentity(device: 1, inode: 99, size: 900, modificationTime: 1, kind: .file)))
-        identities = Dictionary(uniqueKeysWithValues: identityPairs)
+        var values = Dictionary(uniqueKeysWithValues: identityPairs)
+        for path in childrenByPath.keys where values[path] == nil {
+            values[path] = FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(path.hashValue)), size: 0, modificationTime: 1, kind: .directory)
+        }
+        identities = values
     }
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
+        return identity
+    }
     func children(of url: URL) -> [URL] {
         requestedChildren[url.path, default: 0] += 1
         return childrenByPath[url.path, default: []]
@@ -492,25 +509,26 @@ private actor RestrictedAssociationContractFileSystem: FileSystemAccess {
     }
 
     func identity(at url: URL) throws -> FileIdentity {
-        FileIdentity(
+        guard fileExists(url) else { throw FileSystemError.missing(url) }
+        return FileIdentity(
             device: 1,
             inode: UInt64(bitPattern: Int64(url.path.hashValue)),
-            size: url == cacheEntry ? 20 : 100,
+            size: url.standardizedFileURL.path == cacheEntry.standardizedFileURL.path ? 20 : 100,
             modificationTime: 1,
             kind: .directory
         )
     }
 
     func children(of url: URL) throws -> [URL] {
-        if url == restrictedRoot { throw FileSystemError.missing(url) }
-        if url == cacheRoot { return [cacheEntry] }
+        if url.standardizedFileURL.path == restrictedRoot.standardizedFileURL.path { throw FileSystemError.missing(url) }
+        if url.standardizedFileURL.path == cacheRoot.standardizedFileURL.path { return [cacheEntry] }
         return []
     }
 
-    func isReadable(_ url: URL) -> Bool { url != restrictedRoot }
+    func isReadable(_ url: URL) -> Bool { url.standardizedFileURL.path != restrictedRoot.standardizedFileURL.path }
     func isWritable(_ url: URL) -> Bool { true }
     func fileExists(_ url: URL) -> Bool {
-        [appURL, cacheRoot, cacheEntry, restrictedRoot].contains(url)
+        [appURL, cacheRoot, cacheEntry, restrictedRoot].contains { $0.standardizedFileURL.path == url.standardizedFileURL.path }
     }
     func move(_ source: URL, to destination: URL) {}
     func createDirectory(_ url: URL) {}

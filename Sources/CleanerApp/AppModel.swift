@@ -76,6 +76,7 @@ private struct ScanPresentationSnapshots: Sendable {
     enum Phase: Equatable { case idle, scanning, reviewing, executing, completed, cancelled, failed(String) }
     enum RecoveryActionKind: Equatable { case restore, purge }
     @Published private(set) var phase: Phase = .idle
+    @Published private(set) var isScanRunning = false
     @Published private(set) var systemReport: SystemScanReport? {
         didSet {
             invalidateCandidatePresentationCaches()
@@ -96,7 +97,7 @@ private struct ScanPresentationSnapshots: Sendable {
     @Published private(set) var excludedBaseIDs = Set<UUID>()
     @Published var selection: SidebarDestination = .cleanupCenter {
         didSet {
-            if selection != oldValue, phase != .scanning, phase != .executing {
+            if selection != oldValue, !isScanRunning, phase != .executing {
                 statusMessage = nil
             }
         }
@@ -108,6 +109,7 @@ private struct ScanPresentationSnapshots: Sendable {
     @Published private(set) var focusState = ReviewFocusState()
     @Published var deletionResult: OperationReceipt?
     @Published var deletionResultWarning: String?
+    @Published private(set) var isStoppingDeletion = false
     @Published var selectedApplicationID: URL?
     @Published var selectedDiskNodeURL: URL?
     @Published var largeFileSortOrder: LargeFileSortOrder = .size
@@ -117,6 +119,10 @@ private struct ScanPresentationSnapshots: Sendable {
     @Published var applicationQuery = "" { didSet { reconcileApplicationSelection() } }
     @Published var applicationScope: ApplicationListScope = .uninstallable { didSet { reconcileApplicationSelection() } }
     @Published private(set) var isLoadingApplications = false
+    @Published private(set) var deepScanningApplicationID: URL?
+    @Published private(set) var deepScanMessages: [URL: String] = [:]
+    private var deepScanTask: Task<Void, Never>?
+
     @Published var agentCleanupPresentation: AgentCleanupPresentation?
     var agentCleanupGenerationID: UUID?
     @Published var agentProviderFilter: AgentProvider?
@@ -159,8 +165,8 @@ private struct ScanPresentationSnapshots: Sendable {
     private let navigationPolicy = AppNavigationPolicy()
     private let cleanupExecutionCoordinator: CleanupExecutionCoordinator
     private var canStartUpdate: Bool {
-        !updateInProgress && !bootstrapInProgress && !maintenanceInProgress && !helper.isChanging && !isLoadingApplications
-            && phase != .scanning && phase != .executing && !oneClickCleanupIsRunning && recoveryActionReceiptID == nil
+        !updateInProgress && deepScanningApplicationID == nil && !bootstrapInProgress && !maintenanceInProgress && !helper.isChanging && !isLoadingApplications
+            && !isScanRunning && phase != .executing && !oneClickCleanupIsRunning && recoveryActionReceiptID == nil
             && !receipts.contains { $0.results.contains { $0.verificationNotBefore != nil } }
     }
     lazy var applicationUpdates = ApplicationUpdateModel(
@@ -178,7 +184,11 @@ private struct ScanPresentationSnapshots: Sendable {
     private var scanTask: Task<Void, Never>?
     private var activeScanToken: UUID?
     private var activeScanGenerationID: UUID?
+    private var scanCleanupReconciliation: ScanCleanupReconciliation?
     private var executionTask: Task<Void, Never>?
+    private var executionProgressToken: UUID?
+    private var pendingExecutionResults: [OperationResult] = []
+    private var executionResultsTask: Task<Void, Never>?
     private var oneClickExecutionTask: Task<Void, Never>?
     private var maintenanceTask: Task<Void, Never>?
     private var oneClickCleanedCandidateIDs = Set<UUID>() {
@@ -214,7 +224,7 @@ private struct ScanPresentationSnapshots: Sendable {
         cleanupExecutionCoordinator = infrastructure.cleanupCoordinator
         helper.configureAvailability { [weak self] in
             guard let self else { return false }
-            return !updateInProgress && phase != .executing && phase != .scanning
+            return !updateInProgress && phase != .executing && !isScanRunning
         }
     }
 
@@ -223,6 +233,15 @@ private struct ScanPresentationSnapshots: Sendable {
     private static let appManagementObservationDefaultsKey = "permissions.appManagementObservation"
 
     var hasCompletedScan: Bool { systemReport?.isCommitEligible == true }
+
+    var isDeletionInProgress: Bool { phase == .executing || oneClickCleanupIsRunning }
+    var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult != nil || deletionResultWarning != nil }
+
+    func dismissDeletionSheet() {
+        guard !isDeletionInProgress else { return }
+        deletionResult = nil
+        deletionResultWarning = nil
+    }
 
     func hasScanResult(for module: ScanModuleID) -> Bool {
         scanResultDestination(for: module) != nil
@@ -242,7 +261,7 @@ private struct ScanPresentationSnapshots: Sendable {
         let availableModules = Set(ScanModuleID.allCases.filter { hasScanResult(for: $0) })
         return navigationPolicy.showsScanningPlaceholder(
             for: destination,
-            globalScanIsRunning: phase == .scanning,
+            globalScanIsRunning: isScanRunning,
             availableModules: availableModules
         )
     }
@@ -348,19 +367,21 @@ private struct ScanPresentationSnapshots: Sendable {
               agentCleanupPresentation?.provider == agentProviderFilter else { return nil }
         return agentCleanupPresentation
     }
-    var isCurrentModuleScanning: Bool {
-        let module: ScanModuleID?
+    private var currentScanModule: ScanModuleID? {
         switch selection {
-        case .systemCleanup: module = .general
-        case .applications: module = .applications
-        case .largeFiles: module = .largeFiles
-        case .agentEnvironment: module = .agentEnvironment
-        default: module = nil
+        case .systemCleanup: .general
+        case .applications: .applications
+        case .largeFiles: .largeFiles
+        case .agentEnvironment: .agentEnvironment
+        default: nil
         }
-        return navigationPolicy.showsModuleScanControls(
+    }
+
+    var isCurrentModuleScanning: Bool {
+        navigationPolicy.showsModuleScanControls(
             for: selection,
-            globalScanIsRunning: phase == .scanning,
-            moduleState: module.flatMap { scanProgressByModule[$0]?.state }
+            globalScanIsRunning: isScanRunning,
+            moduleState: currentScanModule.flatMap { scanProgressByModule[$0]?.state }
         )
     }
 
@@ -400,11 +421,7 @@ private struct ScanPresentationSnapshots: Sendable {
         )
     }
     var canRunOneClickCleanup: Bool {
-        hasScanResult(for: .general)
-            && !updateInProgress
-            && !(defaultCleanupSelection?.systemCleanup.isEmpty ?? true)
-            && !oneClickCleanupIsRunning
-            && phase != .executing
+        canExecuteCleanup(in: .general, hasSelection: !(defaultCleanupSelection?.systemCleanup.isEmpty ?? true))
     }
 
     func oneClickStatus(for module: ScanModuleID) -> String? {
@@ -424,6 +441,12 @@ private struct ScanPresentationSnapshots: Sendable {
         guard hasScanResult(for: module) else { return nil }
         if module == .applications { return L10n.text("请手动选择要卸载的项目") }
         let count = defaultCleanupCount(for: module)
+        if module == .general,
+           defaultCleanupSelection?.systemCleanup.contains(where: { candidate in
+               candidate.evidence.contains { $0.code == "active-cleanup" }
+           }) == true {
+            return L10n.text("已默认勾选 {0} 项；运行中缓存可能重新生成", String(describing: count))
+        }
         if count > 0 { return L10n.text("已默认勾选 {0} 项", String(describing: count)) }
         return module == .largeFiles
             ? L10n.text("无安全默认项 · 可手动选择")
@@ -478,25 +501,31 @@ private struct ScanPresentationSnapshots: Sendable {
     var uninstallBatchSummary: UninstallBatchSummary {
         uninstallSelectionState.summary(plans: applicationUninstallPlans)
     }
+    private func canExecuteCleanup(in module: ScanModuleID, hasSelection: Bool) -> Bool {
+        hasScanResult(for: module) && hasSelection
+            && !updateInProgress && deepScanningApplicationID == nil
+            && !isLoadingApplications && phase != .executing && !oneClickCleanupIsRunning
+    }
+
+    var canExecuteSelection: Bool {
+        guard let module = currentScanModule else { return false }
+        return canExecuteCleanup(in: module, hasSelection: !selectedCandidates.isEmpty)
+    }
+
     var canExecuteUninstallBatch: Bool {
-        hasCompletedScan
-            && !updateInProgress
-            && !uninstallSelectedIDs.isEmpty
-            && phase != .scanning
-            && phase != .executing
-            && !oneClickCleanupIsRunning
+        canExecuteCleanup(in: .applications, hasSelection: uninstallBatchSummary.itemCount > 0)
     }
 
     func uninstallAnalysis(for application: InstalledApplication) -> ApplicationUninstallAnalysis? {
         guard let analysis = systemReport?.applicationUninstallInventory.analysis(for: application.id) else { return nil }
         return ApplicationUninstallAnalysis(application: analysis.application,
             plan: applicationUninstallPlans.first { $0.application.id == application.id }, state: analysis.state,
-            message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership)
+            message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
     }
 
     func openOfficialUninstaller(for application: InstalledApplication, expectedURL: URL) {
-        guard !updateInProgress else { return }
-        guard phase != .scanning, phase != .executing else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
+        guard !isScanRunning, phase != .executing else { return }
         Task {
             do {
                 let configuration = try await runtime.configuration()
@@ -589,7 +618,7 @@ private struct ScanPresentationSnapshots: Sendable {
 
     private func recheckPendingExecutions() async {
         guard !updateInProgress, !maintenanceInProgress, recoveryActionReceiptID == nil else { return }
-        guard phase != .executing, phase != .scanning else { return }
+        guard phase != .executing, !isScanRunning else { return }
         maintenanceInProgress = true
         defer { maintenanceInProgress = false }
         do {
@@ -690,8 +719,8 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func startFullScan() {
-        guard !updateInProgress else { return }
-        guard phase != .scanning, phase != .executing, !oneClickCleanupIsRunning else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
+        guard !isScanRunning, phase != .executing, !oneClickCleanupIsRunning else { return }
         guard PermissionScanStartPolicy.shouldStartFullScan(
             fullDiskAccess: permissionSnapshot?.fullDiskAccess.status ?? .unverified
         ) else { return }
@@ -699,10 +728,13 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     private func beginFullScan() {
+        guard deepScanningApplicationID == nil, !isLoadingApplications else { return }
         scanTask?.cancel()
         let scanToken = UUID()
         activeScanToken = scanToken
         activeScanGenerationID = nil
+        scanCleanupReconciliation = nil
+        isScanRunning = true
         oneClickCleanedCandidateIDs.removeAll()
         activeCleanupModules.removeAll()
         cleanedModules.removeAll()
@@ -727,7 +759,8 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func cancelScan() {
-        scanTask?.cancel(); scanTask = nil; phase = .cancelled
+        scanTask?.cancel(); scanTask = nil
+        isScanRunning = false
         activeScanToken = nil
         activeScanGenerationID = nil
         scanProgressByModule = scanProgressByModule.mapValues { status in
@@ -739,6 +772,8 @@ private struct ScanPresentationSnapshots: Sendable {
                 message: L10n.text("用户已取消")
             )
         }
+        guard phase != .executing, !oneClickCleanupIsRunning else { return }
+        phase = .cancelled
         if systemReport?.isCommitEligible == true {
             phase = .reviewing
             statusMessage = L10n.text("扫描已取消，继续使用上一次完整结果")
@@ -794,17 +829,19 @@ private struct ScanPresentationSnapshots: Sendable {
         selection = .systemCleanup
     }
 
-    func cleanupSelectionState(for candidates: [CleanupCandidate]) -> SelectionTriState {
+    func cleanupSelectionState(for candidates: [CleanupCandidate], includesManualOnly: Bool = false) -> SelectionTriState {
         guard let generationID = systemReport?.generationID else { return .none }
         return CleanupStrategySelectionState(
             strategy: cleanupMode,
             generationID: generationID,
             selectedIDs: selectedIDs,
             excludedBaseIDs: excludedBaseIDs
-        ).selectionState(for: Set(candidates.filter { $0.risk.isSelectable }.map(\.id)))
+        ).selectionState(for: Set(candidates.filter {
+            $0.risk.isSelectable && (includesManualOnly || $0.requiresExplicitSelection != true)
+        }.map(\.id)))
     }
 
-    func toggleCleanupCategory(_ candidates: [CleanupCandidate]) {
+    func toggleCleanupCategory(_ candidates: [CleanupCandidate], includesManualOnly: Bool = false) {
         guard let generationID = systemReport?.generationID else { return }
         var state = CleanupStrategySelectionState(
             strategy: cleanupMode,
@@ -812,7 +849,7 @@ private struct ScanPresentationSnapshots: Sendable {
             selectedIDs: selectedIDs,
             excludedBaseIDs: excludedBaseIDs
         )
-        state.toggleCategory(candidates: candidates, baseEligibleIDs: cleanupBaseEligibleIDs)
+        state.toggleCategory(candidates: candidates, baseEligibleIDs: cleanupBaseEligibleIDs, includesManualOnly: includesManualOnly)
         selectedIDs = state.selectedIDs
         excludedBaseIDs = state.excludedBaseIDs
         reconcileFocus()
@@ -898,8 +935,7 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func requestExecution() {
-        guard !updateInProgress else { return }
-        guard hasCompletedScan, phase != .scanning, phase != .executing, !oneClickCleanupIsRunning else { return }
+        guard canExecuteSelection else { return }
         let selected = Set(selectedCandidates.map(\.id))
         guard !selected.isEmpty else { return }
         do {
@@ -918,20 +954,22 @@ private struct ScanPresentationSnapshots: Sendable {
         let selected = Set(systemCandidates.map(\.id))
         do {
             let plan = try planBuilder.build(candidates: systemCandidates, selectedIDs: selected)
+            deletionResult = nil
+            deletionResultWarning = nil
+            isStoppingDeletion = false
             oneClickActiveModules = [.general]
             oneClickCleanupIsRunning = true
             statusMessage = L10n.text("正在执行一键系统清理")
-            executionProgress = ExecutionProgress(completed: 0, total: plan.selectedItems.count, currentURL: nil)
+            let progress = executionProgressHandler(total: plan.selectedItems.count)
             oneClickExecutionTask = Task { [weak self] in
                 guard let self else { return }
                 do {
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
                         retentionPolicy: defaultQuarantineRetentionPolicy,
-                        progress: { progress in
-                            Task { @MainActor [weak self] in self?.executionProgress = progress }
-                        }
+                        progress: progress
                     )
+                    finishExecutionProgress(receipt)
                     let outcome = recordCleanupOutcome(
                         attemptedCandidates: systemCandidates,
                         receipt: receipt
@@ -947,7 +985,9 @@ private struct ScanPresentationSnapshots: Sendable {
                     statusMessage = outcome.failures.isEmpty
                         ? L10n.text("系统清理完成")
                         : L10n.text("系统清理完成；{0} 项未处理，可查看原因并安全重试", String(describing: outcome.failures.count))
+                    deletionResult = receipt
                 } catch {
+                    finishExecutionProgress()
                     statusMessage = L10n.text("系统清理未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                     deletionResultWarning = statusMessage
                 }
@@ -976,9 +1016,16 @@ private struct ScanPresentationSnapshots: Sendable {
         cleanupFailures.filter { oneClickModule(for: $0.candidate) == module }
     }
 
+    func canRetryCleanupFailures(_ failures: [DefaultCleanupFailure]) -> Bool {
+        let candidates = failures.filter(\.isRetryable).map(\.candidate)
+        return !candidates.isEmpty && candidates.allSatisfy {
+            guard let module = oneClickModule(for: $0) else { return false }
+            return canExecuteCleanup(in: module, hasSelection: true)
+        }
+    }
+
     func retryCleanupFailures(_ failures: [DefaultCleanupFailure]) {
-        guard !updateInProgress else { return }
-        guard phase != .scanning, phase != .executing, !oneClickCleanupIsRunning else { return }
+        guard canRetryCleanupFailures(failures) else { return }
         let candidates = failures.filter(\.isRetryable).map(\.candidate)
         guard !candidates.isEmpty else { return }
         do {
@@ -995,24 +1042,18 @@ private struct ScanPresentationSnapshots: Sendable {
         plan: CleanupPlan,
         recordsDefaultCleanupProgress: Bool = false
     ) {
-        guard !updateInProgress else { return }
-        deletionResultWarning = nil
-        activeCleanupModules = Set(plan.selectedItems.compactMap { oneClickModule(for: $0.candidate) })
-        executionProgress = ExecutionProgress(completed: 0, total: plan.selectedItems.count, currentURL: nil)
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
+        let progress = prepareDeletion(plan: plan, modules: Set(plan.selectedItems.compactMap { oneClickModule(for: $0.candidate) }))
         statusMessage = L10n.text("正在检查并删除所选项目")
-        phase = .executing
         executionTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let receipt = try await cleanupExecutionCoordinator.execute(
                     plan: plan,
                     retentionPolicy: defaultQuarantineRetentionPolicy,
-                    progress: { progress in
-                        Task { @MainActor [weak self] in self?.executionProgress = progress }
-                    }
+                    progress: progress
                 )
-                await reloadHistory()
-                await reloadQuarantineSchedules()
+                finishExecutionProgress(receipt)
                 let attemptedCandidates = plan.selectedItems.map(\.candidate)
                 let outcome = recordCompletedCleanup(
                     receipt,
@@ -1030,9 +1071,12 @@ private struct ScanPresentationSnapshots: Sendable {
                     selectedIDs: selectedIDs
                 ).removing(attemptedCandidates).selectedIDs
                 excludedBaseIDs.subtract(attemptedIDs)
+                await reloadHistory()
+                await reloadQuarantineSchedules()
                 phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分项目未处理，请查看逐项原因"))
                 deletionResult = receipt
             } catch {
+                finishExecutionProgress()
                 statusMessage = L10n.text("删除未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                 deletionResultWarning = statusMessage
                 phase = .failed(statusMessage ?? L10n.text("删除未完成"))
@@ -1042,13 +1086,84 @@ private struct ScanPresentationSnapshots: Sendable {
         }
     }
 
+    private func prepareDeletion(plan: CleanupPlan, modules: Set<ScanModuleID>) -> CleanupExecutor.ProgressHandler {
+        deletionResult = nil
+        deletionResultWarning = nil
+        isStoppingDeletion = false
+        activeCleanupModules = modules
+        let progress = executionProgressHandler(total: plan.selectedItems.count)
+        phase = .executing
+        return progress
+    }
+
     func cancelExecution() {
+        guard isDeletionInProgress, !isStoppingDeletion else { return }
+        isStoppingDeletion = true
         executionTask?.cancel()
+        oneClickExecutionTask?.cancel()
         statusMessage = L10n.text("正在完成当前原子移动，尚未开始的项目将停止")
     }
 
+    private func executionProgressHandler(total: Int) -> CleanupExecutor.ProgressHandler {
+        let token = UUID()
+        executionProgressToken = token
+        executionResultsTask?.cancel()
+        executionResultsTask = nil
+        pendingExecutionResults.removeAll()
+        executionProgress = .init(completed: 0, total: total, currentURL: nil)
+        return { [weak self] progress in
+            Task { @MainActor [weak self] in
+                guard let self, self.executionProgressToken == token else { return }
+                self.executionProgress = progress
+                guard let result = progress.result else { return }
+                self.recordScanCleanupEffects([result])
+                self.pendingExecutionResults.append(result)
+                guard self.executionResultsTask == nil else { return }
+                // Coalesce fast batches so a long result list is not rebuilt for
+                // each tiny file. New operations invalidate late callbacks.
+                self.executionResultsTask = Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled, let self, self.executionProgressToken == token else { return }
+                    self.applyPendingExecutionResults()
+                }
+            }
+        }
+    }
+
+    private func recordScanCleanupEffects(_ results: [OperationResult]) {
+        guard let current = systemReport else { return }
+        if scanCleanupReconciliation?.generationID != current.generationID {
+            scanCleanupReconciliation = ScanCleanupReconciliation(generationID: current.generationID)
+        }
+        scanCleanupReconciliation?.record(results)
+    }
+
+    private func applyingScanCleanup(to report: SystemScanReport) -> SystemScanReport {
+        scanCleanupReconciliation?.applying(to: report) ?? report
+    }
+
+    private func applyPendingExecutionResults() {
+        executionResultsTask = nil
+        let results = pendingExecutionResults
+        pendingExecutionResults.removeAll()
+        guard !results.isEmpty, let current = systemReport else { return }
+        install(current.reconcilingCleanup(results))
+        selectedIDs.formIntersection(Set(systemReport?.candidates.map(\.id) ?? []))
+        if let selectedDiskNodeURL, diskUsageTree?.node(at: selectedDiskNodeURL) == nil { self.selectedDiskNodeURL = nil }
+    }
+
+    private func finishExecutionProgress(_ receipt: OperationReceipt? = nil) {
+        executionResultsTask?.cancel()
+        applyPendingExecutionResults()
+        executionProgressToken = nil
+        if let receipt {
+            recordScanCleanupEffects(receipt.results)
+            executionProgress = .init(completed: receipt.results.count, total: executionProgress.total, currentURL: nil)
+        }
+    }
+
     func requestRestore(_ receipt: OperationReceipt) {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard recoveryActionReceiptID == nil,
               receipt.results.contains(where: { $0.disposition == .quarantined })
         else { return }
@@ -1058,14 +1173,14 @@ private struct ScanPresentationSnapshots: Sendable {
     func dismissRestoreConfirmation() { restoreConfirmationReceipt = nil }
 
     func confirmRestore() {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard let receipt = restoreConfirmationReceipt, recoveryActionReceiptID == nil else { return }
         restoreConfirmationReceipt = nil
         restore(receipt)
     }
 
     private func restore(_ receipt: OperationReceipt) {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard recoveryActionReceiptID == nil else { return }
         recoveryActionReceiptID = receipt.id
         recoveryActionKind = .restore
@@ -1098,7 +1213,7 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func requestPermanentDeletion(_ receipt: OperationReceipt) {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard recoveryActionReceiptID == nil,
               receipt.results.contains(where: { $0.disposition == .quarantined })
         else { return }
@@ -1108,7 +1223,7 @@ private struct ScanPresentationSnapshots: Sendable {
     func dismissPermanentDeletion() { purgeConfirmationReceipt = nil }
 
     func confirmPermanentDeletion() {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard let receipt = purgeConfirmationReceipt, recoveryActionReceiptID == nil else { return }
         purgeConfirmationReceipt = nil
         recoveryActionReceiptID = receipt.id
@@ -1142,8 +1257,89 @@ private struct ScanPresentationSnapshots: Sendable {
         }
     }
 
+    var canStartApplicationDeepScan: Bool {
+        !updateInProgress && deepScanningApplicationID == nil && !isLoadingApplications
+            && !maintenanceInProgress && recoveryActionReceiptID == nil && !bootstrapInProgress
+            && !isScanRunning && phase != .executing && !oneClickCleanupIsRunning
+    }
+
+    private func installRuntimeObservations(_ observations: [URL: ApplicationRuntimeObservation]) {
+        guard let current = systemReport else { return }
+        install(current.replacing(module: .applications,
+            payload: .applications(current.applicationUninstallInventory.observing(observations)), completedAt: Date()))
+    }
+
+    func cancelApplicationDeepScan() { deepScanTask?.cancel() }
+
+    func startApplicationDeepScan(_ application: InstalledApplication, allowLaunch: Bool) {
+        guard canStartApplicationDeepScan, !application.isSystem else { return }
+        deepScanningApplicationID = application.id
+        deepScanMessages[application.id] = L10n.text("正在准备观察；基础扫描结果已保留。")
+        deepScanTask = Task { [weak self] in
+            guard let self else { return }
+            var launched: NSRunningApplication?
+            do {
+                let provider = BundleApplicationMetadataProvider()
+                guard provider.metadata(for: application.id)?.bundleIdentifier == application.bundleIdentifier else {
+                    throw ApplicationExecutionRejection.ownershipChanged
+                }
+                let before = NSWorkspace.shared.runningApplications
+                let matching = before.filter { $0.bundleURL?.standardizedFileURL.path == application.id.standardizedFileURL.path }
+                if matching.isEmpty {
+                    // Do not launch another copy of an already-running identity.
+                    guard allowLaunch, !before.contains(where: { $0.bundleIdentifier == application.bundleIdentifier }) else {
+                        throw ApplicationExecutionRejection.ownershipChanged
+                    }
+                    try Task.checkCancellation()
+                    let start = Date()
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = false
+                    configuration.hides = true
+                    let opened = try await NSWorkspace.shared.openApplication(at: application.id, configuration: configuration)
+                    // Only quit an instance demonstrably created during this operation.
+                    if ApplicationObservationLifecycle.shouldRequestQuit(processID: opened.processIdentifier,
+                        preexistingProcessIDs: Set(before.map(\.processIdentifier)), launchDate: opened.launchDate,
+                        observationStartedAt: start) {
+                        launched = opened
+                    } else {
+                        deepScanMessages[application.id] = L10n.text("应用实例可能已由其他操作启动；扫描结束后不会自动退出它。")
+                    }
+                }
+                try Task.checkCancellation()
+                deepScanMessages[application.id] = L10n.text("正在采样打开文件；结果会逐步补充，未观察到的访问仍可能存在。")
+                let observed = await ApplicationRuntimeSampler(samples: 5).observe(applications: [application], home: home) { [weak self] partial in
+                    await self?.installRuntimeObservations(partial)
+                }
+                installRuntimeObservations(observed)
+                // The observation view owns the result summary. This channel
+                // only carries lifecycle progress or errors.
+                deepScanMessages[application.id] = nil
+            } catch {
+                deepScanMessages[application.id] = Task.isCancelled
+                    ? L10n.text("观察已取消；基础扫描结果已保留。")
+                    : L10n.text("无法开始观察：{0}", error.localizedDescription)
+            }
+            if let launched, !launched.isTerminated {
+                _ = launched.terminate()
+                // Graceful termination only. Never force-kill an app that may
+                // be saving data or waiting for the user to answer a dialog.
+                for _ in 0..<12 where !launched.isTerminated {
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                }
+                if !launched.isTerminated {
+                    deepScanMessages[application.id] = L10n.text("观察已结束，应用尚未退出；请手动退出后刷新，才能卸载。")
+                }
+            }
+            // Rebuild running state and ownership after launch/quit, even on cancel.
+            // A fresh task prevents cancellation from discarding this refresh.
+            await Task { await self.reloadApplicationModule(observeRunning: false) }.value
+            deepScanningApplicationID = nil
+            deepScanTask = nil
+        }
+    }
+
     func refreshApplications() {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil, !isLoadingApplications, !isScanRunning, phase != .executing else { return }
         guard systemReport != nil else { selection = .cleanupCenter; return }
         Task { [weak self] in await self?.reloadApplicationModule() }
     }
@@ -1155,24 +1351,26 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     func toggleUninstall(_ item: UninstallItem) {
+        guard !isDeletionInProgress else { return }
         var selection = uninstallSelectionState
         selection.toggle(item: item)
         uninstallSelectedIDs = selection.selectedItemIDs
     }
 
     func toggleUninstall(_ plan: UninstallPlan) {
+        guard !isDeletionInProgress else { return }
         var selection = uninstallSelectionState
         selection.toggle(plan: plan)
         uninstallSelectedIDs = selection.selectedItemIDs
     }
 
     func clearUninstallSelection() {
+        guard !isDeletionInProgress else { return }
         uninstallSelectedIDs.removeAll()
     }
 
     func executeUninstallBatch() {
-        guard !updateInProgress else { return }
-        guard phase != .scanning, phase != .executing, !oneClickCleanupIsRunning else { return }
+        guard canExecuteUninstallBatch else { return }
         let selection = uninstallSelectionState
         let selectedItems = selection.selectedItems(in: applicationUninstallPlans)
         let summary = selection.summary(plans: applicationUninstallPlans)
@@ -1185,28 +1383,27 @@ private struct ScanPresentationSnapshots: Sendable {
                 candidates: selectedItems.map(\.candidate),
                 selectedIDs: selection.selectedItemIDs
             )
-            uninstallSelectedIDs.removeAll()
-            deletionResultWarning = nil
-            activeCleanupModules = [.applications]
-            phase = .executing
+            let progress = prepareDeletion(plan: plan, modules: [.applications])
             executionTask = Task { [weak self] in
                 guard let self else { return }
                 do {
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
-                        retentionPolicy: defaultQuarantineRetentionPolicy
+                        retentionPolicy: defaultQuarantineRetentionPolicy,
+                        progress: progress
                     )
+                    finishExecutionProgress(receipt)
                     recordAppManagementObservation(from: receipt, selectedItems: selectedItems)
+                    recordCompletedCleanup(receipt, attemptedCandidates: selectedItems.map(\.candidate))
                     await reloadHistory()
                     await reloadQuarantineSchedules()
-                    recordCompletedCleanup(receipt, attemptedCandidates: selectedItems.map(\.candidate))
-                    await reloadApplicationModule()
                     phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分卸载项未处理"))
                     if receipt.overallStatus == .completed {
                         statusMessage = L10n.text("已删除 {0} 个应用的 {1} 项，可在恢复记录中撤销", String(describing: summary.applicationCount), String(describing: summary.itemCount))
                     }
                     deletionResult = receipt
                 } catch {
+                    finishExecutionProgress()
                     statusMessage = L10n.text("应用卸载未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
                     deletionResultWarning = statusMessage
                     phase = .failed(statusMessage ?? L10n.text("应用卸载未完成"))
@@ -1248,6 +1445,14 @@ private struct ScanPresentationSnapshots: Sendable {
         uninstallSelectedIDs = tracking.uninstallSelectedItemIDs
         oneClickCleanedCandidateIDs = tracking.cleanedCandidateIDs
         cleanupFailures = tracking.failures
+        recordScanCleanupEffects(receipt.results)
+        if let current = systemReport {
+            install(current.reconcilingCleanup(receipt))
+            selectedIDs.formIntersection(Set(systemReport?.candidates.map(\.id) ?? []))
+            if let selectedDiskNodeURL, diskUsageTree?.node(at: selectedDiskNodeURL) == nil {
+                self.selectedDiskNodeURL = nil
+            }
+        }
         return outcome
     }
 
@@ -1304,6 +1509,7 @@ private struct ScanPresentationSnapshots: Sendable {
             phase = .failed(L10n.text("清理规则无法验证"))
             statusMessage = L10n.text("扫描已停止：{0}", String(describing: error.localizedDescription))
             activeScanToken = nil
+            isScanRunning = false
             scanTask = nil
             return
         }
@@ -1339,6 +1545,7 @@ private struct ScanPresentationSnapshots: Sendable {
                 guard let self, self.activeScanToken == token else { return }
                 if self.activeScanGenerationID == nil {
                     self.activeScanGenerationID = event.generationID
+                    self.scanCleanupReconciliation = ScanCleanupReconciliation(generationID: event.generationID)
                 }
                 guard self.activeScanGenerationID == event.generationID else { return }
                 let previous = self.scanProgressByModule[event.module]
@@ -1353,42 +1560,57 @@ private struct ScanPresentationSnapshots: Sendable {
             }
         }
         guard !Task.isCancelled, activeScanToken == token, let next else { return }
+        let reconciled = applyingScanCleanup(to: next)
+        let cleanupRevision = scanCleanupReconciliation?.revision
         let policySnapshot = protectionPolicy
         let cleanedIDsSnapshot = oneClickCleanedCandidateIDs
         let presentationSnapshots = await Task.detached(priority: .userInitiated) {
             ScanPresentationSnapshots.make(
-                report: next,
+                report: reconciled,
                 protectionPolicy: policySnapshot,
                 cleanedIDs: cleanedIDsSnapshot
             )
         }.value
         guard !Task.isCancelled, activeScanToken == token else { return }
-        install(next)
-        cachedCandidatesByDestination[.systemCleanup] = presentationSnapshots.systemCleanupCandidates
-        cachedCandidatesByDestination[.largeFiles] = presentationSnapshots.largeFileCandidates
-        cachedApplicationUninstallPlans = presentationSnapshots.applicationUninstallPlans
+        completeScan(next, token: token)
+        // A cleanup may finish while presentation work runs off the main actor.
+        // Only reuse the prepared caches if they reflect every confirmed effect.
+        if cleanupRevision == scanCleanupReconciliation?.revision {
+            cachedCandidatesByDestination[.systemCleanup] = presentationSnapshots.systemCleanupCandidates
+            cachedCandidatesByDestination[.largeFiles] = presentationSnapshots.largeFileCandidates
+            cachedApplicationUninstallPlans = presentationSnapshots.applicationUninstallPlans
+        }
+    }
+
+    private func completeScan(_ next: SystemScanReport, token: UUID) {
+        guard activeScanToken == token else { return }
+        install(applyingScanCleanup(to: next))
+        scanProgressByModule = next.modules
         activeScanToken = nil
         activeScanGenerationID = nil
-        cleanupMode = .defaultMode
-        let defaults = defaultCleanupPolicy.selection(for: next)
-        selectedIDs = Set((defaults.systemCleanup + defaults.largeFiles + defaults.agentEnvironment).map(\.id))
-            .subtracting(oneClickCleanedCandidateIDs)
-        reconcileFocus()
-        phase = .reviewing
+        isScanRunning = false
         scanTask = nil
-        let limitedCount = next.modules.values.filter { [.limited, .failed].contains($0.state) }.count
-        statusMessage = limitedCount == 0 ? L10n.text("完整扫描完成，已生成清理方案") : L10n.text("扫描完成，{0} 个模块存在访问限制", String(describing: limitedCount))
+        reconcileFocus()
+        // Progressive publications already selected defaults for each module.
+        // Preserve manual choices and any cleanup currently executing.
+        if phase == .scanning {
+            phase = .reviewing
+            guard !oneClickCleanupIsRunning else { return }
+            let limitedCount = next.modules.values.filter { [.limited, .failed].contains($0.state) }.count
+            statusMessage = limitedCount == 0 ? L10n.text("完整扫描完成，已生成清理方案") : L10n.text("扫描完成，{0} 个模块存在访问限制", String(describing: limitedCount))
+        }
     }
 
     private func installProgressive(
-        _ next: SystemScanReport,
+        _ incoming: SystemScanReport,
         completedModule: ScanModuleID,
         token: UUID
     ) {
-        guard phase == .scanning,
+        guard isScanRunning,
               activeScanToken == token,
-              activeScanGenerationID == next.generationID
+              activeScanGenerationID == incoming.generationID
         else { return }
+        let next = applyingScanCleanup(to: incoming)
         let previousLargeFileIDs = Set(systemReport?.largeFileCandidates.map(\.id) ?? [])
         let diskSelection = DiskUsageSelectionState(
             candidates: systemReport?.largeFileCandidates ?? [],
@@ -1437,7 +1659,7 @@ private struct ScanPresentationSnapshots: Sendable {
 
     private func scanResultDestination(for module: ScanModuleID) -> AppDestination? {
         guard let report = systemReport else { return nil }
-        let visibleStatus = phase == .scanning
+        let visibleStatus = isScanRunning
             ? scanProgressByModule[module]
             : report.modules[module]
         guard let state = visibleStatus?.state,
@@ -1447,7 +1669,7 @@ private struct ScanPresentationSnapshots: Sendable {
                 state: report.modules[module]?.state ?? .waiting
               ) != nil
         else { return nil }
-        if phase == .scanning, report.generationID != activeScanGenerationID { return nil }
+        if isScanRunning, report.generationID != activeScanGenerationID { return nil }
         return destination
     }
 
@@ -1500,7 +1722,7 @@ private struct ScanPresentationSnapshots: Sendable {
     }
 
     private func runQuarantineMaintenance() async {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         maintenanceInProgress = true
         defer { maintenanceInProgress = false }
         do {
@@ -1532,7 +1754,7 @@ private struct ScanPresentationSnapshots: Sendable {
             await reloadQuarantineSchedules()
         }
     }
-    private func reloadApplicationModule() async {
+    private func reloadApplicationModule(observeRunning: Bool = true) async {
         guard !updateInProgress else { return }
         guard let current = systemReport else { return }
         isLoadingApplications = true
@@ -1546,9 +1768,13 @@ private struct ScanPresentationSnapshots: Sendable {
             inventory: inventory,
             context: ScanContext(homeDirectory: home, fileSystem: fileSystem, protectionPolicy: protectionPolicy)
         )
+        let retained = Dictionary(uniqueKeysWithValues: current.applicationUninstallInventory.analyses.compactMap { analysis in
+            analysis.runtimeObservation.map { (analysis.id, $0) }
+        })
+        let baseline = analyzedInventory.observing(retained)
         let updated = current.replacing(
             module: .applications,
-            payload: .applications(analyzedInventory),
+            payload: .applications(baseline),
             completedAt: Date()
         )
         install(updated)
@@ -1558,13 +1784,19 @@ private struct ScanPresentationSnapshots: Sendable {
         if !applications.contains(where: { $0.id == selectedApplicationID }) {
             selectedApplicationID = applications.first?.id
         }
+        if observeRunning {
+            let running = inventory.applications.filter { $0.isRunning && !$0.isSystem }
+            _ = await ApplicationRuntimeSampler().observe(applications: running, home: home) { [weak self] observations in
+                await self?.installRuntimeObservations(observations)
+            }
+        }
     }
 
     func refreshModule(_ module: ScanModuleID) {
-        guard !updateInProgress else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil else { return }
         guard systemReport != nil,
               [.largeFiles, .agentEnvironment].contains(module),
-              phase != .scanning,
+              !isScanRunning,
               phase != .executing,
               !oneClickCleanupIsRunning
         else {
@@ -1573,6 +1805,11 @@ private struct ScanPresentationSnapshots: Sendable {
         }
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .scanning, startedAt: Date())
         phase = .scanning
+        isScanRunning = true
+        let token = UUID()
+        activeScanToken = token
+        activeScanGenerationID = systemReport?.generationID
+        scanCleanupReconciliation = systemReport.map { ScanCleanupReconciliation(generationID: $0.generationID) }
         scanTask = Task { [weak self] in
             guard let self, let current = systemReport else { return }
             let context = scanContext()
@@ -1594,9 +1831,10 @@ private struct ScanPresentationSnapshots: Sendable {
                 case .general, .applications:
                     return
                 }
-                guard !Task.isCancelled else { return }
-                install(updated)
-                let defaults = defaultCleanupPolicy.selection(for: updated)
+                guard !Task.isCancelled, activeScanToken == token else { return }
+                let reconciled = applyingScanCleanup(to: updated)
+                install(reconciled)
+                let defaults = defaultCleanupPolicy.selection(for: reconciled)
                 switch module {
                 case .largeFiles:
                     selectedIDs.subtract(current.largeFileCandidates.map(\.id))
@@ -1611,13 +1849,18 @@ private struct ScanPresentationSnapshots: Sendable {
                 case .general, .applications:
                     break
                 }
-                phase = .reviewing
-                scanTask = nil
-                statusMessage = L10n.text("模块已刷新；其他模块保留各自的扫描时间")
+                completeScan(reconciled, token: token)
             } catch {
-                phase = .failed(L10n.text("模块刷新失败"))
+                guard !Task.isCancelled, activeScanToken == token else { return }
+                isScanRunning = false
+                activeScanToken = nil
+                activeScanGenerationID = nil
                 scanTask = nil
-                statusMessage = L10n.text("模块刷新失败：{0}", String(describing: error.localizedDescription))
+                scanProgressByModule[module] = ScanModuleStatus(module: module, state: .failed, completedAt: Date())
+                if phase == .scanning {
+                    phase = .failed(L10n.text("模块刷新失败"))
+                    statusMessage = L10n.text("模块刷新失败：{0}", String(describing: error.localizedDescription))
+                }
             }
         }
     }
@@ -1657,7 +1900,7 @@ private struct ScanPresentationSnapshots: Sendable {
         let generationChanged = systemReport?.generationID != next.generationID
         systemReport = next
         indexLargeFileCandidates(next.largeFileCandidates)
-        scanProgressByModule = next.modules
+        if !isScanRunning { scanProgressByModule = next.modules }
         if generationChanged {
             selectedIDs.removeAll()
             uninstallSelectedIDs.removeAll()
@@ -1743,4 +1986,220 @@ private struct ScanPresentationSnapshots: Sendable {
         cachedApplicationUninstallPlans = nil
     }
 
+}
+
+// Exercises the same model gates used by the action bars without executing any
+// filesystem operations or starting the live scanners.
+extension AppModel {
+    static func checkConcurrentScanCleanup() throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        func check(_ condition: Bool, _ message: String) throws {
+            if !condition { throw Failure(description: message) }
+        }
+        let home = URL(fileURLWithPath: "/tmp/SuperCleaner-ScanCleanup-Fixture")
+        let model = AppModel(home: home)
+        let generation = UUID()
+        let app = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Fixture.app"),
+            bundleIdentifier: "com.contract.fixture", name: "Fixture", version: "1", isRunning: false, isSystem: false)
+        let item = CleanupCandidate(url: app.bundleURL, displayName: "Fixture", category: .application,
+            bytes: 100, risk: .review, evidence: [], identity: .init(device: 1, inode: 2, size: 100, modificationTime: 1, kind: .directory), source: .application, lastAccessDate: nil, isActive: false)
+        let log = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/fixture.log"), displayName: "fixture.log", category: .log,
+            bytes: 50, risk: .safe, evidence: [], identity: .init(device: 1, inode: 3, size: 50, modificationTime: 1, kind: .file), source: .general, lastAccessDate: nil, isActive: false)
+        let kept = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/keep.log"), displayName: "keep.log", category: .log,
+            bytes: 25, risk: .safe, evidence: [], identity: .init(device: 1, inode: 4, size: 25, modificationTime: 1, kind: .file), source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true)
+        let apps = ApplicationInventory(applications: [app], coverage: .init(), scannedAt: Date())
+        let uninstall = ApplicationUninstallInventory(applicationInventory: apps, analyses: [
+            .init(application: app, plan: .init(application: app, items: [.init(candidate: item, containsUserData: false, isShared: false)]), state: .complete)
+        ])
+        let statuses = Dictionary(uniqueKeysWithValues: ScanModuleID.allCases.map {
+            ($0, ScanModuleStatus(module: $0, state: [.general, .applications].contains($0) ? .completed : .scanning))
+        })
+        let report = SystemScanReport(metadata: .init(generationID: generation, startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture"),
+            modules: statuses, generalCandidates: [log, kept], applicationInventory: apps, applicationUninstallInventory: uninstall,
+            diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()), largeFileCandidates: [], agentAssets: [])
+        let offline = CleanupCandidate(url: home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage"),
+            displayName: "CacheStorage", category: .cache, bytes: 100, risk: .safe, evidence: [],
+            identity: .init(device: 1, inode: 6, size: 100, modificationTime: 1, kind: .directory),
+            source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true,
+            requiresExplicitSelection: true,
+            cleanupApplication: .init(bundleIdentifier: "com.google.Chrome", name: "Google Chrome", kind: "Offline content"))
+        let cleanupModel = AppModel(home: home)
+        cleanupModel.selection = .systemCleanup
+        let cleanupReport = report.replacing(module: .general,
+            payload: .general(.init(candidates: [kept, offline], failures: [], startedAt: Date(), completedAt: Date())), completedAt: Date())
+        cleanupModel.install(cleanupReport)
+        for mode in [CleanupMode.smart, .deep] {
+            cleanupModel.setCleanupMode(mode)
+            try check(!cleanupModel.selectedIDs.contains(offline.id), "GUI automatic modes never select offline data")
+        }
+        cleanupModel.selectedIDs.removeAll()
+        cleanupModel.toggleCleanupCategory([kept, offline])
+        try check(cleanupModel.selectedIDs == [kept.id], "GUI group selection excludes manual-only items")
+        cleanupModel.setCleanupMode(.custom)
+        cleanupModel.toggle(offline)
+        try check(cleanupModel.selectedIDs.contains(offline.id), "GUI individual selection grants offline consent")
+        cleanupModel.setCleanupMode(.deep)
+        try check(!cleanupModel.selectedIDs.contains(offline.id), "returning to automatic mode removes manual offline consent")
+        cleanupModel.toggle(offline)
+        cleanupModel.install(SystemScanReport(metadata: .init(startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture"),
+            modules: cleanupReport.modules, generalCandidates: cleanupReport.generalCandidates,
+            applicationInventory: apps, diskUsageTree: cleanupReport.diskUsageTree, largeFileCandidates: [], agentAssets: []))
+        try check(!cleanupModel.selectedIDs.contains(offline.id), "GUI fresh report resets offline selection")
+        let token = UUID()
+        model.phase = .scanning
+        model.isScanRunning = true
+        model.activeScanToken = token
+        model.activeScanGenerationID = generation
+        model.scanProgressByModule = statuses
+        model.install(report)
+        model.selection = .applications
+        model.uninstallSelectedIDs = [item.id]
+        try check(!model.hasCompletedScan && model.hasScanResult(for: .applications), "fixture must have app results before the full scan finishes")
+        try check(model.canExecuteUninstallBatch, "completed app module must allow deletion while other modules scan")
+        model.selection = .systemCleanup
+        model.selectedIDs = [log.id]
+        try check(model.canExecuteSelection && model.canRunOneClickCleanup, "completed system module must allow selected and default cleanup during unrelated scans")
+        for state in [ScanModuleState.waiting, .scanning, .failed, .cancelled] {
+            model.scanProgressByModule[.general] = .init(module: .general, state: state)
+            model.scanProgressByModule[.applications] = .init(module: .applications, state: state)
+            try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "unavailable own module must block deletion: \(state)")
+        }
+        for state in [ScanModuleState.completed, .limited] {
+            model.scanProgressByModule[.general] = .init(module: .general, state: state)
+            model.scanProgressByModule[.applications] = .init(module: .applications, state: state)
+            try check(model.canExecuteSelection && model.canExecuteUninstallBatch, "ready own module permits verified choices: \(state)")
+        }
+        model.activeScanGenerationID = UUID()
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "previous-generation results cannot authorize cleanup")
+        model.activeScanGenerationID = generation
+        model.selectedIDs.removeAll()
+        model.uninstallSelectedIDs.removeAll()
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "empty selections must stay disabled")
+        model.selectedIDs = [log.id]
+        model.uninstallSelectedIDs = [item.id]
+        model.updateInProgress = true
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "updates block both cleanup entry points")
+        model.updateInProgress = false
+        model.deepScanningApplicationID = app.id
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "runtime observation blocks execution")
+        model.deepScanningApplicationID = nil
+        model.isLoadingApplications = true
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "app inventory refresh blocks execution")
+        model.isLoadingApplications = false
+        model.oneClickCleanupIsRunning = true
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "another cleanup cannot overlap execution")
+        model.oneClickCleanupIsRunning = false
+        model.phase = .executing
+        try check(!model.canExecuteSelection && !model.canExecuteUninstallBatch, "executing cleanup must retain the exclusive mutation gate")
+
+        let effects = [item, log].map {
+            OperationResult(candidateID: $0.id, originalURL: $0.url, disposition: .quarantined, status: .succeeded, bytes: $0.bytes)
+        }
+        model.recordScanCleanupEffects(effects)
+        model.pendingExecutionResults = effects
+        model.applyPendingExecutionResults()
+        try check(model.applications.isEmpty && model.systemReport?.generalCandidates.map(\.id) == [kept.id], "streamed success removes app and system rows immediately")
+        try check(model.isScanRunning && model.phase == .executing, "cleanup reconciliation must not stop background scans or reset execution")
+        model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .limited)
+        model.pendingExecutionResults = effects
+        model.applyPendingExecutionResults()
+        try check(model.scanProgressByModule[.agentEnvironment]?.state == .limited, "cleanup must not rewind newer module progress")
+        model.selectedIDs = [kept.id]
+        let lateReport = report.replacing(module: .largeFiles, payload: .largeFiles(report.diskUsageTree, []), completedAt: Date())
+        model.scanProgressByModule[.largeFiles] = .init(module: .largeFiles, state: .completed)
+        model.installProgressive(lateReport, completedModule: .largeFiles, token: token)
+        try check(model.applications.isEmpty && model.systemReport?.generalCandidates.map(\.id) == [kept.id], "late progressive snapshots cannot resurrect cleaned rows")
+        try check(model.selectedIDs == [kept.id] && model.phase == .executing, "unrelated scan publications preserve selections and execution")
+        model.statusMessage = "fixture execution progress"
+        let finalReport = SystemScanReport(metadata: report.metadata,
+            modules: Dictionary(uniqueKeysWithValues: ScanModuleID.allCases.map { ($0, ScanModuleStatus(module: $0, state: .completed)) }),
+            generalCandidates: report.generalCandidates, applicationInventory: apps, applicationUninstallInventory: uninstall,
+            diskUsageTree: report.diskUsageTree, largeFileCandidates: [], agentAssets: [])
+        model.completeScan(finalReport, token: token)
+        try check(!model.isScanRunning && model.hasCompletedScan && model.phase == .executing && model.statusMessage == "fixture execution progress", "scan completion cannot end a running cleanup or overwrite its progress")
+        try check(model.applications.isEmpty && model.selectedIDs == [kept.id], "final scan snapshot preserves cleanup effects and manual selections")
+
+        // Reverse completion order: cleanup finishes first, then scans publish.
+        model.isScanRunning = true
+        model.activeScanToken = token
+        model.activeScanGenerationID = generation
+        model.phase = .completed
+        model.installProgressive(report, completedModule: .largeFiles, token: token)
+        try check(model.applications.isEmpty && model.isScanRunning && model.phase == .completed, "background publications must continue after cleanup finishes")
+        model.completeScan(finalReport, token: UUID())
+        try check(model.isScanRunning, "stale scan completion cannot finish the current scan")
+        model.phase = .executing
+        model.cancelScan()
+        try check(!model.isScanRunning && model.phase == .executing, "canceling background scanning cannot cancel cleanup")
+        model.installProgressive(report, completedModule: .applications, token: token)
+        try check(model.applications.isEmpty, "canceled scan callbacks cannot restore old app rows")
+        model.phase = .completed
+        model.selectedIDs = [kept.id]
+        try check(model.canExecuteSelection, "completed module stays actionable after cancellation of unrelated scans")
+        model.phase = .scanning
+        model.isScanRunning = true
+        model.activeScanToken = token
+        model.activeScanGenerationID = generation
+        model.oneClickCleanupIsRunning = true
+        model.statusMessage = "fixture default cleanup progress"
+        model.completeScan(finalReport, token: token)
+        try check(model.oneClickCleanupIsRunning && model.statusMessage == "fixture default cleanup progress", "scan completion preserves default-cleanup progress too")
+        model.oneClickCleanupIsRunning = false
+        model.phase = .reviewing
+        let support = CleanupCandidate(url: home.appendingPathComponent("Library/Application Support/Fixture"), displayName: "Fixture", category: .applicationSupport,
+            bytes: 25, risk: .review, evidence: [], identity: .init(device: 1, inode: 5, size: 25, modificationTime: 1, kind: .directory), source: .application, lastAccessDate: nil, isActive: false)
+        let selectedAppItems = [item, support].map { UninstallItem(candidate: $0, containsUserData: false, isShared: false) }
+        let presentationInventory = ApplicationUninstallInventory(applicationInventory: apps, analyses: [
+            .init(application: app, plan: .init(application: app, items: selectedAppItems), state: .complete)
+        ])
+        model.install(report.replacing(module: .applications, payload: .applications(presentationInventory), completedAt: Date()))
+        model.uninstallSelectedIDs = [item.id, support.id]
+        let uninstallPlan = model.applicationUninstallPlans[0]
+        let deletionPlan = try model.planBuilder.build(candidates: [item, support], selectedIDs: [item.id, support.id])
+        _ = model.prepareDeletion(plan: deletionPlan, modules: [.applications])
+        try check(model.isUninstallItemSelected(uninstallPlan.items[0]) && model.uninstallSelectionState(for: uninstallPlan) == .all,
+            "starting uninstall must keep app and item checkmarks selected")
+        try check(model.showsDeletionSheet && model.isDeletionInProgress && model.executionProgress.total == 2,
+            "starting uninstall must immediately present determinate progress")
+        model.toggleUninstall(uninstallPlan)
+        model.toggleUninstall(uninstallPlan.items[0])
+        model.clearUninstallSelection()
+        model.dismissDeletionSheet()
+        try check(model.uninstallSelectedIDs == [item.id, support.id] && model.showsDeletionSheet,
+            "in-flight selection and progress presentation cannot be cleared")
+        let presentationEffects = [support, item].map {
+            OperationResult(candidateID: $0.id, originalURL: $0.url, disposition: .quarantined, status: .succeeded, bytes: $0.bytes)
+        }
+        model.recordScanCleanupEffects([presentationEffects[0]])
+        model.pendingExecutionResults = [presentationEffects[0]]
+        model.applyPendingExecutionResults()
+        try check(model.applications.map(\.id) == [app.id] && model.uninstallSelectedIDs == [item.id]
+            && model.uninstallSelectionState(for: model.applicationUninstallPlans[0]) == .all,
+            "partial deletion removes completed rows but keeps the app and remaining item checked")
+        model.cancelExecution()
+        try check(model.isStoppingDeletion && model.isDeletionInProgress && model.showsDeletionSheet,
+            "stop request keeps progress visible until the batch actually settles")
+        let receipt = OperationReceipt(planID: deletionPlan.id, startedAt: Date(), completedAt: Date(), results: presentationEffects, overallStatus: .completed)
+        model.finishExecutionProgress(receipt)
+        model.recordCompletedCleanup(receipt, attemptedCandidates: [item, support])
+        model.phase = .completed
+        model.deletionResult = receipt
+        try check(!model.isDeletionInProgress && model.showsDeletionSheet && model.applications.isEmpty,
+            "completion transitions to results while removing confirmed deleted app rows")
+        model.dismissDeletionSheet()
+        try check(!model.showsDeletionSheet, "dismissing results closes the operation sheet")
+        _ = model.prepareDeletion(plan: deletionPlan, modules: [.applications])
+        try check(!model.isStoppingDeletion && model.deletionResult == nil && model.deletionResultWarning == nil,
+            "new batches reset stop state and previous results")
+        model.phase = .failed("fixture")
+        model.deletionResultWarning = "fixture failure"
+        try check(model.showsDeletionSheet && !model.isDeletionInProgress,
+            "execution failure retains an actionable error sheet instead of leaving a spinner")
+        model.dismissDeletionSheet()
+        try check(!model.showsDeletionSheet, "dismissing execution error clears the sheet")
+        model.oneClickCleanupIsRunning = true
+        try check(model.isDeletionInProgress && model.showsDeletionSheet, "default system cleanup uses the same progress sheet")
+        model.oneClickCleanupIsRunning = false
+        print("PASS: model cleanup gates, concurrent scans, retained uninstall checkmarks, progress/result/error presentation, cancellation, and manual-only offline selection")
+    }
 }

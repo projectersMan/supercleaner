@@ -10,10 +10,12 @@ final class ApplicationScannerTests: XCTestCase {
         XCTAssertTrue(associations.contains { $0.url.lastPathComponent == "com.example.app" })
     }
 
-    func testSharedOrUserContentIsBlocked() async throws {
+    func testSharedContentIsBlockedAndOwnedUserContentRequiresReview() async throws {
         let fixture = ApplicationFixture()
         let plan = try await UninstallPlanner().planUninstall(fixture.application, context: fixture.context)
-        XCTAssertTrue(plan.items.filter { $0.containsUserData || $0.isShared }.allSatisfy { $0.candidate.risk == .blocked })
+        XCTAssertTrue(plan.items.filter(\.isShared).allSatisfy { $0.candidate.risk == .blocked })
+        let ownedUserData = plan.items.filter { $0.containsUserData && !$0.isShared }
+        XCTAssertTrue(ownedUserData.allSatisfy { $0.candidate.risk != .safe })
         XCTAssertEqual(plan.items.first { $0.candidate.url == fixture.application.bundleURL }?.candidate.risk, .review)
     }
 
@@ -122,7 +124,13 @@ private actor DeepUninstallSizeFileSystem: FileSystemAccess {
         identities = values
     }
 
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        if childrenByPath[url.path] != nil && identities[url.path] == nil {
+            return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 1, kind: .directory)
+        }
+        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
+        return identity
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
@@ -176,6 +184,11 @@ private actor DeepApplicationDiscoveryFileSystem: FileSystemAccess {
     let childrenByPath: [String: [URL]]
     let directoryPaths: Set<String>
 
+    init(childrenByPath: [String: [URL]], directoryPaths: Set<String>) {
+        self.childrenByPath = childrenByPath
+        self.directoryPaths = directoryPaths
+    }
+
     func identity(at url: URL) throws -> FileIdentity {
         FileIdentity(
             device: 1,
@@ -218,7 +231,13 @@ private actor ApplicationFixtureFileSystem: FileSystemAccess {
         childrenByPath = [caches.path: Array(urls[1...2]), support.path: [urls[3]], groups.path: [urls[4]]]
         identities = Dictionary(uniqueKeysWithValues: urls.map { ($0.path, FileIdentity(device: 1, inode: UInt64(bitPattern: Int64($0.path.hashValue)), size: 100, modificationTime: 1, kind: .directory)) })
     }
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        if childrenByPath[url.path] != nil && identities[url.path] == nil {
+            return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 1, kind: .directory)
+        }
+        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
+        return identity
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }

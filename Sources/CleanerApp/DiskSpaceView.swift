@@ -18,7 +18,7 @@ struct DiskSpaceView: View {
                             .foregroundColor(.orange)
                         Spacer()
                         Button(L10n.text("应用并刷新")) { model.refreshModule(.largeFiles) }
-                            .disabled(model.phase == .scanning)
+                            .disabled(model.isScanRunning)
                     }
                     .padding(.horizontal, 18).padding(.vertical, 10).background(.orange.opacity(0.08))
                     Divider()

@@ -109,7 +109,7 @@ public struct DefaultCleanupTrackingState: Equatable, Sendable {
         let successfulPaths = outcome.successfulStandardizedPaths
         let aliasIDs = Set(knownCandidates.compactMap { candidate in
             successfulPaths.contains(candidate.url.standardizedFileURL.path) ? candidate.id : nil
-        })
+        }).union(outcome.successfulCandidateIDs)
         selectedCandidateIDs.subtract(aliasIDs)
         uninstallSelectedItemIDs.subtract(aliasIDs)
         cleanedCandidateIDs.formUnion(aliasIDs)
@@ -184,7 +184,7 @@ private extension CleanupCandidate {
     }
 }
 
-private extension OperationResult {
+extension OperationResult {
     var countsAsCleanedContent: Bool {
         status == .succeeded
             && [.quarantined, .trashed, .permanentlyDeleted].contains(disposition)

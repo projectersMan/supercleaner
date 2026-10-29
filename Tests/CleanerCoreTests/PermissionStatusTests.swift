@@ -20,7 +20,7 @@ final class PermissionStatusTests: XCTestCase {
 
 private actor PermissionFixtureFS: FileSystemAccess {
     func identity(at url: URL) throws -> FileIdentity { throw FileSystemError.missing(url) }
-    func children(of url: URL) -> [URL] { [] }
+    func children(of url: URL) throws -> [URL] { throw FileSystemError.unreadableContent(url) }
     func isReadable(_ url: URL) -> Bool { false }
     func isWritable(_ url: URL) -> Bool { false }
     func fileExists(_ url: URL) -> Bool { true }

@@ -4,12 +4,13 @@ import SwiftUI
 struct DashboardView: View {
     @ObservedObject var model: AppModel
     @State private var hoveredResultModule: ScanModuleID?
+    @State private var showsFullDiskAccessPrompt = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 hero
-                if model.phase == .scanning {
+                if model.isScanRunning {
                     scanProgress
                     if model.hasCompletedScan { previousReportNotice }
                 } else if model.systemReport != nil {
@@ -21,16 +22,23 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 34).padding(.vertical, 28)
         }
+        .alert(L10n.text("建议检查完全磁盘访问权限"), isPresented: $showsFullDiskAccessPrompt) {
+            Button(L10n.text("打开系统设置")) { model.openFullDiskAccessSettings() }
+            Button(L10n.text("仍然开始扫描")) { model.startFullScan() }
+            Button(L10n.text("取消"), role: .cancel) {}
+        } message: {
+            Text(L10n.text("完全磁盘访问由 macOS 管理，SuperCleaner 不能自行获取。开启后重新扫描可能发现更多可清理项；不开启也可以继续扫描可访问的位置。"))
+        }
     }
 
     private var hero: some View {
         HStack(alignment: .center, spacing: 26) {
-            Image(systemName: model.phase == .scanning ? "internaldrive.badge.magnifyingglass" : "shield.lefthalf.filled")
+            Image(systemName: model.isScanRunning ? "internaldrive.badge.magnifyingglass" : "shield.lefthalf.filled")
                 .font(.system(size: 54)).foregroundStyle(.tint).frame(width: 72)
             VStack(alignment: .leading, spacing: 9) {
                 Text(heroTitle).font(.system(size: 34, weight: .semibold))
                 Text(heroDetail).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-                if model.phase == .scanning {
+                if model.isScanRunning {
                     HStack(spacing: 12) {
                         ProgressView().controlSize(.small)
                         Button(L10n.text("取消扫描")) { model.cancelScan() }
@@ -38,9 +46,9 @@ struct DashboardView: View {
                     .padding(.top, 8)
                 } else if model.systemReport != nil {
                     HStack(spacing: 14) {
-                        Button(L10n.text("重新完整扫描")) { model.startFullScan() }
+                        Button(L10n.text("重新完整扫描"), action: requestScan)
                             .controlSize(.large)
-                            .disabled(model.oneClickCleanupIsRunning)
+                            .disabled(model.oneClickCleanupIsRunning || model.bootstrapInProgress)
                         if model.sessionCleanupSummary.itemCount > 0 {
                             Label(
                                 L10n.text("本次打开已清理 {0} 项 · {1}", String(describing: model.sessionCleanupSummary.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: model.sessionCleanupSummary.bytes))),
@@ -52,13 +60,14 @@ struct DashboardView: View {
                     }
                     .padding(.top, 8)
                 } else {
-                    Button { model.startFullScan() } label: {
+                    Button(action: requestScan) {
                         Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
                             .font(.headline).padding(.horizontal, 8).padding(.vertical, 4)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .padding(.top, 8)
+                    .disabled(model.bootstrapInProgress)
                     .accessibilityHint(L10n.text("只读扫描系统清理、应用、大文件和 Agent 环境"))
                 }
             }
@@ -67,13 +76,21 @@ struct DashboardView: View {
         .padding(.vertical, 14)
     }
 
+    private func requestScan() {
+        guard model.permissionSnapshot?.fullDiskAccess.status != .granted else {
+            model.startFullScan()
+            return
+        }
+        showsFullDiskAccessPrompt = true
+    }
+
     private var heroTitle: String {
-        if model.phase == .scanning { return L10n.text("正在扫描整个支持范围") }
+        if model.isScanRunning { return L10n.text("正在扫描整个支持范围") }
         return model.systemReport != nil ? L10n.text("清理中心") : L10n.text("先完整扫描，再决定清理什么")
     }
 
     private var heroDetail: String {
-        if model.phase == .scanning {
+        if model.isScanRunning {
             return L10n.text("四个模块共享同一次扫描版本。此过程默认只读取文件元数据；在 Agent 环境中会受限读取 `SKILL.md` 头部内容用于建立目录索引，不会清理或上传任何数据。")
         }
         if model.systemReport != nil {
@@ -102,14 +119,7 @@ struct DashboardView: View {
 
     private var scanProgress: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(L10n.text("维度状态")).font(.title2.bold())
-                Spacer()
-                if let defaults = model.defaultCleanupSelection {
-                    Text(L10n.text("待系统清理 {0} 项 · {1}", String(describing: defaults.systemCleanup.count), String(describing: ByteCountFormatter.cleanerString(bytes: defaults.bytes))))
-                        .font(.callout).foregroundColor(.secondary)
-                }
-            }
+            Text(L10n.text("维度状态")).font(.title2.bold())
             VStack(spacing: 0) {
                 ForEach(ScanModuleID.allCases, id: \.self) { module in
                     let status = model.scanProgressByModule[module] ?? ScanModuleStatus(module: module, state: .waiting)
@@ -168,13 +178,13 @@ struct DashboardView: View {
             }
             let failures = model.cleanupFailures(for: module)
             if !failures.isEmpty {
-                moduleFailureList(failures)
+                moduleFailureList(failures, module: module)
             }
         }
         .padding(.vertical, 12)
     }
 
-    private func moduleFailureList(_ failures: [DefaultCleanupFailure]) -> some View {
+    private func moduleFailureList(_ failures: [DefaultCleanupFailure], module: ScanModuleID) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(failures) { failure in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -185,7 +195,7 @@ struct DashboardView: View {
                     Spacer()
                     Text(
                         failure.isRetryable
-                            ? model.phase == .scanning ? L10n.text("扫描完成后可重试") : L10n.text("可安全重试")
+                            ? model.hasScanResult(for: module) ? L10n.text("可安全重试") : L10n.text("扫描完成后可重试")
                             : L10n.text("需重新扫描")
                     )
                     .foregroundColor(failure.isRetryable ? .orange : .secondary)
@@ -195,14 +205,12 @@ struct DashboardView: View {
             let retryable = failures.filter(\.isRetryable)
             if !retryable.isEmpty {
                 Button(
-                    model.phase == .scanning
-                        ? L10n.text("扫描完成后可重试 {0} 项", String(describing: retryable.count))
-                        : L10n.text("安全重试 {0} 项", String(describing: retryable.count))
+                    L10n.text("安全重试 {0} 项", String(describing: retryable.count))
                 ) {
                     model.retryCleanupFailures(retryable)
                 }
                 .controlSize(.small)
-                .disabled(model.phase == .scanning || model.phase == .executing || model.oneClickCleanupIsRunning)
+                .disabled(!model.canRetryCleanupFailures(retryable))
             }
         }
         .padding(.leading, 44)
@@ -221,16 +229,6 @@ struct DashboardView: View {
                 if module == .general {
                     if let message = status.message {
                         Text(message).font(.caption).foregroundColor(.secondary)
-                    }
-                    ForEach(status.limitations) { limitation in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(limitation.title).font(.caption.weight(.semibold))
-                            if let path = limitation.path {
-                                Text(path.path).font(.caption2).foregroundColor(.secondary)
-                            }
-                            Text(limitation.impact).font(.caption2).foregroundColor(.secondary)
-                            Text(limitation.recovery).font(.caption2).foregroundColor(.secondary)
-                        }
                     }
                     if let cleanupStatus = model.oneClickStatus(for: module) {
                         Text(cleanupStatus)
@@ -341,12 +339,33 @@ private extension ScanModuleID {
 
 private extension ScanModuleState {
     var title: String {
-        switch self { case .waiting: L10n.text("等待"); case .scanning: L10n.text("扫描中"); case .completed, .limited: L10n.text("扫描完成"); case .failed: L10n.text("失败"); case .cancelled: L10n.text("已取消") }
+        switch self {
+        case .waiting: L10n.text("等待")
+        case .scanning: L10n.text("扫描中")
+        case .completed: L10n.text("扫描完成")
+        case .limited: L10n.text("部分完成")
+        case .failed: L10n.text("失败")
+        case .cancelled: L10n.text("已取消")
+        }
     }
     var icon: String {
-        switch self { case .waiting: "clock"; case .scanning: "magnifyingglass"; case .completed, .limited: "checkmark.circle.fill"; case .failed: "xmark.circle.fill"; case .cancelled: "stop.circle" }
+        switch self {
+        case .waiting: "clock"
+        case .scanning: "magnifyingglass"
+        case .completed: "checkmark.circle.fill"
+        case .limited: "exclamationmark.triangle.fill"
+        case .failed: "xmark.circle.fill"
+        case .cancelled: "stop.circle"
+        }
     }
     var color: Color {
-        switch self { case .waiting: .secondary; case .scanning: .accentColor; case .completed, .limited: .green; case .failed: .red; case .cancelled: .secondary }
+        switch self {
+        case .waiting: .secondary
+        case .scanning: .accentColor
+        case .completed: .green
+        case .limited: .orange
+        case .failed: .red
+        case .cancelled: .secondary
+        }
     }
 }

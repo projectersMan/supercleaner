@@ -45,9 +45,12 @@ public struct CleanupStrategySelectionState: Codable, Hashable, Sendable {
 
     public mutating func toggleCategory(
         candidates: [CleanupCandidate],
-        baseEligibleIDs: Set<UUID>
+        baseEligibleIDs: Set<UUID>,
+        includesManualOnly: Bool = false
     ) {
-        let selectableIDs = Set(candidates.filter { $0.risk.isSelectable }.map(\.id))
+        let selectableIDs = Set(candidates.filter {
+            $0.risk.isSelectable && (includesManualOnly || $0.requiresExplicitSelection != true)
+        }.map(\.id))
         guard !selectableIDs.isEmpty else { return }
         if selectionState(for: selectableIDs) == .all {
             selectedIDs.subtract(selectableIDs)

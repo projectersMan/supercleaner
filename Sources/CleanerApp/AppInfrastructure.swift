@@ -33,8 +33,9 @@ import Foundation
             currentRuleVersion: "loading",
             isActive: activeCheck,
             loadProtection: { try await runtime.protections.snapshot() },
-            loadRuleVersion: { try await runtime.rules.currentPack().executionVersion },
+            loadRuleVersion: { try await runtime.rules.currentExecutionVersion() },
             validateCandidate: { try await runtime.validateForExecution($0) },
+            prepareValidationBatch: { try await runtime.prepareExecutionValidationBatch(candidates: $0) },
             privilegedApplications: helper.authorizedApplicationOperations(fileSystem: fileSystem)
         )
         let history = HistoryStore(url: support.appendingPathComponent("history.json"))

@@ -47,7 +47,7 @@ public struct CleanupRecommendationPolicy: Sendable {
 
     public func disposition(for candidate: CleanupCandidate) -> CleanupDisposition {
         if candidate.risk == .blocked { return .protected }
-        if candidate.isActive { return .retain }
+        if candidate.isActive || candidate.requiresExplicitSelection == true { return .retain }
         if candidate.risk == .safe { return .recommended }
         if candidate.defaultSelection == false && !Self.deepCleanCategories.contains(candidate.category) {
             return .retain
@@ -92,5 +92,16 @@ public struct CleanupRecommendationPolicy: Sendable {
             let selectableIDs = Set(candidates.filter { $0.risk.isSelectable }.map(\.id))
             return currentSelection.intersection(selectableIDs)
         }
+    }
+
+    /// Candidates shown in the recommended-cleanup section and eligible for
+    /// unattended one-click cleanup. Keeping this derived from the same
+    /// disposition prevents retained items from being selected behind a
+    /// collapsed "Recommended to keep" section.
+    public func defaultSelectedIDs(for candidates: [CleanupCandidate]) -> Set<UUID> {
+        Set(candidates.filter {
+            $0.risk.isSelectable
+                && [.recommended, .deepClean].contains(disposition(for: $0))
+        }.map(\.id))
     }
 }

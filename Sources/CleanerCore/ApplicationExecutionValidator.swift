@@ -32,7 +32,7 @@ public struct ApplicationExecutionValidator: Sendable {
             // mistake an absent body for permission to delete another copy's data.
             let anchor = actual ?? InstalledApplication(bundleURL: ownerURL, bundleIdentifier: identifier, name: name, version: nil, isRunning: context.runningBundleIdentifiers.contains(identifier), isSystem: false)
             guard anchor.bundleIdentifier == identifier, !anchor.isRunning else { throw ApplicationExecutionRejection.ownershipChanged }
-            let index = await scanner.associationIndex(for: inventory.applications + (actual == nil ? [anchor] : []), context: context)
+            let index = await scanner.associationIndex(for: inventory.applications + (actual == nil ? [anchor] : []), context: context, resourceURL: candidate.url)
             guard index.ownershipGraph?.application(at: ownerURL)?.blocksAssociationDeletion == false else {
                 throw ApplicationExecutionRejection.managedInstallation
             }
@@ -41,6 +41,10 @@ public struct ApplicationExecutionValidator: Sendable {
                   association.risk.isSelectable, !association.isShared,
                   association.isSystemResource != true, association.references?.isEmpty != false else {
                 throw ApplicationExecutionRejection.stillReferenced
+            }
+            if association.ownershipBasis == .bundleDataDeclaration,
+               try await ApplicationObservationLifecycle.hasLiveBundleProcesses(anchor, dataDirectory: candidate.url) {
+                throw ApplicationExecutionRejection.ownershipChanged
             }
         }
     }

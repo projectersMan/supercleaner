@@ -45,4 +45,5 @@ if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0} == 1 ]]; then
 fi
 ${APP}/Contents/MacOS/CleanerApp --smoke-test
 ${APP}/Contents/MacOS/CleanerApp --update-self-check
-print "PASS: SuperCleaner.app structure, signature, and smoke flow verified"
+"${APP}/Contents/MacOS/CleanerApp" --scan-cleanup-self-check
+print "PASS: SuperCleaner.app structure, signature, smoke flow, and concurrent scan cleanup verified"

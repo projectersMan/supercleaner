@@ -100,14 +100,16 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
     private let additionalAssociationRoots: [ApplicationAssociationRoot]
     private let maximumEntries: Int
     private let includeSystemRoots: Bool
+    private let userTemporaryDirectories: [URL]?
 
-    public init(installationInspector: any ApplicationInstallationInspecting = LocalApplicationInstallationInspector(), configurationFiles: [URL]? = nil, additionalAssociationRoots: [ApplicationAssociationRoot] = [], maximumEntries: Int = 20_000, includeSystemRoots: Bool = true) {
+    public init(installationInspector: any ApplicationInstallationInspecting = LocalApplicationInstallationInspector(), configurationFiles: [URL]? = nil, additionalAssociationRoots: [ApplicationAssociationRoot] = [], maximumEntries: Int = 20_000, includeSystemRoots: Bool = true, userTemporaryDirectories: [URL]? = nil) {
         self.installationInspector = installationInspector; self.configurationFiles = configurationFiles
         self.additionalAssociationRoots = additionalAssociationRoots; self.maximumEntries = max(1, maximumEntries)
         self.includeSystemRoots = includeSystemRoots
+        self.userTemporaryDirectories = userTemporaryDirectories
     }
 
-    public func build(applications: [InstalledApplication], associations: [URL: [ApplicationAssociation]], coverage: CoverageSummary, context: ScanContext) async -> ApplicationAssociationIndex {
+    public func build(applications: [InstalledApplication], associations: [URL: [ApplicationAssociation]], coverage: CoverageSummary, context: ScanContext, resourceURL: URL? = nil) async -> ApplicationAssociationIndex {
         var output = associations
         var scanned = coverage.scannedRoots
         var unavailable = coverage.unavailableRoots
@@ -117,6 +119,12 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
         let deadline = Date().addingTimeInterval(20)
         let appByURL = Dictionary(uniqueKeysWithValues: applications.map { ($0.id, $0) })
         var services: [(url: URL, references: [String], owners: [URL])] = []
+        let diagnosticDirectories = Set(ApplicationAssociationPathRegistry.diagnosticRoots(home: context.homeDirectory).flatMap {
+            [$0.url.path, $0.url.appendingPathComponent("Retired").path]
+        })
+        let associationRoots = ApplicationAssociationPathRegistry.roots(home: context.homeDirectory, userTemporaryDirectories: userTemporaryDirectories)
+            .filter { (includeSystemRoots || !$0.isSystem) && $0.matching != .diagnostic } + additionalAssociationRoots
+        let sharedRootPaths = Set(associationRoots.map { $0.url.path })
         // Modern SMAppService definitions live inside the app, not necessarily
         // /Library/LaunchDaemons. Presence is a potential registration, never a
         // claim that it is running. We cannot safely unregister another app.
@@ -146,25 +154,49 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
             }
             if budgetLimited { break }
         }
-        for spec in ApplicationAssociationRoot.standard(home: context.homeDirectory).filter({ includeSystemRoots || !$0.isSystem }) + additionalAssociationRoots {
+        for spec in associationRoots {
             if Task.isCancelled { budgetLimited = true; break }
+            if let resourceURL, spec.kind != .launchAgent && spec.kind != .launchDaemon,
+               !Self.isWithin(resourceURL.standardizedFileURL.path, spec.url.path) { continue }
             guard await context.fileSystem.fileExists(spec.url) else { continue }
-            guard await context.fileSystem.isReadable(spec.url), let children = try? await context.fileSystem.children(of: spec.url) else {
+            guard let rootIdentity = try? await context.fileSystem.identity(at: spec.url), rootIdentity.kind == .directory,
+                  spec.url.resolvingSymlinksInPath().standardizedFileURL.path == spec.url.path,
+                  await context.fileSystem.isReadable(spec.url), let children = try? await context.fileSystem.children(of: spec.url) else {
                 unavailable.append(spec.url)
                 if spec.kind == .launchAgent || spec.kind == .launchDaemon { referencesComplete = false }
                 continue
             }
             scanned.append(spec.url)
-            for child in children.sorted(by: { $0.path < $1.path }) {
-                guard remaining > 0, Date() < deadline else { budgetLimited = true; break }
+            var resourcesToMatch = children.sorted(by: { $0.path < $1.path })
+            for vendor in children where spec.isVendorDirectory(vendor, for: applications) {
+                // Never select the vendor parent, including unreadable parents.
+                resourcesToMatch.removeAll { $0.standardizedFileURL.path == vendor.standardizedFileURL.path }
+                if let resourceURL, !Self.isWithin(resourceURL.standardizedFileURL.path, vendor.standardizedFileURL.path) { continue }
+                guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
                 remaining -= 1
+                guard let identity = try? await context.fileSystem.identity(at: vendor), identity.kind == .directory,
+                      vendor.resolvingSymlinksInPath().path == vendor.standardizedFileURL.path else { continue }
+                do {
+                    let nested = try await context.fileSystem.children(of: vendor)
+                    scanned.append(vendor)
+                    resourcesToMatch += nested.sorted(by: { $0.path < $1.path })
+                } catch { unavailable.append(vendor) }
+                // A vendor directory is shared infrastructure even when only one
+                // of its products is currently installed. Match products below it.
+                resourcesToMatch.removeAll { $0.standardizedFileURL.path == vendor.standardizedFileURL.path }
+            }
+            for child in resourcesToMatch {
+                // Final execution needs one resource's ownership. Keep scanning
+                // all service definitions: another service can reference it.
+                if let resourceURL, spec.kind != .launchAgent && spec.kind != .launchDaemon,
+                   child.standardizedFileURL.path != resourceURL.standardizedFileURL.path { continue }
+                guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                remaining -= 1
+                if diagnosticDirectories.contains(child.standardizedFileURL.path) { continue }
+                if sharedRootPaths.contains(child.standardizedFileURL.path) { continue }
                 var owners = applications.filter { application in
-                    var stem = child.lastPathComponent.lowercased()
-                    if child.pathExtension.lowercased() == "plist" { stem = child.deletingPathExtension().lastPathComponent.lowercased() }
-                    let id = application.bundleIdentifier.lowercased()
-                    return stem == id || stem.hasPrefix(id + ".") || stem == application.name.lowercased()
-                        || (application.applicationGroups ?? []).contains(child.lastPathComponent)
-                        || (spec.kind == .sharedContainer && (stem == "group." + id || stem.hasPrefix("group." + id + ".")))
+                    child.standardizedFileURL.path != application.id.standardizedFileURL.path
+                        && spec.ownership(of: child, application: application) != nil
                 }.map(\.id)
                 if spec.kind == .launchAgent || spec.kind == .launchDaemon {
                     do {
@@ -185,34 +217,26 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                 for owner in Set(owners) {
                     guard appByURL[owner] != nil else { continue }
                     let app = appByURL[owner]!
-                    let stem = child.pathExtension.lowercased() == "plist"
-                        ? child.deletingPathExtension().lastPathComponent.lowercased()
-                        : child.lastPathComponent.lowercased()
-                    let bundleID = app.bundleIdentifier.lowercased()
-                    let bundleIDMatch = stem == bundleID || stem.hasPrefix(bundleID + ".")
-                    let displayNameMatch = stem == app.name.lowercased()
-                    let groupMatch = spec.kind == .sharedContainer && (
-                        (app.applicationGroups ?? []).contains(child.lastPathComponent)
-                        || stem == "group." + bundleID || stem.hasPrefix("group." + bundleID + ".")
-                    )
+                    let basis = spec.ownership(of: child, application: app)
                     let servicePathMatch = (spec.kind == .launchAgent || spec.kind == .launchDaemon)
                         && services.contains { $0.url.standardizedFileURL == child.standardizedFileURL
                             && $0.references.contains { Self.isWithin($0, app.bundleURL.path) } }
-                    let hasStrongOwnership = bundleIDMatch || groupMatch || servicePathMatch
-                    let reviewableOwnership = hasStrongOwnership
-                        || (spec.kind == .applicationSupport && displayNameMatch)
+                    let ownershipBasis: ApplicationAssociation.OwnershipBasis = servicePathMatch ? .serviceDefinition : (basis ?? .displayName)
+                    let hasStrongOwnership = ownershipBasis != .displayName && ownershipBasis != .compatibilityHint
+                    let reviewableOwnership = hasStrongOwnership || (spec.kind == .applicationSupport && basis == .displayName)
+                    let evidence = ownershipBasis == .applicationGroup ? "应用组标识匹配"
+                        : ownershipBasis == .bundleIdentifier ? "完整 Bundle ID 边界匹配"
+                        : servicePathMatch ? "明确服务路径匹配"
+                        : ownershipBasis == .compatibilityHint ? "兼容规则发现的关联线索，尚未确认独占归属" : "名称仅与应用显示名精确匹配"
+                    let risk: RiskLevel = spec.isSystem || spec.removalPolicy == .referenceOnly
+                        || ownershipBasis == .compatibilityHint || spec.kind == .sharedContainer || (spec.containsUserData && !reviewableOwnership)
+                        ? .blocked : (spec.kind == .cache && ownershipBasis == .bundleIdentifier ? .safe : .review)
                     output[owner, default: []].append(ApplicationAssociation(
                         url: child, kind: spec.kind,
-                        ownershipEvidence: spec.kind == .sharedContainer ? "应用组标识匹配"
-                            : bundleIDMatch ? "完整 Bundle ID 边界匹配"
-                            : groupMatch ? "应用组标识匹配"
-                            : servicePathMatch ? "明确服务路径匹配"
-                            : displayNameMatch ? "名称与应用显示名精确匹配" : "名称仅与应用显示名精确匹配",
+                        ownershipEvidence: evidence,
                         containsUserData: spec.containsUserData, isShared: spec.kind == .sharedContainer,
-                        risk: spec.isSystem || spec.kind == .sharedContainer
-                            || spec.kind == .launchAgent || spec.kind == .launchDaemon
-                            || (spec.containsUserData && !reviewableOwnership) ? .blocked : .review,
-                        isSystemResource: spec.isSystem
+                        risk: risk, isSystemResource: spec.isSystem,
+                        ownershipBasis: ownershipBasis, removalPolicy: ownershipBasis == .compatibilityHint ? .referenceOnly : spec.removalPolicy
                     ))
                 }
             }
@@ -225,6 +249,13 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
             for value in values { resourceAssociations[URL(fileURLWithPath: value.url.standardizedFileURL.path), default: []].append((owner, value)) }
         }
         let files = configurationFiles ?? Self.defaultConfigurationFiles(home: context.homeDirectory)
+        let referenceApplications = resourceURL == nil ? applications : applications.filter { app in
+            associations[app.id]?.contains { $0.url.standardizedFileURL.path == resourceURL?.standardizedFileURL.path } == true
+                || output[app.id]?.contains { $0.url.standardizedFileURL.path == resourceURL?.standardizedFileURL.path } == true
+        }
+        if let resourceURL {
+            resourceAssociations = resourceAssociations.filter { $0.key.standardizedFileURL.path == resourceURL.standardizedFileURL.path }
+        }
         var appReferences: [URL: [ApplicationReferenceLocation]] = [:]
         var resourceReferences: [URL: [ApplicationReferenceLocation]] = [:]
         for file in Set(files).sorted(by: { $0.path < $1.path }) {
@@ -239,7 +270,7 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                     guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
                     remaining -= 1
                     let location = ApplicationReferenceLocation(file: file, line: offset + 1, kind: .configuration)
-                    for app in applications where Self.containsReference(String(line), to: app.bundleURL.path)
+                    for app in referenceApplications where Self.containsReference(String(line), to: app.bundleURL.path)
                         || Self.containsReference(String(line), to: app.bundleIdentifier) {
                         appReferences[app.id, default: []].append(location)
                     }
@@ -272,9 +303,10 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
             resources.append(ApplicationResourceOwnership(resourceURL: url, kind: first.association.kind, owners: sortedOwners, references: refs, isSystemResource: system, isShared: shared))
             for owner in owners {
                 let association = matches.first {
-                    $0.owner == owner && $0.association.ownershipEvidence.contains("完整 Bundle ID 边界")
+                    $0.owner == owner && ($0.association.ownershipBasis == .bundleDataDeclaration || $0.association.ownershipEvidence.contains("完整 Bundle ID 边界"))
                 }?.association ?? matches.first { $0.owner == owner }?.association ?? first.association
                 let blocked = shared || system || !refs.isEmpty || appByURL[owner]?.isRunning == true
+                    || matches.contains { $0.association.removalPolicy == .referenceOnly }
                 output[owner, default: []].append(ApplicationAssociation(
                     url: url, kind: association.kind,
                     ownershipEvidence: association.ownershipEvidence + (shared ? "；其他应用 / 副本仍拥有此资源" : "") + (!refs.isEmpty ? "；仍有配置或服务引用" : ""),
@@ -283,15 +315,19 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                     // match before reaching this aggregation. User data remains
                     // opt-in, but a textual wording mismatch must not lock it.
                     risk: blocked ? .blocked : (association.containsUserData
-                        ? (association.ownershipEvidence.contains("完整 Bundle ID 边界")
+                        ? (association.ownershipBasis == .bundleDataDeclaration || association.ownershipBasis == .bundleIdentifier
+                            || association.ownershipBasis == .applicationGroup || association.ownershipEvidence.contains("完整 Bundle ID 边界")
                             || association.ownershipEvidence.contains("应用组标识")
-                            || (association.kind == .applicationSupport && association.ownershipEvidence.contains("显示名精确匹配")) ? .review : .blocked)
+                            || (association.kind == .applicationSupport && (association.ownershipBasis == .displayName || association.ownershipEvidence.contains("显示名精确匹配"))) ? .review : .blocked)
                         : association.risk),
-                    ownerBundleURLs: sortedOwners, references: refs, isSystemResource: system
+                    ownerBundleURLs: sortedOwners, references: refs, isSystemResource: system,
+                    ownershipBasis: association.ownershipBasis, declarationSource: association.declarationSource,
+                    removalPolicy: matches.contains { $0.association.removalPolicy == .referenceOnly } ? .referenceOnly : association.removalPolicy
                 ))
             }
         }
-        let installations = await installationInspector.installations(for: applications, context: context)
+        let installationApplications = resourceURL == nil ? applications : applications.filter { output[$0.id]?.isEmpty == false }
+        let installations = await installationInspector.installations(for: installationApplications, context: context)
         scanned += installations.coverage.scannedRoots
         unavailable += installations.coverage.unavailableRoots
         let graphCoverage = CoverageSummary(scannedRoots: Array(Set(scanned)).sorted { $0.path < $1.path }, unavailableRoots: Array(Set(unavailable)).sorted { $0.path < $1.path }, budgetLimitedModules: budgetLimited || !installations.coverage.budgetLimitedModules.isEmpty ? [.applications] : [])
@@ -313,26 +349,10 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
     }
 
     static func containsReference(_ line: String, to value: String) -> Bool {
-        guard !value.isEmpty else { return false }
+        guard !value.isEmpty, line.contains(value) else { return false }
         let escaped = NSRegularExpression.escapedPattern(for: value)
         // An identifier prefix or a similarly named application is not a match.
         let pattern = "(?<![A-Za-z0-9_./-])" + escaped + (value.hasPrefix("/") ? "(?=$|[/\\s\\\"'\\],;:)])" : "(?![A-Za-z0-9_.-])")
         return line.range(of: pattern, options: .regularExpression) != nil
-    }
-}
-
-public struct ApplicationAssociationRoot: Sendable {
-    public let url: URL
-    public let kind: ApplicationAssociation.Kind
-    public let containsUserData: Bool
-    public let isSystem: Bool
-    public init(url: URL, kind: ApplicationAssociation.Kind, containsUserData: Bool = false, isSystem: Bool = false) {
-        self.url = url; self.kind = kind; self.containsUserData = containsUserData; self.isSystem = isSystem
-    }
-    static func standard(home: URL) -> [Self] {
-        let user: [(String, ApplicationAssociation.Kind, Bool)] = [("Logs", .log, false), ("WebKit", .webData, true), ("HTTPStorages", .webData, true), ("Group Containers", .sharedContainer, true), ("LaunchAgents", .launchAgent, false)]
-        let system: [(String, ApplicationAssociation.Kind, Bool)] = [("Caches", .cache, false), ("Logs", .log, false), ("Application Support", .applicationSupport, true), ("Preferences", .preference, false), ("LaunchAgents", .launchAgent, false), ("LaunchDaemons", .launchDaemon, false), ("PrivilegedHelperTools", .privilegedHelper, false)]
-        return user.map { .init(url: home.appendingPathComponent("Library/\($0.0)"), kind: $0.1, containsUserData: $0.2) }
-            + system.map { .init(url: URL(fileURLWithPath: "/Library/\($0.0)"), kind: $0.1, containsUserData: $0.2, isSystem: true) }
     }
 }

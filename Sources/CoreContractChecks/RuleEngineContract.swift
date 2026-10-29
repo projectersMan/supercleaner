@@ -74,12 +74,19 @@ func runRuleEngineContracts() async throws {
     let encoded = try JSONEncoder().encode(pack)
     try await store.install(update: SignedRuleUpdate(packData: encoded, signature: try key.signature(for: encoded)))
     let firstIdentity = try await store.currentPack().executionVersion
+    let firstCachedIdentity = try await store.currentExecutionVersion()
+    require(firstCachedIdentity == firstIdentity, "cached digest must match verified rule content")
     let secondData = try JSONEncoder().encode(revoked)
     try await store.install(update: SignedRuleUpdate(packData: secondData, signature: try key.signature(for: secondData)))
     let changedIdentity = try await store.currentPack().executionVersion
+    let changedCachedIdentity = try await store.currentExecutionVersion()
+    require(changedCachedIdentity == changedIdentity && changedCachedIdentity != firstCachedIdentity,
+            "digest reuse must immediately respect changed rules and revocations")
     require(changedIdentity != firstIdentity, "same version updates must invalidate old plans")
     try await store.rollback()
     let rolledBackIdentity = try await store.currentPack().executionVersion
+    let rolledBackCachedIdentity = try await store.currentExecutionVersion()
+    require(rolledBackCachedIdentity == rolledBackIdentity, "digest reuse must respect explicit rollback activation")
     let rolledBack = try await store.currentPack()
     require(rolledBack.rules == pack.rules && rolledBack.revokedRuleIDs.contains(rule.ruleID), "rollback must restore signed rule contents without reactivating a revoked rule")
     require(rolledBackIdentity != firstIdentity && rolledBackIdentity != changedIdentity, "each explicit activation/rollback must invalidate previous plans")
@@ -110,7 +117,7 @@ func runRuleEngineContracts() async throws {
     let executor = CleanupExecutor(
         fileSystem: fs, pathPolicy: PathPolicy(homeDirectory: home), quarantineRoot: root.appendingPathComponent("quarantine"),
         currentRuleVersion: rolledBackIdentity, loadProtection: { try await protectionStore.snapshot() },
-        loadRuleVersion: { try await store.currentPack().executionVersion }
+        loadRuleVersion: { try await store.currentExecutionVersion() }
     )
     let denied = await executor.execute(plan: plan)
     require(denied.results.first?.status == .skippedProtected && manager.fileExists(atPath: file.path), "new protection must reject previously valid plan without moving files")
@@ -121,6 +128,14 @@ func runRuleEngineContracts() async throws {
     try await store.install(update: SignedRuleUpdate(packData: thirdData, signature: try key.signature(for: thirdData)))
     let stale = await executor.execute(plan: plan)
     require(stale.overallStatus == .rejected, "rule update must reject stale plan before file effects")
+    _ = try await store.currentExecutionVersion()
+    let durableState = try Data(contentsOf: root.appendingPathComponent("rules/state.json"))
+    try Data("corrupt".utf8).write(to: root.appendingPathComponent("rules/state.json"))
+    do {
+        _ = try await store.currentExecutionVersion()
+        require(false, "a cached digest must never bypass corrupted durable rule state")
+    } catch is RuleStoreError { }
+    try durableState.write(to: root.appendingPathComponent("rules/state.json"))
 
     let credential = cache.appendingPathComponent("credentials.json")
     try Data("sensitive fixture".utf8).write(to: credential)

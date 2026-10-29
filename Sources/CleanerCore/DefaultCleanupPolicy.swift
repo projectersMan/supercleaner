@@ -34,10 +34,9 @@ public struct DefaultCleanupPolicy: Sendable {
     public init() {}
 
     public func selection(for report: SystemScanReport) -> DefaultCleanupSelection {
-        let systemCleanup = scopePolicy.cleanupCenterCandidates(from: report.candidates).filter {
-            [.recommended, .deepClean].contains(recommendationPolicy.disposition(for: $0))
-                && !$0.isActive
-        }
+        let scopedCandidates = scopePolicy.cleanupCenterCandidates(from: report.candidates)
+        let defaultSelectedIDs = recommendationPolicy.defaultSelectedIDs(for: scopedCandidates)
+        let systemCleanup = scopedCandidates.filter { defaultSelectedIDs.contains($0.id) }
         return DefaultCleanupSelection(
             systemCleanup: systemCleanup,
             applicationUninstall: [],

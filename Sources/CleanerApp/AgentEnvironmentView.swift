@@ -210,6 +210,7 @@ private struct MCPConfigurationRow: View {
     @ObservedObject var model: AppModel
     let configuration: MCPConfigurationRecord
     let candidate: CleanupCandidate?
+    @State private var isHovered = false
     private var isSelected: Bool { candidate.map { model.selectedIDs.contains($0.id) } ?? false }
 
     var body: some View {
@@ -242,7 +243,8 @@ private struct MCPConfigurationRow: View {
                 .lineLimit(2)
         }
         .padding(.vertical, 6)
-        .listRowBackground(isSelected ? Color.accentColor.opacity(0.10) : Color.clear)
+        .listRowBackground(isSelected || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .onHover { isHovered = $0 }
     }
 
     @ViewBuilder private var mcpSelectionControl: some View {
@@ -277,6 +279,7 @@ private struct MCPConfigurationRow: View {
 private struct AgentSkillRow: View {
     @ObservedObject var model: AppModel
     let binding: AgentSkillCleanupBinding
+    @State private var isHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -341,7 +344,8 @@ private struct AgentSkillRow: View {
             }
         }
         .padding(.vertical, 6)
-        .listRowBackground(binding.decision == .plannedForDeletion ? Color.accentColor.opacity(0.10) : Color.clear)
+        .listRowBackground(binding.decision == .plannedForDeletion || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -560,6 +564,8 @@ private struct FlowLayout<Content: View>: View {
 private struct AgentAssetRow: View {
     @ObservedObject var model: AppModel
     let asset: AgentAssetRecord
+    @State private var isHovered = false
+    private var isSelected: Bool { model.selectedIDs.contains(asset.id) }
     private var selectable: Bool {
         asset.candidate.risk.isSelectable && asset.activity != .active && [.recommended, .deep].contains(asset.cleanupEligibility)
     }
@@ -582,11 +588,15 @@ private struct AgentAssetRow: View {
             Text(asset.candidate.url.path)
                 .font(.caption.monospaced()).foregroundColor(.secondary)
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            AgentAssetDetails(asset: asset, isSelected: model.selectedIDs.contains(asset.id))
+            AgentAssetDetails(asset: asset, isSelected: isSelected)
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .background(model.focusedCandidateID == asset.id ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            isSelected || isHovered ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.04),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .onHover { isHovered = $0 }
         .onTapGesture { model.focus(asset.id, for: .agentEnvironment) }
         .accessibilityAddTraits(model.focusedCandidateID == asset.id ? .isSelected : [])
     }

@@ -8,6 +8,41 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+if CommandLine.arguments.dropFirst().first == "--check-system-cleanup" {
+    try await runSystemCleanupContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-changing-logs" {
+    try await runChangingLogExecutionContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-association-roots" {
+    try await runApplicationAssociationRootsContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-cleanup-refresh" {
+    runCleanupRefreshContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-planning-execution" {
+    try await runPlanningExecutionContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-application-diagnostics" {
+    try await runApplicationDiagnosticContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-application-discovery" {
+    try await runApplicationDiscoveryContracts()
+    exit(0)
+}
+
 if CommandLine.arguments.dropFirst().first == "--check-localization" {
     try runLocalizationContracts()
     exit(0)
@@ -141,6 +176,7 @@ runAppNavigationContracts()
 runCleanupRecommendationContracts()
 runDefaultCleanupPolicyContracts()
 runCleanupSessionSummaryContracts()
+runCleanupRefreshContracts()
 runCleanupModeContracts()
 try runPathPolicyContracts()
 try await runScannerContracts()
@@ -150,10 +186,15 @@ runAgentCleanupPresentationContracts()
 runAgentSkillPresentationPerformanceContract()
 try await runApplicationContracts()
 try await runApplicationOwnershipContracts()
+try await runApplicationDiscoveryContracts()
+try await runApplicationAssociationRootsContracts()
+try await runApplicationDiagnosticContracts()
 try await runUninstallResilienceContracts()
 try await runPlanningExecutionContracts()
+try await runChangingLogExecutionContracts()
 try await runStoreContracts()
 try await runRuleEngineContracts()
+try await runSystemCleanupContracts()
 try await runInstallerDiscoveryContracts()
 try await runReadOnlyInterfaceContracts()
 try await runProjectArtifactContracts()

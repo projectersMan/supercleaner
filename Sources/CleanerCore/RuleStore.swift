@@ -131,6 +131,18 @@ public enum RuleStoreError: Error, Equatable, Sendable, LocalizedError {
     }
 }
 
+public struct RuleExecutionStateFingerprint: Equatable, Sendable {
+    public struct FileStamp: Equatable, Sendable {
+        public let exists: Bool
+        public let inode: UInt64
+        public let size: UInt64
+        public let modificationDate: Date?
+        public let type: FileAttributeType?
+    }
+
+    public let files: [FileStamp]
+}
+
 public actor RuleStore {
     private let directory: URL
     private let publicKeyData: Data
@@ -142,6 +154,7 @@ public actor RuleStore {
     private var initializedURL: URL { directory.appendingPathComponent("initialized-v1") }
     private var failCommit = false
     private var failAfterBaseline = false
+    private var cachedExecutionVersion: (pack: RulePack, value: String)?
     private struct State: Codable {
         var schemaVersion = 1
         var current: SignedRuleUpdate?
@@ -214,6 +227,28 @@ public actor RuleStore {
 
     public func currentVersion() throws -> String {
         try currentPack().version
+    }
+
+    public func currentExecutionVersion() throws -> String {
+        // Always reload and verify durable state, including revocations. Only the
+        // deterministic digest of an identical verified pack may be reused.
+        let pack = try currentPack()
+        if let cachedExecutionVersion, cachedExecutionVersion.pack == pack { return cachedExecutionVersion.value }
+        let value = pack.executionVersion
+        cachedExecutionVersion = (pack, value)
+        return value
+    }
+
+    public func executionSnapshot() throws -> (pack: RulePack, fingerprint: RuleExecutionStateFingerprint) {
+        let before = try executionStateFingerprint()
+        let pack = try currentPack()
+        let after = try executionStateFingerprint()
+        guard before == after else { throw RuleStoreError.interruptedCommit }
+        return (pack, after)
+    }
+
+    public func executionStateFingerprint() throws -> RuleExecutionStateFingerprint {
+        RuleExecutionStateFingerprint(files: try [directory, stateURL, initializedURL, currentURL, previousURL].map(fileStamp))
     }
 
     public func currentPack() throws -> RulePack {
@@ -300,6 +335,28 @@ public actor RuleStore {
             if error.domain == NSCocoaErrorDomain,
                [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code),
                underlying == nil || (underlying?.domain == NSPOSIXErrorDomain && underlying?.code == 2) { return false }
+            throw RuleStoreError.invalidStorage
+        }
+    }
+
+    private func fileStamp(_ url: URL) throws -> RuleExecutionStateFingerprint.FileStamp {
+        do {
+            let attributes = try manager.attributesOfItem(atPath: url.path)
+            return RuleExecutionStateFingerprint.FileStamp(
+                exists: true,
+                inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                modificationDate: attributes[.modificationDate] as? Date,
+                type: attributes[.type] as? FileAttributeType
+            )
+        } catch {
+            let error = error as NSError
+            let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError
+            if error.domain == NSCocoaErrorDomain,
+               [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code),
+               underlying == nil || (underlying?.domain == NSPOSIXErrorDomain && underlying?.code == 2) {
+                return RuleExecutionStateFingerprint.FileStamp(exists: false, inode: 0, size: 0, modificationDate: nil, type: nil)
+            }
             throw RuleStoreError.invalidStorage
         }
     }

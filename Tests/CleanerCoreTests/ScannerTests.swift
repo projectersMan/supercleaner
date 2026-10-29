@@ -16,7 +16,7 @@ final class ScannerTests: XCTestCase {
         let results = try await LargeFileScanner(minimumBytes: 100).scan(context: fixture.context)
         XCTAssertTrue(results.allSatisfy { $0.risk != .safe })
         XCTAssertTrue(results.allSatisfy { $0.identity.kind == .file })
-        XCTAssertEqual(results.map { $0.url.lastPathComponent }, ["archive.bin", "nested.bin"])
+        XCTAssertEqual(results.map { $0.url.lastPathComponent }, ["archive.bin", "nested.bin", "payload.bin"])
         XCTAssertFalse(results.contains { $0.url.lastPathComponent == "LargeProject" })
     }
 
@@ -75,7 +75,10 @@ private struct ScanFixture {
         let oldCacheDirectory = cacheRoot.appendingPathComponent("old-directory", isDirectory: true)
         let downloads = home.appendingPathComponent("Downloads", isDirectory: true)
         let project = downloads.appendingPathComponent("LargeProject", isDirectory: true)
+        let library = home.appendingPathComponent("Library", isDirectory: true)
         let entries = [
+            home: [FixtureEntry(url: library, size: 0, modified: now, kind: .directory), FixtureEntry(url: downloads, size: 0, modified: now, kind: .directory)],
+            library: [FixtureEntry(url: cacheRoot, size: 0, modified: now, kind: .directory)],
             cacheRoot: [
                 FixtureEntry(url: cacheRoot.appendingPathComponent("recent"), size: 50, modified: now.addingTimeInterval(-86_400)),
                 FixtureEntry(url: cacheRoot.appendingPathComponent("old"), size: 75, modified: now.addingTimeInterval(-86_400 * 45)),
@@ -104,7 +107,10 @@ private actor FixtureFileSystem: FileSystemAccess {
     let entries: [URL: [FixtureEntry]]
     init(entries: [URL: [FixtureEntry]]) { self.entries = entries }
     func identity(at url: URL) throws -> FileIdentity {
-        let entry = entries.values.flatMap { $0 }.first { $0.url == url }!
+        if entries.keys.contains(where: { $0.path == url.path }) {
+            return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 1, kind: .directory)
+        }
+        guard let entry = entries.values.flatMap({ $0 }).first(where: { $0.url.path == url.path }) else { throw FileSystemError.missing(url) }
         return FileIdentity(device: 1, inode: UInt64(abs(url.path.hashValue)), size: entry.size, modificationTime: Int64(entry.modified.timeIntervalSince1970), kind: entry.kind)
     }
     func children(of url: URL) -> [URL] {
@@ -112,7 +118,7 @@ private actor FixtureFileSystem: FileSystemAccess {
     }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
-    func fileExists(_ url: URL) -> Bool { true }
+    func fileExists(_ url: URL) -> Bool { entries.keys.contains { $0.path == url.path } || entries.values.flatMap { $0 }.contains { $0.url.path == url.path } }
     func move(_ source: URL, to destination: URL) throws { XCTFail("scanner attempted write") }
     func createDirectory(_ url: URL) throws { XCTFail("scanner attempted write") }
     func removeEmptyDirectory(_ url: URL) throws { XCTFail("scanner attempted write") }

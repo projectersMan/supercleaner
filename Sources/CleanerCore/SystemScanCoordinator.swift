@@ -140,29 +140,14 @@ public struct SystemScanCoordinator: Sendable {
         await withTaskGroup(of: SystemScanOutcome.self) { group in
             group.addTask {
                 await progress(await tracker.event(module: .general, state: .scanning))
-                let scanned = await generalCoordinator.scan(
-                    using: rulePack.map { CleanupRuleEngine(pack: $0).scanners + [InstallerScanner(), IncompleteDownloadScanner()] } ?? [
-                        UserCacheScanner(),
-                        LogScanner(),
-                        InstallerScanner(),
-                        IncompleteDownloadScanner(),
-                        DeveloperArtifactScanner(),
-                        CachedFirmwareScanner(),
-                    ],
-                    context: context
-                )
-                let consolidated = rulePack.map { CleanupRuleEngine(pack: $0).consolidate(scanned.candidates, home: context.homeDirectory) } ?? scanned.candidates
-                let historicalResidues = await HistoricalResidueScanner().scan(context: context)
-                let report = ScanReport(
-                    candidates: consolidated + historicalResidues,
-                    failures: scanned.failures, startedAt: scanned.startedAt, completedAt: scanned.completedAt
-                )
+                let report = await SystemCleanupScanner(applicationScanner: applicationScanner, coordinator: generalCoordinator)
+                    .scan(context: context, pack: rulePack)
                 let state: ScanModuleState = report.failures.isEmpty ? .completed : .limited
                 let message = report.failures.isEmpty ? nil : L10n.text("{0} 个区域受限", String(describing: report.failures.count))
-                let status = ScanModuleStatus(module: .general, state: state, startedAt: report.startedAt, completedAt: report.completedAt, message: message)
+                let status = ScanModuleStatus(module: .general, state: state, startedAt: report.startedAt, completedAt: report.completedAt, message: message, limitations: report.failures.map(\.limitation))
                 let outcome = SystemScanOutcome.general(report, status)
                 await moduleResult(outcome.moduleResult(generationID: generationID))
-                await progress(await tracker.event(module: .general, state: state, message: message))
+                await progress(await tracker.event(module: .general, state: state, message: message, limitations: status.limitations))
                 return outcome
             }
             group.addTask {
@@ -174,7 +159,22 @@ public struct SystemScanCoordinator: Sendable {
                     runningBundleIdentifiers: runningBundleIdentifiers,
                     maximumDepth: 12, maximumEntries: 30_000
                 )
-                let analyzedInventory = await applicationAnalyzer.analyze(inventory: inventory, context: context)
+                let baseline = await applicationAnalyzer.analyze(inventory: inventory, context: context)
+                let running = inventory.applications.filter { $0.isRunning && !$0.isSystem }
+                var analyzedInventory = baseline
+                if !running.isEmpty && !Task.isCancelled {
+                    let initialStatus = ScanModuleStatus(module: module, state: baseline.moduleCoverage.isLimited ? .limited : .completed,
+                        startedAt: moduleStartedAt, completedAt: Date(), message: L10n.text("基础分析完成，正在补充运行中的应用关联。"))
+                    await moduleResult(SystemScanOutcome.applications(baseline, initialStatus).moduleResult(generationID: generationID))
+                    // Basic ownership analysis is already actionable. Optional
+                    // runtime observations supplement it without locking cleanup.
+                    await progress(await tracker.event(module: module, state: initialStatus.state,
+                        message: initialStatus.message, limitations: initialStatus.limitations))
+                    let observations = await ApplicationRuntimeSampler().observe(applications: running, home: context.homeDirectory) { partial in
+                        await moduleResult(SystemScanOutcome.applications(baseline.observing(partial), initialStatus).moduleResult(generationID: generationID))
+                    }
+                    analyzedInventory = baseline.observing(observations)
+                }
                 let coverage = analyzedInventory.moduleCoverage
                 let state: ScanModuleState = coverage.isLimited ? .limited : .completed
                 let message = coverage.isLimited ? coverage.summary : nil

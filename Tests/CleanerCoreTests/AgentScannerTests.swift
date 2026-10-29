@@ -3,11 +3,13 @@ import XCTest
 @testable import CleanerCore
 
 final class AgentScannerTests: XCTestCase {
-    func testCustomSkillsPromptsAndMCPConfigAreBlocked() async throws {
+    func testKnowledgeIsBlockedAndMCPRequiresReview() async throws {
         let fixture = AgentScanFixture()
         let results = try await fixture.scanner.scan(context: fixture.context)
         XCTAssertEqual(results.first { $0.url.lastPathComponent == "SKILL.md" }?.risk, .blocked)
-        XCTAssertEqual(results.first { $0.url.lastPathComponent == "mcp.json" }?.risk, .blocked)
+        let mcp = try XCTUnwrap(results.first { $0.url.lastPathComponent == "mcp.json" })
+        XCTAssertEqual(mcp.risk, .review)
+        XCTAssertFalse(PlanItem(candidate: mcp).isSelected)
         XCTAssertEqual(results.first { $0.url.lastPathComponent == "AGENTS.md" }?.risk, .blocked)
     }
 
@@ -224,8 +226,9 @@ private actor AgentFixtureFileSystem: FileSystemAccess {
             sandboxes.path: [finished],
             finished.path: [build],
         ]
+        let directoryChildren = childrenByPath
         identities = Dictionary(uniqueKeysWithValues: urls.map { url in
-            let isDirectory = childrenByPath[url.path] != nil || [root, skills, skill, sessions, sandboxes, finished, build, models].contains(url)
+            let isDirectory = directoryChildren[url.path] != nil || [root, skills, skill, sessions, sandboxes, finished, build, models].contains(url)
             return (url.path, FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 100, modificationTime: Int64(now.addingTimeInterval(-45 * 86_400).timeIntervalSince1970), kind: isDirectory ? .directory : .file))
         })
         textByPath = [
@@ -244,12 +247,18 @@ private actor AgentFixtureFileSystem: FileSystemAccess {
         ]
     }
 
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
+        return identity
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
     func fileExists(_ url: URL) -> Bool { identities[url.path] != nil }
-    func readText(at url: URL, maximumBytes: Int) throws -> String { String(textByPath[url.path]!.prefix(maximumBytes)) }
+    func readText(at url: URL, maximumBytes: Int) throws -> String {
+        guard let text = textByPath[url.path] else { throw FileSystemError.unreadableContent(url) }
+        return String(text.prefix(maximumBytes))
+    }
     func move(_ source: URL, to destination: URL) {}
     func createDirectory(_ url: URL) {}
     func removeEmptyDirectory(_ url: URL) {}

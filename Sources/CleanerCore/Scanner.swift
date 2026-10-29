@@ -4,6 +4,21 @@ public protocol Scanner: Sendable {
     var id: String { get }
     var category: CleanupCategory { get }
     func scan(context: ScanContext) async throws -> [CleanupCandidate]
+    func scanResult(context: ScanContext) async throws -> ScannerResult
+}
+
+public struct ScannerResult: Sendable {
+    public var candidates: [CleanupCandidate]
+    public var failures: [ScanFailure]
+    public init(candidates: [CleanupCandidate] = [], failures: [ScanFailure] = []) {
+        self.candidates = candidates; self.failures = failures
+    }
+}
+
+public extension Scanner {
+    func scanResult(context: ScanContext) async throws -> ScannerResult {
+        ScannerResult(candidates: try await scan(context: context))
+    }
 }
 
 public struct ScanContext: Sendable {
@@ -65,11 +80,37 @@ public struct ScanProgress: Sendable, Equatable {
 
 public struct ScanFailure: Codable, Hashable, Sendable {
     public let scannerID: String
+    public enum Reason: String, Codable, Sendable { case budget, access, changed, cancelled }
     public let message: String
+    public let path: URL?
+    public let reason: Reason?
 
-    public init(scannerID: String, message: String) {
-        self.scannerID = scannerID
-        self.message = message
+    public init(scannerID: String, message: String, path: URL? = nil, reason: Reason? = nil) {
+        self.scannerID = scannerID; self.message = message; self.path = path; self.reason = reason
+    }
+
+    public static func from(error: Error, scannerID: String, path: URL? = nil) -> Self {
+        let reason: Reason
+        switch error {
+        case is CancellationError: reason = .cancelled
+        case FileSystemError.missing: reason = .changed
+        case RuleScanError.budgetExceeded: reason = .budget
+        default: reason = .access
+        }
+        let message: String
+        switch reason {
+        case .budget: message = L10n.text("达到扫描数量上限")
+        case .access: message = L10n.text("目录无法完整检查")
+        case .changed: message = L10n.text("位置已发生变化")
+        case .cancelled: message = L10n.text("扫描已取消")
+        }
+        return Self(scannerID: scannerID, message: message, path: path, reason: reason)
+    }
+
+    public var limitation: ScanLimitation {
+        ScanLimitation(title: message, path: path,
+            impact: L10n.text("已保留完成验证的项目；未完整检查的内容不会自动清理"),
+            recovery: L10n.text("检查目录访问权限，关闭相关应用后重新扫描"), reason: reason)
     }
 }
 
@@ -78,6 +119,11 @@ public struct ScanReport: Sendable {
     public let failures: [ScanFailure]
     public let startedAt: Date
     public let completedAt: Date
+
+    public var coverage: CoverageSummary {
+        CoverageSummary(scannedRoots: candidates.map(\.url), unavailableRoots: failures.compactMap(\.path),
+            budgetLimitedModules: failures.contains { $0.reason == .budget } ? [.general] : [])
+    }
 
     public init(candidates: [CleanupCandidate], failures: [ScanFailure], startedAt: Date, completedAt: Date) {
         self.candidates = candidates
@@ -88,7 +134,7 @@ public struct ScanReport: Sendable {
 }
 
 private enum ScannerOutcome: Sendable {
-    case success(String, [CleanupCandidate])
+    case success(ScannerResult)
     case failure(ScanFailure)
 }
 
@@ -114,16 +160,18 @@ public actor ScanCoordinator {
                 for scanner in batch {
                     group.addTask {
                         do {
-                            return .success(scanner.id, try await scanner.scan(context: context))
+                            return .success(try await scanner.scanResult(context: context))
                         } catch {
-                            return .failure(ScanFailure(scannerID: scanner.id, message: String(describing: error)))
+                            return .failure(ScanFailure.from(error: error, scannerID: scanner.id))
                         }
                     }
                 }
 
                 for await outcome in group {
                     switch outcome {
-                    case let .success(_, result): candidates.append(contentsOf: result.map(context.protectionPolicy.applying))
+                    case let .success(result):
+                        candidates.append(contentsOf: result.candidates.map(context.protectionPolicy.applying))
+                        failures.append(contentsOf: result.failures)
                     case let .failure(failure): failures.append(failure)
                     }
                 }

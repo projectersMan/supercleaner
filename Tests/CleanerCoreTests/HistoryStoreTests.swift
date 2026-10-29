@@ -12,9 +12,11 @@ final class HistoryStoreTests: XCTestCase {
         try await store.append(first)
         await store.failNextCommitForTesting()
         do { try await store.append(second); XCTFail("commit should fail") } catch {}
-        XCTAssertEqual(try await store.receipts(), [first])
+        let afterFailure = try await store.receipts()
+        XCTAssertEqual(afterFailure, [first])
         try await store.append(second)
-        XCTAssertEqual(try await store.receipts(), [first, second])
+        let afterRecovery = try await store.receipts()
+        XCTAssertEqual(afterRecovery, [first, second])
     }
 
     func testUpsertInsertsThenReplacesReceiptWithoutDuplicatingIt() async throws {

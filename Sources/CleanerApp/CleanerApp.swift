@@ -5,7 +5,10 @@ import SwiftUI
 
 @main enum CleanerMain {
     @MainActor static func main() {
-        if CommandLine.arguments.contains("--preferences-self-check") {
+        if CommandLine.arguments.contains("--scan-cleanup-self-check") {
+            do { try AppModel.checkConcurrentScanCleanup(); exit(0) }
+            catch { FileHandle.standardError.write(Data("FAIL: \(error)\n".utf8)); exit(1) }
+        } else if CommandLine.arguments.contains("--preferences-self-check") {
             let expected = L10n.language == .english ? "Settings" : "设置"
             guard L10n.text("设置") == expected,
                   AppVersion.current.build != "—",

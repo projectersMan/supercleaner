@@ -4,11 +4,12 @@ import SwiftUI
 struct GuidedCleanupView: View {
     @ObservedObject var model: AppModel
     @State private var cleanupExpanded = true
-    @State private var retainedExpanded = true
-
+    @State private var retainedExpanded = false
     private var centerCandidates: [CleanupCandidate] { model.candidates(for: .systemCleanup) }
     private var breakdown: CleanupRecommendationBreakdown { model.recommendationBreakdown(for: .systemCleanup) }
-    private var cleanupCandidates: [CleanupCandidate] { breakdown.recommended + breakdown.deepClean }
+    private var cleanupCandidates: [CleanupCandidate] {
+        (breakdown.recommended + breakdown.deepClean).filter { $0.risk.isSelectable }
+    }
     private var retainedCandidates: [CleanupCandidate] { breakdown.retained + breakdown.protected }
 
     var body: some View {
@@ -51,6 +52,7 @@ struct GuidedCleanupView: View {
     private func focusCandidate(_ candidate: CleanupCandidate) {
         model.focus(candidate.id, for: .systemCleanup)
     }
+
 }
 
 private struct DispositionCandidatesDisclosure: View {
@@ -68,38 +70,56 @@ private struct DispositionCandidatesDisclosure: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button { isExpanded.toggle() } label: {
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .font(.caption.weight(.semibold)).foregroundColor(.secondary).frame(width: 12)
+                Button { withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() } } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .font(.caption.weight(.semibold)).foregroundColor(.secondary).frame(width: 12)
+                        Image(systemName: icon).foregroundColor(.accentColor).frame(width: 22)
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isExpanded ? L10n.text("折叠{0}", String(describing: title)) : L10n.text("展开{0}", String(describing: title)))
-                Image(systemName: icon).foregroundColor(.accentColor).frame(width: 22)
                 Button { model.toggleCleanupCategory(candidates) } label: {
                     Image(systemName: selectionState.icon)
                         .foregroundColor(selectionState == .none ? .secondary : .accentColor)
                 }
                 .buttonStyle(.plain)
-                .disabled(candidates.allSatisfy { !$0.risk.isSelectable })
+                .disabled(candidates.allSatisfy { !$0.risk.isSelectable || $0.requiresExplicitSelection == true })
                 .accessibilityLabel("\(title)，\(selectionState.accessibilityTitle)")
-                Button { isExpanded.toggle() } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.text("{0} {1} 项", String(describing: title), String(describing: candidates.count))).fontWeight(.medium)
-                        Text(subtitle).font(.caption).foregroundColor(.secondary)
+                Button { withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() } } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.text("{0} {1} 项", String(describing: title), String(describing: candidates.count))).fontWeight(.medium)
+                            Text(subtitle).font(.caption).foregroundColor(.secondary)
+                        }
+                        Spacer(minLength: 12)
+                        Text(ByteCountFormatter.cleanerString(bytes: totalBytes)).foregroundColor(.secondary)
                     }
+                    .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                Spacer()
-                Text(ByteCountFormatter.cleanerString(bytes: totalBytes)).foregroundColor(.secondary)
             }
             .padding(.vertical, 10)
             if isExpanded {
                 LazyVStack(spacing: 12) {
-                    ForEach(candidates.sorted { $0.bytes > $1.bytes }) { candidate in
-                        CleanupCandidateCard(model: model, candidate: candidate)
-                            .contentShape(Rectangle())
-                            .onTapGesture { onSelectCandidate(candidate) }
+                    ForEach(SystemCleanupApplicationGroup.groups(candidates)) { group in
+                        ApplicationCleanupGroupRow(model: model, group: group) {
+                            LazyVStack(alignment: .leading, spacing: 8) {
+                                ForEach(group.kinds, id: \.self) { kind in
+                                    Text(kind).font(.subheadline.weight(.medium)).foregroundColor(.secondary)
+                                    LazyVStack(spacing: 8) {
+                                        ForEach(group.candidates.filter { SystemCleanupApplicationGroup.kind(for: $0) == kind }) { candidate in
+                                            CleanupCandidateCard(model: model, candidate: candidate)
+                                                .contentShape(Rectangle())
+                                                .onTapGesture { onSelectCandidate(candidate) }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 6)
+                        }
                     }
                 }
                 .padding(.top, 10)
@@ -107,6 +127,70 @@ private struct DispositionCandidatesDisclosure: View {
             }
         }
         .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.12)), alignment: .bottom)
+    }
+}
+
+private struct ApplicationCleanupGroupRow<Content: View>: View {
+    @ObservedObject var model: AppModel
+    let group: SystemCleanupApplicationGroup
+    @ViewBuilder let content: Content
+    @State private var isExpanded = false
+    @State private var isHovered = false
+
+    private var application: CleanupApplication? { group.candidates.first?.cleanupApplication }
+    private var includesManualOnly: Bool { group.id == "system-and-unassigned" }
+    private var selectionState: SelectionTriState {
+        model.cleanupSelectionState(for: group.candidates, includesManualOnly: includesManualOnly)
+    }
+    private var isSelectable: Bool {
+        group.candidates.contains { $0.risk.isSelectable && (includesManualOnly || $0.requiresExplicitSelection != true) }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button { model.toggleCleanupCategory(group.candidates, includesManualOnly: includesManualOnly) } label: {
+                    Image(systemName: selectionState.icon)
+                        .font(.title3).foregroundColor(selectionState == .none ? .secondary : .accentColor)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isSelectable)
+                .accessibilityLabel("\(group.title)，\(selectionState.accessibilityTitle)")
+                Button {
+                    withAnimation(.easeInOut(duration: 0.16)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                            .font(.caption.weight(.semibold)).foregroundColor(.secondary).frame(width: 12)
+                        if let bundleURL = application?.bundleURL {
+                            ApplicationIconView(bundleURL: bundleURL, version: nil)
+                        } else {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.system(size: 18)).foregroundColor(.secondary).frame(width: 32, height: 32)
+                        }
+                        Text(group.title).fontWeight(.medium).lineLimit(1)
+                        Spacer(minLength: 12)
+                        Text(ByteCountFormatter.cleanerString(bytes: group.bytes)).foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? L10n.text("折叠{0}", String(describing: group.title)) : L10n.text("展开{0}", String(describing: group.title)))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            if isExpanded {
+                content
+                    .padding(.leading, 54)
+                    .padding(.bottom, 6)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .background(selectionState != .none || isHovered ? Color.accentColor.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.08)), alignment: .bottom)
     }
 }
 

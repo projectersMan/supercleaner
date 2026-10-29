@@ -145,6 +145,10 @@ func runCleanupSessionSummaryContracts() {
         "successful cleanup must exclude every module alias from the default queue"
     )
     require(tracking.failures.isEmpty, "successful cleanup must clear stale failures for every path alias")
+    var streamedTracking = DefaultCleanupTrackingState(selectedCandidateIDs: [generalAlias.id], uninstallSelectedItemIDs: [], cleanedCandidateIDs: [], failures: [])
+    streamedTracking.reconcileSuccessfulAliases(outcome: aliasOutcome, knownCandidates: [])
+    require(streamedTracking.cleanedCandidateIDs.contains(generalAlias.id) && streamedTracking.selectedCandidateIDs.isEmpty,
+            "final receipts retain successes already removed by streaming UI updates")
     let failedCandidate = cleanupOutcomeCandidate(path: "/tmp/still-pending")
     let remaining = CleanupCandidateVisibility.remaining(
         candidates: [generalAlias, applicationAlias, agentAlias, failedCandidate],
