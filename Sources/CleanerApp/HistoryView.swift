@@ -8,7 +8,7 @@ struct HistoryView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("恢复已删除项目")).font(.largeTitle.bold())
-                Text(L10n.text("已删除项目可在保留期内恢复，期间仍占用磁盘空间。默认 24 小时后自动彻底删除，也可调整保留时间或立即彻底删除。"))
+                Text(L10n.text("新清理项目默认立即移入系统废纸篓。选择保留期的项目可在此恢复，期间仍占用磁盘空间；也可调整保留时间或立即彻底删除。"))
                     .foregroundColor(.secondary)
             }
             .padding(24)

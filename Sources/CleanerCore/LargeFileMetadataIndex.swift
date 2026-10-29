@@ -54,6 +54,7 @@ public struct IndexedLargeFileScanner: Sendable {
     public func scan(context: ScanContext) async throws -> DiskUsageTree {
         let scope = context.homeDirectory.standardizedFileURL
         let scopePrefix = scope.path + "/"
+        let deletedContent = DeletedContentScanExclusion(homeDirectory: context.homeDirectory)
         let indexedURLs = try await index.matchingFileURLs(minimumBytes: minimumBytes, scope: scope)
         var seenPaths = Set<String>()
         var files: [DiskUsageNode] = []
@@ -62,6 +63,7 @@ public struct IndexedLargeFileScanner: Sendable {
             try Task.checkCancellation()
             let url = indexedURL.standardizedFileURL
             guard url.path.hasPrefix(scopePrefix),
+                  !deletedContent.contains(url),
                   seenPaths.insert(url.path).inserted,
                   await context.fileSystem.fileExists(url),
                   let identity = try? await context.fileSystem.identity(at: url),

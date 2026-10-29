@@ -9,6 +9,10 @@ public enum QuarantineRetentionPolicy: String, Codable, CaseIterable, Hashable, 
     case month1
     case manual
 
+    public init(storedValue: String?) {
+        self = storedValue.flatMap(Self.init(rawValue:)) ?? .immediate
+    }
+
     public func deadline(from date: Date) -> Date? {
         switch self {
         case .immediate: date

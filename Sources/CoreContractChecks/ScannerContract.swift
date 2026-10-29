@@ -30,6 +30,7 @@ func runScannerContracts() async throws {
     require(LargeFileScanner().maximumDepth == nil, "production large-file scanning must not have a default depth limit")
     require(LargeFileScanner().maximumEntries == nil, "production large-file scanning must not have a default entry limit")
     try await runDeveloperArtifactScannerContracts()
+    try await runDeletedContentScanContracts()
 
     let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
     let now = Date(timeIntervalSince1970: 10_000_000)

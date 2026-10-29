@@ -37,8 +37,8 @@ Local builds may use ad-hoc signing and are intended for development. They are n
 1. Open SuperCleaner and start a full scan from **Overview**. Grant macOS permissions when prompted for protected locations.
 2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Historical uninstall remnants appear in **Cleanup Center**: orphaned caches and verified empty residual directories with complete Bundle ID and application-inventory evidence can be suggested for cleanup, while non-empty application-support data stays in suggested retention for review. Select an item to inspect its path, evidence, and safety status.
 3. Choose what to include. Eligible system cleanup items can be preselected; application, large-file, and agent workspace findings require your explicit selection. Blocked items cannot be selected.
-4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting and moves eligible items into quarantine.
-5. Open **History** to review completed operations and restore quarantined items while they remain available.
+4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting. By default, items move to macOS Trash after safety checks and record saving. Choose a retention period in **Settings** to keep items in Recovery first.
+5. Open **Recovery** to review completed operations and restore retained items while they remain available. Recovery and Trash contents are excluded from large-file results and their totals.
 
 To uninstall an app, open **Applications**, select it, review its related items, and confirm the plan. Apps managed by Homebrew, Steam, or another installer should be removed through that source. Add paths to the protection list in **Settings** to exclude them from cleanup plans.
 

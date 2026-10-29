@@ -210,9 +210,9 @@ private struct ScanPresentationSnapshots: Sendable {
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.home = home
         protectionPolicy = ProtectionPolicy(homeDirectory: home)
-        defaultQuarantineRetentionPolicy = UserDefaults.standard.string(
+        defaultQuarantineRetentionPolicy = QuarantineRetentionPolicy(storedValue: UserDefaults.standard.string(
             forKey: Self.quarantineRetentionDefaultsKey
-        ).flatMap(QuarantineRetentionPolicy.init(rawValue:)) ?? .hours24
+        ))
         let storedLargeFileBytes = (UserDefaults.standard.object(
             forKey: Self.largeFileThresholdDefaultsKey
         ) as? NSNumber)?.uint64Value
@@ -1693,8 +1693,9 @@ private struct ScanPresentationSnapshots: Sendable {
         }
         await reloadHistory()
         do {
+            // Legacy records without a schedule retain the previous grace period.
             _ = try await cleanupExecutionCoordinator.migrateUnscheduled(
-                policy: defaultQuarantineRetentionPolicy,
+                policy: .hours24,
                 at: Date()
             )
         } catch {

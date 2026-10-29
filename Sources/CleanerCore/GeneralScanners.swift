@@ -416,8 +416,10 @@ public struct LargeFileScanner: Scanner {
 
     public func candidates(from tree: DiskUsageTree, context: ScanContext) async throws -> [CleanupCandidate] {
         var output: [CleanupCandidate] = []
+        let deletedContent = DeletedContentScanExclusion(homeDirectory: context.homeDirectory)
         for node in tree.largeFiles where node.ownBytes >= minimumBytes {
             try Task.checkCancellation()
+            guard !deletedContent.contains(node.url) else { continue }
             let identity: FileIdentity
             if let capturedIdentity = node.identity {
                 identity = capturedIdentity

@@ -98,6 +98,11 @@ func runStoreContracts() async throws {
     )
 
     let scheduleURL = root.appendingPathComponent("quarantine-schedules.json")
+    require(QuarantineRetentionPolicy(storedValue: nil) == .immediate, "new installations must default to immediate deletion")
+    require(QuarantineRetentionPolicy(storedValue: "invalid") == .immediate, "invalid preferences must use the current default")
+    for policy in QuarantineRetentionPolicy.allCases {
+        require(QuarantineRetentionPolicy(storedValue: policy.rawValue) == policy, "saved retention choices must survive a change in default")
+    }
     let scheduleStore = QuarantineScheduleStore(url: scheduleURL)
     let scheduledAt = Date(timeIntervalSince1970: 10_000)
     let defaultSchedule = QuarantineSchedule(
@@ -107,7 +112,7 @@ func runStoreContracts() async throws {
     )
     require(
         defaultSchedule.scheduledDeletionAt == scheduledAt.addingTimeInterval(86_400),
-        "the default quarantine retention must schedule permanent deletion after 24 hours"
+        "the explicit 24-hour retention must schedule permanent deletion after 24 hours"
     )
     require(
         QuarantineCountdown(schedule: defaultSchedule, now: scheduledAt).state == .scheduled

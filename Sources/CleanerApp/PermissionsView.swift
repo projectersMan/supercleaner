@@ -179,7 +179,7 @@ extension PermissionsView {
                     Text(policy.displayTitle).tag(policy)
                 }
             }
-            Text(L10n.text("默认 24 小时。选择“立即删除”后，新清理项目会在安全校验与记录保存后立即移入 macOS 系统废纸篓；更改默认值不会影响已有恢复记录。"))
+            Text(L10n.text("默认立即删除：新清理项目会在安全校验与记录保存后移入 macOS 系统废纸篓。可选择保留时间；更改默认值不会影响已有恢复记录。"))
                 .font(.caption).foregroundColor(.secondary)
             if model.defaultQuarantineRetentionPolicy == .immediate {
                 Label(L10n.text("项目将移入系统废纸篓，可在清空废纸篓前恢复。"), systemImage: "trash")

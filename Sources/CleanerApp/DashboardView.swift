@@ -91,7 +91,7 @@ struct DashboardView: View {
 
     private var heroDetail: String {
         if model.isScanRunning {
-            return L10n.text("四个模块共享同一次扫描版本。此过程默认只读取文件元数据；在 Agent 环境中会受限读取 `SKILL.md` 头部内容用于建立目录索引，不会清理或上传任何数据。")
+            return L10n.text("扫描依据清晰、删除前复核、删除后可恢复")
         }
         if model.systemReport != nil {
             return L10n.text("系统清理扫描完成后即可一键处理默认勾选项；应用、大文件和 Agent 环境请进入对应页面手动选择。")

@@ -120,6 +120,7 @@ public struct DiskUsageScanner: Sendable {
         var unavailableRoots: [URL] = []
         var remainingEntries = maximumEntries
         var reachedBudget = false
+        let deletedContent = DeletedContentScanExclusion(homeDirectory: context.homeDirectory)
 
         for root in configuredRoots where await context.fileSystem.fileExists(root) {
             try Task.checkCancellation()
@@ -136,6 +137,7 @@ public struct DiskUsageScanner: Sendable {
                     remainingEntries: &remainingEntries,
                     reachedBudget: &reachedBudget,
                     unavailableRoots: &unavailableRoots,
+                    deletedContent: deletedContent,
                     context: context
                 ))
             } catch is CancellationError {
@@ -170,6 +172,7 @@ public struct DiskUsageScanner: Sendable {
         remainingEntries: inout Int?,
         reachedBudget: inout Bool,
         unavailableRoots: inout [URL],
+        deletedContent: DeletedContentScanExclusion,
         context: ScanContext
     ) async throws -> DiskUsageNode {
         try Task.checkCancellation()
@@ -194,7 +197,7 @@ public struct DiskUsageScanner: Sendable {
 
         let childURLs: [URL]
         do {
-            childURLs = try await context.fileSystem.children(of: url)
+            childURLs = try await context.fileSystem.children(of: url).filter { !deletedContent.contains($0) }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -225,6 +228,7 @@ public struct DiskUsageScanner: Sendable {
                     remainingEntries: &remainingEntries,
                     reachedBudget: &reachedBudget,
                     unavailableRoots: &unavailableRoots,
+                    deletedContent: deletedContent,
                     context: context
                 ))
             } else {

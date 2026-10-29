@@ -28,6 +28,11 @@ if CommandLine.arguments.dropFirst().first == "--check-cleanup-refresh" {
     exit(0)
 }
 
+if CommandLine.arguments.dropFirst().first == "--check-deletion-results" {
+    runDeletionResultPresentationContracts()
+    exit(0)
+}
+
 if CommandLine.arguments.dropFirst().first == "--check-planning-execution" {
     try await runPlanningExecutionContracts()
     exit(0)
@@ -176,6 +181,7 @@ runAppNavigationContracts()
 runCleanupRecommendationContracts()
 runDefaultCleanupPolicyContracts()
 runCleanupSessionSummaryContracts()
+runDeletionResultPresentationContracts()
 runCleanupRefreshContracts()
 runCleanupModeContracts()
 try runPathPolicyContracts()

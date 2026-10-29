@@ -369,7 +369,7 @@
 "正在扫描整个支持范围" = "Scanning all supported locations";
 "清理中心" = "Cleanup Center";
 "先完整扫描，再决定清理什么" = "Scan first, then decide what to clean";
-"四个模块共享同一次扫描版本。此过程默认只读取文件元数据；在 Agent 环境中会受限读取 `SKILL.md` 头部内容用于建立目录索引，不会清理或上传任何数据。" = "All four modules share one scan version. Scanning reads file metadata by default. Agent scanning also reads limited SKILL.md headers to build its directory index. No data is cleaned or uploaded.";
+"扫描依据清晰、删除前复核、删除后可恢复" = "Clear scan evidence, checks before deletion, recovery after deletion";
 "系统清理扫描完成后即可一键处理默认勾选项；应用、大文件和 Agent 环境请进入对应页面手动选择。" = "Once system scanning completes, clean default system items with one click. Select applications, large files, and Agent resources manually on their pages.";
 "扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。" = "Scan all supported, safely accessible locations to generate system, application, large file, and Agent reports together. Scanning makes no writes.";
 "一次扫描包含" = "One scan includes";
@@ -449,7 +449,7 @@
 "Helper 会话未启用：{0}" = "Helper session not enabled: {0}";
 "已关闭本次特权操作授权；普通扫描和恢复记录仍可使用。" = "Privileged session closed. Normal scanning and recovery records remain available.";
 "恢复已删除项目" = "Restore deleted items";
-"已删除项目可在保留期内恢复，期间仍占用磁盘空间。默认 24 小时后自动彻底删除，也可调整保留时间或立即彻底删除。" = "Deleted items remain recoverable and occupy disk space during retention. They are permanently deleted after 24 hours by default. Adjust retention or delete permanently now.";
+"新清理项目默认立即移入系统废纸篓。选择保留期的项目可在此恢复，期间仍占用磁盘空间；也可调整保留时间或立即彻底删除。" = "New cleanup items move to macOS Trash immediately by default. Items with a retention period can be restored here and still occupy disk space; adjust retention or delete them permanently.";
 "还没有删除记录" = "No deletion records yet";
 "删除项目后，可在这里恢复或彻底删除。" = "After deleting items, restore or permanently delete them here.";
 "正在彻底删除" = "Permanently deleting";
@@ -519,7 +519,7 @@
 "当前结果仍使用上一次扫描的标准" = "Current results still use the previous scan's threshold";
 "删除与恢复" = "Deletion and Recovery";
 "已删除项目保留时间" = "Retention for deleted items";
-"默认 24 小时。选择“立即删除”后，新清理项目会在安全校验与记录保存后立即移入 macOS 系统废纸篓；更改默认值不会影响已有恢复记录。" = "Default: 24 hours. With “Delete immediately”, new cleanup items move to macOS Trash after safety checks and record saving. Changing the default does not affect existing recovery records.";
+"默认立即删除：新清理项目会在安全校验与记录保存后移入 macOS 系统废纸篓。可选择保留时间；更改默认值不会影响已有恢复记录。" = "Default: Delete immediately. New cleanup items move to macOS Trash after safety checks and record saving. You can choose a retention period; changing the default does not affect existing recovery records.";
 "项目将移入系统废纸篓，可在清空废纸篓前恢复。" = "Items will move to macOS Trash and can be restored before it is emptied.";
 "权限" = "Permissions";
 "完全磁盘访问需在系统设置中开启；返回 App 后会自动重新检查，未授权区域会安全跳过。" = "Enable Full Disk Access in System Settings. Permissions are checked again when you return; unauthorized locations are safely skipped.";
@@ -990,3 +990,6 @@
 "部分内容不可读取或已变化" = "Some content could not be read or has changed";
 "缓存可能需要重新下载，日志将不再保留" = "Caches may need to be downloaded again; logs will no longer be available";
 "应用运行中，缓存可能立即重新生成" = "The app is running, so the cache may regenerate immediately";
+"已移入系统废纸篓，可在清空前恢复；清空废纸篓后才会释放空间。" = "Items moved to macOS Trash can be restored before it is emptied. Empty Trash to free disk space.";
+"已彻底删除的项目无法恢复。" = "Permanently deleted items cannot be restored.";
+"已移入恢复区" = "Moved to Recovery";
