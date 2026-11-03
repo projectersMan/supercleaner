@@ -15,6 +15,8 @@ SuperCleaner 是 Swift 6 / SwiftUI 的 macOS 清理应用。核心原则是只�
 - `Sources/CleanerCore/Resources/`：GUI 与 CLI 共用的随包规则资源；来源责任记录在 [`docs/rule-sources.md`](rule-sources.md)。
 - `Sources/CleanerCLI/`：只读 JSON 命令入口，调用与 GUI 相同的 `CleanupRuntime`。
 
+CleanerApplicationDelegate处理Dock reopen事件：如果主窗口已最小化，则展开所有最小化窗口；如果窗口已关闭，则通过SwiftUI的openWindow显式重开主窗口。两种情况都停止AppKit默认处理；已有可见窗口时保留系统默认行为。
+
 ## 扫描与计划
 
 应用图标：ApplicationIconView首帧直接使用ApplicationIconCache的同步结果，不先显示空State占位再由task替换；缓存继续避免列表重绘重复读取。卸载页与系统清理页共用ApplicationIconCache，优先保留NSWorkspace返回的图标（含asset catalog与自定义图标）；仅与系统通用应用图标相同的内嵌应用沿真实Contents父子路径、按CFBundlePackageType=APPL识别最近的外层应用包，外层也缺图时继续向外。安装临时目录即使没有.app后缀也通过包元数据识别，并从CFBundleIconName/CFBundleIconFile声明资源读取图标。回退仅影响显示，不修改扫描记录、应用归属或卸载计划。

@@ -40,16 +40,44 @@ import SwiftUI
 struct CleanerGUI: App {
     @NSApplicationDelegateAdaptor(CleanerApplicationDelegate.self) private var delegate
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(\.locale, L10n.language.locale)
+        WindowGroup(id: "main") {
+            MainWindowContent(delegate: delegate)
         }
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1280, height: 820)
     }
 }
 
+struct MainWindowContent: View {
+    @Environment(\.openWindow) private var openWindow
+    let delegate: CleanerApplicationDelegate
+
+    var body: some View {
+        ContentView()
+            .environment(\.locale, L10n.language.locale)
+            .onAppear {
+                delegate.reopenMainWindow = { openWindow(id: "main") }
+            }
+    }
+}
+
 @MainActor final class CleanerApplicationDelegate: NSObject, NSApplicationDelegate {
+    var reopenMainWindow: (() -> Void)?
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        let miniaturizedWindows = sender.windows.filter(\.isMiniaturized)
+        if !miniaturizedWindows.isEmpty {
+            for window in miniaturizedWindows {
+                window.deminiaturize(nil)
+            }
+            return false
+        }
+
+        guard !hasVisibleWindows else { return true }
+        reopenMainWindow?()
+        return false
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // Sparkle can install a prepared update on quit. Keep that path closed
         // until the final explicit approval, or until cancellation has finished.

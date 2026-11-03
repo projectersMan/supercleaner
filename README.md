@@ -42,6 +42,8 @@ Local builds require a fixed signing certificate and private key in the login ke
 
 ## How to use
 
+Clicking the SuperCleaner Dock icon reopens the main window after it was closed with the red close button, and restores it if it was minimized.
+
 The app list initially shows Uninstallable. Running and system apps remain in All and Running/System protected scopes. Search follows the selected scope, and an empty filtered result explains how to search the full list. App names omit the duplicate green Running badge; the right-side status still explains running restrictions. The protected scope and row badge use Protected.
 
 Application icons use native macOS artwork, resolved through the existing cache for the first rendered row without a placeholder-to-icon task. Embedded helpers with only a generic icon inherit the nearest enclosing application’s icon. Local updates replace `/Applications/SuperCleaner.app`; open that installed copy after an update.

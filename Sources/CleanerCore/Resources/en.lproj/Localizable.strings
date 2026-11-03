@@ -374,7 +374,7 @@
 "先完整扫描，再决定清理什么" = "Scan first, then decide what to clean";
 "扫描依据清晰、删除前复核、删除后可恢复" = "Clear scan evidence, checks before deletion, recovery after deletion";
 "系统清理扫描完成后即可一键处理默认勾选项；应用、大文件和 Agent 环境请进入对应页面手动选择。" = "Once system scanning completes, clean default system items with one click. Select applications, large files, and Agent resources manually on their pages.";
-"扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。" = "Scan all supported, safely accessible locations to generate system, application, large file, and Agent reports together. Scanning makes no writes.";
+"扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。" = "Scan all supported, safely accessible locations to generate system, application, large file, and Agent reports together. Surface overlapping capabilities among Skills and among MCP configurations before you decide what to clean.";
 "一次扫描包含" = "One scan includes";
 "缓存、日志、临时文件、安装包、开发缓存" = "Caches, logs, temporary files, installers, and developer caches";
 "以 App 为单位，展开应用本体与精确关联项" = "Expand each application to review its bundle and exact associated items";
