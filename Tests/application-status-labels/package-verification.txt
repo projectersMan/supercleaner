@@ -1,0 +1,7 @@
+App/Helper 0.2.40 (73)
+Build/installed/DMG match: 123 files and symlinks
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and license notices verified
+DMG SHA-256 a1d603d27460147ed5cd3363ce6bf8b769892c183111633481d2f0215bbc2fed
+Actual UI: default Uninstallable 22/94; Running 8/94 with no green name badge, right status and locks preserved; Protected 65/94 with short segment and row labels
+Restored Uninstallable; no deletion or automated test suite execution

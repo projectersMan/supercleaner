@@ -19,7 +19,8 @@ struct PermissionsView: View {
             Form {
                 languageSection
                 versionSection
-                permissionsSection
+                agentOverlapSection
+                PermissionAccessSection(model: model)
                 helperSection
                     .disabled(model.updateInProgress)
                 UpdateSettingsSection(model: model.updates)
@@ -30,6 +31,7 @@ struct PermissionsView: View {
                 quarantineSection
             }
             .formStyle(.grouped)
+            .task { await model.loadPermissions() }
             .alert(L10n.text("安装受限 Helper？"), isPresented: $confirmsHelperInstall) {
                 Button(L10n.text("取消"), role: .cancel) {}
                 Button(L10n.text("请求系统注册")) { model.helper.install() }
@@ -75,6 +77,52 @@ struct PermissionsView: View {
         Section(L10n.text("版本信息")) {
             LabeledContent(L10n.text("应用版本"), value: AppVersion.current.version)
             LabeledContent(L10n.text("构建号"), value: AppVersion.current.build)
+        }
+    }
+
+    private var agentOverlapSection: some View {
+        Section(L10n.text("Agent 功能重叠分析")) {
+            LabeledContent(L10n.text("本机模型状态"), value: model.agentOverlapStatus)
+            if !model.agentOverlapSupportedPlatform {
+                Text(L10n.text("Agent 能力分析需要 macOS 14 或更高版本及 Apple Silicon；其他功能可正常使用。"))
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            Text(L10n.text("使用 Google EmbeddingGemma 2 在本机分析 Skill 与 MCP 的功能覆盖。约 310 MB 模型已随 App 打包，首次使用无需下载；不连接 MCP 服务。"))
+                .font(.caption).foregroundColor(.secondary)
+            HStack {
+                Stepper(value: Binding(
+                    get: { Int(model.agentOverlapThreshold * 100) },
+                    set: { model.updateAgentOverlapThreshold(Double($0) / 100) }
+                ), in: 50...100) {
+                    Text(L10n.text("覆盖阈值")) + Text(": \(Int(model.agentOverlapThreshold * 100))%")
+                }
+                .disabled(!model.agentOverlapSupportedPlatform)
+                if model.agentOverlapModelCanRemove {
+                    Button(L10n.text("移除本机下载副本")) {
+                        let task = model.removeAgentOverlapModel()
+                        Task { model.finishAgentOverlapTask(await task.result) }
+                    }
+                    .disabled(model.agentOverlapModelDownloadInProgress)
+                }
+            }
+            if model.agentOverlapSupportedPlatform && !model.agentOverlapModelInstalled {
+                HStack {
+                    Button(L10n.text("下载并启用模型")) { model.startAgentOverlapModelDownload() }
+                        .disabled(model.agentOverlapModelDownloadInProgress)
+                    if model.agentOverlapModelDownloadInProgress {
+                        Button(L10n.text("取消下载")) { model.cancelAgentOverlapModelDownload() }
+                    }
+                }
+                if model.agentOverlapModelDownloadInProgress {
+                    ProgressView(value: model.agentOverlapModelDownloadProgress ?? 0)
+                    Text(L10n.text("下载进度：{0}%", String(describing: Int((model.agentOverlapModelDownloadProgress ?? 0) * 100))))
+                        .font(.caption).foregroundColor(.secondary)
+                }
+            }
+            Button(L10n.text("重新计算全部包含关系"), action: model.recalculateAllAgentContainment)
+                .disabled(!model.canRecalculateAgentContainment)
+            Text(L10n.text("Skill 与 MCP 使用同一阈值：能力被其他同类对象联合包含达到阈值时默认勾选。普通扫描复用已知关系，仅分析新增对象；此按钮重新扫描 Agent 资源并重建全部关系。最终清理仍需你确认。"))
+                .font(.caption).foregroundColor(.secondary)
         }
     }
 }
@@ -189,7 +237,12 @@ extension PermissionsView {
         }
     }
 
-    private var permissionsSection: some View {
+}
+
+private struct PermissionAccessSection: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
         Section(L10n.text("权限")) {
             Text(L10n.text("完全磁盘访问需在系统设置中开启；返回 App 后会自动重新检查，未授权区域会安全跳过。"))
                 .font(.caption)
@@ -197,8 +250,9 @@ extension PermissionsView {
             PermissionRow(
                 icon: "folder.badge.questionmark",
                 title: L10n.text("完全磁盘访问"),
-                detail: model.permissionSnapshot?.fullDiskAccess.explanation ?? L10n.text("正在检查。"),
-                state: permissionStateTitle(model.permissionSnapshot?.fullDiskAccess.status),
+                detail: model.permissionSnapshot?.fullDiskAccess.explanation ?? L10n.text("点击全扫描时检查权限"),
+                state: model.permissionSnapshot?.fullDiskAccess.status == .actionRequired
+                    ? L10n.text("访问检查未通过") : permissionStateTitle(model.permissionSnapshot?.fullDiskAccess.status),
                 stateColor: permissionStateColor(model.permissionSnapshot?.fullDiskAccess.status)
             ) {
                 Button(L10n.text("打开系统设置…")) { model.openFullDiskAccessSettings() }
@@ -207,9 +261,9 @@ extension PermissionsView {
             PermissionRow(
                 icon: "app.badge.checkmark",
                 title: L10n.text("App 管理"),
-                detail: model.permissionSnapshot?.appManagement.explanation ?? L10n.text("正在检查。"),
-                state: permissionStateTitle(model.permissionSnapshot?.appManagement.status),
-                stateColor: permissionStateColor(model.permissionSnapshot?.appManagement.status)
+                detail: L10n.text("执行卸载时由系统确认"),
+                state: nil,
+                stateColor: .secondary
             ) {
                 Button(L10n.text("打开系统设置…")) { model.openAppManagementSettings() }
                     .controlSize(.small)
@@ -222,7 +276,7 @@ extension PermissionsView {
         case .granted: L10n.text("可用")
         case .actionRequired: L10n.text("需要授权")
         case .unverified: L10n.text("尚未验证")
-        case nil: L10n.text("检查中")
+        case nil: L10n.text("尚未验证")
         }
     }
 
@@ -239,11 +293,11 @@ private struct PermissionRow<Action: View>: View {
     let icon: String
     let title: String
     let detail: String
-    let state: String
+    let state: String?
     let stateColor: Color
     @ViewBuilder let action: Action
 
-    init(icon: String, title: String, detail: String, state: String, stateColor: Color, @ViewBuilder action: () -> Action) {
+    init(icon: String, title: String, detail: String, state: String?, stateColor: Color, @ViewBuilder action: () -> Action) {
         self.icon = icon
         self.title = title
         self.detail = detail
@@ -261,7 +315,7 @@ private struct PermissionRow<Action: View>: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
-                Text(state).foregroundColor(stateColor)
+                if let state { Text(state).foregroundColor(stateColor) }
                 action
             }
         }

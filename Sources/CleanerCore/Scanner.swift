@@ -32,6 +32,7 @@ public struct ScanContext: Sendable {
     public let activeProcessNames: Set<String>
     public let activityProbeAvailable: Bool
     public let projectActivityAvailable: Bool
+    public let enforcesEntryBudgets: Bool
 
     public init(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -43,7 +44,8 @@ public struct ScanContext: Sendable {
         runningBundleIdentifiers: Set<String> = [],
         activeProcessNames: Set<String> = [],
         activityProbeAvailable: Bool = true,
-        projectActivityAvailable: Bool = true
+        projectActivityAvailable: Bool = true,
+        enforcesEntryBudgets: Bool = true
     ) {
         self.homeDirectory = homeDirectory.standardizedFileURL
         self.fileSystem = fileSystem
@@ -55,6 +57,7 @@ public struct ScanContext: Sendable {
         self.activeProcessNames = activeProcessNames
         self.activityProbeAvailable = activityProbeAvailable
         self.projectActivityAvailable = projectActivityAvailable
+        self.enforcesEntryBudgets = enforcesEntryBudgets
     }
 
     public func isActive(_ url: URL) -> Bool {
@@ -104,7 +107,10 @@ public struct ScanFailure: Codable, Hashable, Sendable {
         case .changed: message = L10n.text("位置已发生变化")
         case .cancelled: message = L10n.text("扫描已取消")
         }
-        return Self(scannerID: scannerID, message: message, path: path, reason: reason)
+        let failure = error as NSError
+        let reportedPath = (failure.userInfo[NSFilePathErrorKey] as? String).map { URL(fileURLWithPath: $0) }
+            ?? failure.userInfo[NSURLErrorKey] as? URL
+        return Self(scannerID: scannerID, message: message, path: path ?? reportedPath, reason: reason)
     }
 
     public var limitation: ScanLimitation {

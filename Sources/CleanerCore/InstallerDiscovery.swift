@@ -57,8 +57,8 @@ public struct InstallerDiscovery: Sendable {
                 let children = try await context.fileSystem.children(of: directory)
                 for child in children {
                     try check()
-                    guard remaining > 0 else { throw InstallerDiscoveryError.entryBudgetExceeded }
-                    remaining -= 1
+                    guard !context.enforcesEntryBudgets || remaining > 0 else { throw InstallerDiscoveryError.entryBudgetExceeded }
+                    if context.enforcesEntryBudgets { remaining -= 1 }
                     let url = child.standardizedFileURL
                     let identity = try await context.fileSystem.identity(at: url)
                     guard identity.kind == .file || identity.kind == .directory else { continue }
@@ -135,8 +135,8 @@ public struct InstallerDiscovery: Sendable {
             guard depth < maximumDepth else { complete = false; continue }
             for child in try await context.fileSystem.children(of: directory) {
                 try check()
-                guard remaining > 0 else { throw InstallerDiscoveryError.entryBudgetExceeded }
-                remaining -= 1
+                guard !context.enforcesEntryBudgets || remaining > 0 else { throw InstallerDiscoveryError.entryBudgetExceeded }
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 let childIdentity = try await context.fileSystem.identity(at: child)
                 if childIdentity.kind == .directory { stack.append((child, depth + 1)) }
                 else if childIdentity.kind == .file {

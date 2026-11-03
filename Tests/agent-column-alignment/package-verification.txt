@@ -1,0 +1,5 @@
+App/Helper 0.3.2 (76)
+Build/installed/DMG match: 123 files and symlinks
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and LICENSE/NOTICE verified
+DMG SHA-256 1a6100b747b5fa984840b19650c8099999c30ed01a113305922b0f3f4dd3b840

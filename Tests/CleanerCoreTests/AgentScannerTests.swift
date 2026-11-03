@@ -248,8 +248,9 @@ private actor AgentFixtureFileSystem: FileSystemAccess {
     }
 
     func identity(at url: URL) throws -> FileIdentity {
-        guard let identity = identities[url.path] else { throw FileSystemError.missing(url) }
-        return identity
+        if let identity = identities[url.path] { return identity }
+        guard identities.keys.contains(where: { $0.hasPrefix(url.path + "/") }) else { throw FileSystemError.missing(url) }
+        return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 0, kind: .directory)
     }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }

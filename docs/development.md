@@ -2,6 +2,26 @@
 
 ## 环境与构建
 
+全扫描用时只记录在AppModel，不从最后一个模块报告时间推断；须等待四模块和Agent分析均结束。Dashboard用局部TimelineView每秒显示HH:MM:SS，停止后静态展示；按钮右侧预留180 pt，等宽数字防止抖动。全扫描启动后的必要预访问计入本轮、重扫归零、取消/失败冻结、继续同轮沿用起点，完成后的单模块刷新不改写上一轮全扫描用时。计时不得修改扫描任务、权限、清理或覆盖分析规则。
+
+图标视图直接显示同步缓存结果，避免State初始nil与出现后的task导致占位图逐个替换；不引入新预加载服务或持久图标缓存。图标排查先核对NSWorkspace返回值与包中图标声明。不能仅因缺CFBundleIconFile就覆盖asset catalog或自定义图标；仅系统通用图标允许沿真实包路径回退，优先最近外层应用，不做Bundle ID前缀猜测。外层包以APPL元数据识别，不能仅判断.app后缀；WorkBuddy的.app.installing临时包是已复现的真实案例，非标准目录直接读取包声明图标。定向复现命令：`zsh Tests/application-icons/run-check.sh`，需本机已安装WorkBuddy；缺夹具返回77，不计为通过。
+
+本地交付统一覆盖/Applications/SuperCleaner.app，退出非清理中的旧实例、验证新包后替换并从固定路径启动；保留应用支持目录与偏好设置。不要从build产物再启动第二个安装副本。
+
+清理中心UI约定：四行只保留整行导航与最右对齐状态，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。悬停色与应用卸载保持accentColor/0.08，移出恢复。completed/limited在首页共用绿色勾选“扫描完成”，不得反向修改原始扫描状态、CLI或删除保护。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。
+
+扫描启动排查：全扫描直接开始，不能重新引入大权限配置sheet或逐次确认。首次必要的只读预访问在并行模块启动前执行一次；不因已提醒标记推断权限可用，不自动改写系统授权。
+
+Agent分析排查：先核对安装包版本与源码版本，再检查索引modelVersion/analysisVersion和现行policy指纹。策略不兼容必须给出直接可见的状态；不能只更新tooltip，也不能通过降低85%预选阈值或0.95片段门槛制造结果。行内覆盖组件独立为AgentContainmentLabel，以真实Gemma夹具和渲染对照验证Top 3、累计覆盖及保留覆盖来源的预选规划。
+
+扫描授权偏好：不要把实际权限拒绝转换成空读取或篡改所有权覆盖；记录已发生的拒绝并在GUI投射为可访问范围完成。禁止靠错误文案匹配或把所有access类错误都隐藏。配置读取失败、数量/深度/时间/格式等非权限问题仍保留。App的数量上限策略必须传入各子扫描器，不能只修改首页入口数字；执行上下文仍使用原始约束，取消逻辑持续有效。
+
+权限交互要求：首次启动仅对尚未验证FDA的用户显示一次简短提醒；已有FDA用户跳过，之后重启和扫描不重复弹App配置窗口。UserDefaults的introductionShown和scanAccessRequested只记录提醒/请求次数，绝非TCC授权。设置保留系统入口，真实访问状态由PermissionStatusService/执行结果确定；不试删验证App管理，不申请辅助功能、录屏或输入监控。
+
+应用行的正常分析完成状态不显示徽标；隐藏逻辑仅位于ApplicationsView展示层，不修改Core状态或statusTitle，以保留其他调用方语义。系统保护、运行保护、受限、不可用和等待状态继续展示。
+
+界面布局约定：应用卸载筛选栏对齐[大文件页](../Sources/CleanerApp/DiskSpaceView.swift)，在[ApplicationsView](../Sources/CleanerApp/ApplicationsView.swift)固定搜索260 pt、分段420 pt、排序/数量各140 pt；[ApplicationScopePicker](../Sources/CleanerApp/ApplicationScopePicker.swift)使用原生等分分段控件，纵向按固有高度。窄窗口用ViewThatFits分两行，切换四个选项、计数变化都不能改变同一窗口中的控件位置。两页标题间距、栏内边距和字号保持一致。
+
 - 平台：macOS 13 或更高版本。
 - 语言与 UI：Swift 6、SwiftUI、AppKit。
 - 包管理：Swift Package Manager；应用更新使用固定版本的 Sparkle。
@@ -17,13 +37,19 @@ open build/SuperCleaner.app
 
 `build-app.sh` 构建核心契约、主 App 和 Helper，并组装本地 App。`verify-app.sh` 检查 Bundle、资源、Helper、最低系统版本和签名，并在系统临时目录执行真实隔离/恢复烟雾测试。
 
+Agent能力分析规格见[分析设计](../doc/agent-skill-overlap-analysis-design.md)。根包、App、Helper及CLI保持远端macOS13要求；AgentInference独立SwiftPM包仅面向macOS14/arm64，固定GemmaEmbed0.4.1，由AgentOverlapAI通过本机stdin/stdout调用。模型及SDK许可随App打包，模型固定大小/SHA-256由脚本校验。Agent仅在支持的平台启用，不改变扫描算法、删除/文件恢复或发布门禁；已授权的首页、标题栏和独立扫描控制另外维护。
+
+覆盖排名取其他同类对象前3名，并展示路径；累计分母使用全部提取能力描述，来源取去重并集，默认85%（含85%）预选，前3只是展示。既有对象/零关系按稳定身份复用，只有新增项补算；策略变化要求设置中显式重算。Skill/MCP使用同一规划及基线安全资格，保留覆盖来源与用户明确保留。分析不二次打开manifest，不连接MCP或读取凭证/参数。
+
+修改必须以origin/main逐文件、逐函数核对，保留用户历次明确授权的Agent功能、首页布局固定、四行导航、标题栏对齐、模块独立取消/继续扫描及必要依赖、打包、版本和文档。未要求的扫描算法、CLI契约、规则/文件恢复逻辑和发布脚本不得夹带修改。模块回调同时检查generation和单次运行令牌；Agent扫描期间的嵌入任务属于Agent模块取消范围。继续扫描重跑单个模块并保留同批其他结果，不能替换成整批重扫。完整核对记录见[范围审计](../doc/agent-only-scope.md)。
+
 ### 语言与版本管理
 
 设置页提供 English 和中文（简体），首次启动以及无效偏好均默认英语，不跟随系统语言。选择保存在应用偏好 `appLanguage` 中，下次启动生效；界面会提示先完成当前操作再退出重开。语言切换不重建扫描模型、不丢弃当前选择，也不会中断执行。
 
 `CleanerCore/Localization.swift` 在进程启动时固定本次语言，后台扫描和界面共用它。自有界面与诊断文案维护在 `Sources/CleanerCore/Resources/{en,zh-Hans}.lproj/Localizable.strings`。参数使用 `{0}`、`{1}`，允许翻译调整顺序，但不会重新解释文件名和路径中的占位符。文件名、用户 Skill 文档、第三方规则及历史记录中的原始内容不做自动翻译。原有卸载归属判断使用的标准证据字符串保持不变，仅翻译展示副本；Skill Markdown 的中英文标题识别也保持不变。系统权限说明位于 `Resources/{en,zh-Hans}.lproj/InfoPlist.strings`。
 
-版本从 `0.0.0` 开始，唯一仓库配置为根目录 `Version.json`，包含三段式 `version` 和递增正整数 `build`。每个完成的修改批次仅将第三位加一（如 `0.0.9` → `0.0.10`），第一位和第二位只能根据人类明确要求修改，不自动进位或重置。规则同时记录在根目录 `AGENTS.md`。Info.plist 源文件中的零值只是打包占位符；构建脚本把解析后的同一版本写入主应用和 Helper 的元数据。设置页读取实际安装包元数据；直接运行未打包程序时显示“Unpackaged”，不伪报发行版本。
+版本从 `0.0.0` 开始，唯一仓库配置为根目录 `Version.json`，包含三段式 `version` 和递增正整数 `build`。每个完成的修改批次仅将第三位加一（如 `0.0.9` → `0.0.10`），第一位和第二位只能根据人类明确要求修改，不自动进位或重置。Info.plist 源文件中的零值只是打包占位符；构建脚本把解析后的同一版本写入主应用和 Helper 的元数据。设置页读取实际安装包元数据；直接运行未打包程序时显示“Unpackaged”，不伪报发行版本。
 
 ```bash
 python3 Scripts/version.py show
@@ -40,13 +66,15 @@ python3 Scripts/check-localizations.py
 
 构建时自动检查双语键、参数和内置规则说明的覆盖。核心契约验证语言默认值、偏好持久化、参数保护和实际包版本读取；打包验证分别以英语和中文检查资源，并核对主应用与 Helper 版本一致。
 
-`SUPERCLEANER_BUNDLE_ID` 可设置正式主应用标识符，Helper 标识符、Mach service、LaunchDaemon 名称和 BundleProgram 从同一值生成。主 App、Helper、CLI 使用显式签名标识符与 Hardened Runtime；证书签名使用时间戳，ad-hoc 保留明确的开发身份。构建门禁验证 `--self-check`：临时 / 示例 Helper 必须退出 78，且不能启动 listener；正式身份检查不安装、注册或弹授权 UI。
+`SUPERCLEANER_BUNDLE_ID`可设置正式主应用标识符，Helper标识符、Mach service、LaunchDaemon名称和BundleProgram从同一值生成。主App、Helper、CLI及AgentInference使用显式签名标识符；Apple签名启用Hardened Runtime与时间戳，本机开发身份使用本地签名模式。构建门禁验证`--self-check`：开发/示例Helper必须退出78，不能启动listener；正式身份检查不安装、注册或弹授权UI。
 
 Helper 通过设置页显式注册，需放在 `/Applications`，并由系统管理员批准。再通过“验证连接并授权本次会话”开启最多 5 分钟受限操作。升级后可重新注册，先异步解除旧注册再安装本版本。恢复区内容与注册无关，移除 Helper 不清除内容；会话过期时需要权限的自动清除会失败并保留内容，不自动弹管理员授权框。
 
 ### 固定签名与重复授权
 
-`Scripts/signing-identity.sh` 只读查询本机可用证书，优先使用 Developer ID Application，其次 Apple Development；可以用 `SUPERCLEANER_SIGN_IDENTITY` 固定证书名称或 SHA-1。主 App 与 Helper 使用同一证书。没有可用证书时，普通本地构建明确提示仍使用临时 ad-hoc 签名；临时签名的授权身份随二进制变化，重新构建后可能再次弹出访问授权。
+`Scripts/signing-identity.sh`只读选择签名身份：优先显式`SUPERCLEANER_SIGN_IDENTITY`，然后读取`~/Library/Application Support/SuperCleaner/Signing/identity.sha1`固定指纹，未配置才寻找Apple证书。默认要求有效证书，缺失即失败，不自动改为ad-hoc；指纹已固定时也不会改选其他证书。证书和私钥存于登录钥匙串，私钥不写入仓库、App或DMG。本机自签以代码签名用途信任，由用户本人确认；它保持证书绑定DR（系统对本机自签身份生成certificate leaf指纹形式，Apple身份通常为anchor形式），不依赖每次构建变化的cdhash，但不具备Apple公证发行身份。
+
+构建脚本的`--mode`区分Apple身份与本机开发身份；本机开发签名不申请Apple时间戳、不启用依赖Apple团队的library validation，生产门禁继续要求Developer ID、同团队、Hardened Runtime、时间戳和精确标识，并包含AgentInference。只有明确传入`SUPERCLEANER_REQUIRE_STABLE_SIGNING=0 SUPERCLEANER_SIGN_IDENTITY=-`才允许临时检查包，不用于固定安装交付。验证稳定性应对内容不同的两个产物比较DR，并以旧DR检查新产物；单纯重复签相同二进制不能证明跨构建稳定。
 
 要避免无意生成临时签名版本，使用严格模式：
 
@@ -155,7 +183,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 
 - Helper：安装/异步移除、系统批准、双向签名 XPC、显式管理员会话和受限应用文件操作已接入主 App。`CoreContractChecks --check-helper` 验证无链接路径、UID/plan/身份、授权、移动恢复清除、预算、执行路由与迟到完成恢复；打包 self-check 仅检查身份，不注册或调用特权操作。真实安装/授权/连接仍须正式配置及干净 Mac；ad-hoc / 示例身份必须拒绝启动。
 - 规则：签名网络分发、离线导入和回滚已接入设置页，生产扫描及 CLI 共用当前包和发布公钥。执行身份含结构化摘要与激活 ID，必须随计划传递并在执行前重新加载。撤销与 high-water 不能随回滚丢失；禁止恢复固定 `bundled-1` 的生产路径。
-- 发布：脚本优先使用可用证书；缺少证书时本地构建仍是 ad-hoc 签名。严格签名验证通过也不能证明公证、staple 或 Gatekeeper 发布链完成。
+- 发布：脚本默认要求有效固定证书，缺失即失败。即使本机开发签名验证通过，也不能证明Developer ID、公证、staple或Gatekeeper发布链完成。
 
 ### 应用更新与发布脚本
 
@@ -202,3 +230,23 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 - Agent 一级目录分组不再维护外部注册表，必须统一通过 `AgentCatalogRegistry.swift` 中的推断逻辑演进；新增推断规则时优先增强“固定根目录 + 真实文件夹 + Skill Markdown 标记”的识别顺序，不要把规则散落到多个页面文件中。
 - Codex、Claude 等供应商的 Skill/MCP 文件系统位置必须统一维护在 `AgentResourcePathRegistry.swift`；MCP 格式识别与去敏解析统一维护在 `MCPConfigurationCatalog.swift`。更新规则时同步修改官方来源研究记录和 Agent scanner contract，禁止在 View 或 Adapter 中重新散落路径字面量。
 - 修改大文件或 Agent 扫描时，必须同时检查 Spotlight 快速路径、精确递归回退路径和生产预算；不能在 Spotlight 已成功后无条件再次递归扫描整个 Home。
+
+默认选择修改必须同时核对Skill/MCP：`.agents`默认保留、独立重复副本可预选、`.cache`无需包含关系、明确保留优先、不可选缓存不预选、待删缓存不能支撑其他删除、无模型/索引不阻断缓存预选。目录以AppModel注入home为边界；Skill/MCP本体、manifest及父目录软链接均须在发现/清单入口排除，不改Agent配置或迁移入口。覆盖只使用当前通过检查的清单对象；历史对象不参与新配对，真实对象恢复时用已有向量补齐缺失关系。定向检查见[软链接验证](../Tests/agent-symlink-exclusion/README.md)及Tests/agent-overlap-diagnosis。
+
+根目录AGENTS.md已按用户要求删除，不由工作流自动生成或重新维护。协作偏好以用户当前明确指令为准，历史审计中的该文件记录仅说明当时修改。
+
+卸载筛选栏验收须覆盖四项反复切换与窄窗口；只查看初始截图或检查fixedSize不足以证明布局稳定。Agent行验收检查左右栏顶部对齐、元数据紧随左栏描述、Top 3比例列对齐且无Combined Coverage；内部累计预选保持原有规则。
+
+工具栏与侧栏继续由NavigationSplitView原生跟踪分隔符对齐；诊断证明几何分栏已正确，额外标题栏背景造成可见缺口，因此隐藏该背景并使用透明标题栏让全高度分栏背景连续；禁止硬编码宽度偏移。macOS27应实际检查边界，不能仅凭API存在宣称修复。
+
+权限状态刷新覆盖首次提醒判定、扫描开始和设置页进入/返回。FDA沿用用户/系统专用TCC目录列举；明确拒绝与缺失/一般错误分类不变。首次扫描未确认FDA才进行一次现有只读预访问；不保留PermissionSetupView、preflightComplete/busy或重复配置按钮。App管理仍按真实卸载结果记录，界面使用固定说明；清理资格和系统保护不变。
+
+应用漏扫排查应先在All范围按名称/Bundle ID/路径核对；Uninstallable会隐藏运行中与系统应用。初始范围按用户要求保持Uninstallable，通过现有All/Running等范围查看其他条目；不能为增加可见数量而放宽删除校验或伪造扫描结果。Agent两种列表复用大文件的1pt/secondary 0.12底部分隔线，不增加新的行布局或选择状态。
+
+应用状态文案精简：使用原“系统保护”文案键统一短标签Protected/受保护；Running只在右侧状态说明显示，应用名旁不重复添加。修改文案时不得更改固定分段宽度、筛选语义或运行/系统应用的卸载保护。
+
+Top3路径tooltip：完整路径从同一targetID去掉skill|或mcp|前缀，显示文本保持中间截断，原生help绑定在各target的VStack；父级整栏不得添加help覆盖逐项路径。Skill/MCP共享AgentContainmentLabel，不新增自定义悬浮窗口或状态。
+
+Agent行底线和高亮必须在同一内容padding后绘制，ListRowBackground仅透明；不要混用系统整行背景和内层overlay，从而引入行内边距/高度差。
+
+Agent双栏验收：Skill/MCP切换及长名称/路径时右栏起点保持一致，标题与各覆盖项名称/路径左对齐，比例保持固定数值列；无结果状态也使用相同360pt右栏。左栏minWidth=0允许收缩，覆盖栏优先保持宽度。不要恢复每行MCP服务器数量徽标。FDA Available来自只读探测，App管理不做试删或伪造Available。

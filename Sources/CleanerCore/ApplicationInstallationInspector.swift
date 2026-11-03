@@ -22,7 +22,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
         var limited = false
         let deadline = Date().addingTimeInterval(timeout)
         var directoryEntries: [URL: [URL]] = [:]
-        func hasBudget() -> Bool { !Task.isCancelled && remaining > 0 && Date() < deadline }
+        func hasBudget() -> Bool { !Task.isCancelled && (!context.enforcesEntryBudgets || remaining > 0) && Date() < deadline }
 
         for root in caskRoots {
             guard await context.fileSystem.fileExists(root) else { continue }
@@ -34,7 +34,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
                 scanned.append(directory)
                 for child in children {
                     guard hasBudget() else { limited = true; break }
-                    remaining -= 1
+                    if context.enforcesEntryBudgets { remaining -= 1 }
                     guard let identity = try? await context.fileSystem.identity(at: child) else { unavailable.append(child); continue }
                     if identity.kind == .directory, depth < 6, child.pathExtension.lowercased() != "app" {
                         queue.append((child, depth + 1)); continue
@@ -72,7 +72,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
             scanned.append(root)
             for receipt in children.sorted(by: { $0.path < $1.path }) where receipt.pathExtension.lowercased() == "plist" {
                 guard hasBudget() else { limited = true; break }
-                remaining -= 1
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 do {
                     let data = try await context.fileSystem.readData(at: receipt, maximumBytes: 1_048_576)
                     guard let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
@@ -115,7 +115,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
             scanned.append(root)
             for manifest in children where manifest.lastPathComponent.hasPrefix("appmanifest_") && manifest.pathExtension.lowercased() == "acf" {
                 guard hasBudget() else { limited = true; break }
-                remaining -= 1
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 do {
                     let text = try await context.fileSystem.readText(at: manifest, maximumBytes: 1_048_576)
                     guard let directory = Self.vdfValues(key: "installdir", text: text).first, !directory.contains("/"), directory != ".", directory != ".." else { continue }
@@ -130,7 +130,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
         let metadata = BundleApplicationMetadataProvider()
         for app in applications {
             guard hasBudget() else { limited = true; break }
-            remaining -= 1
+            if context.enforcesEntryBudgets { remaining -= 1 }
             var installation = result[app.id] ?? .init()
             let receipt = app.id.appendingPathComponent("Contents/_MASReceipt/receipt")
             if installation.source == .unknown, await context.fileSystem.fileExists(receipt) {
@@ -143,8 +143,8 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
                 let children: [URL]
                 if let cached = directoryEntries[root] { children = cached }
                 else { children = (try? await context.fileSystem.children(of: root)) ?? []; directoryEntries[root] = children }
-                if children.count > 2_000 { limited = true }
-                candidates += children.prefix(2_000).filter { $0.pathExtension.lowercased() == "app" && $0.lastPathComponent.lowercased().contains("uninstall") }
+                if context.enforcesEntryBudgets && children.count > 2_000 { limited = true }
+                candidates += children.prefix(context.enforcesEntryBudgets ? 2_000 : children.count).filter { $0.pathExtension.lowercased() == "app" && $0.lastPathComponent.lowercased().contains("uninstall") }
             }
             let uninstaller = app.teamIdentifier.flatMap { team in
                 candidates.first { candidate in
@@ -174,7 +174,8 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
         guard await context.fileSystem.fileExists(config) else { return (roots, []) }
         do {
             let text = try await context.fileSystem.readText(at: config, maximumBytes: 1_048_576)
-            roots += vdfValues(key: "path", text: text).prefix(64).filter { $0.hasPrefix("/") }.map { URL(fileURLWithPath: $0).appendingPathComponent("steamapps/common") }
+            let paths = vdfValues(key: "path", text: text)
+            roots += paths.prefix(context.enforcesEntryBudgets ? 64 : paths.count).filter { $0.hasPrefix("/") }.map { URL(fileURLWithPath: $0).appendingPathComponent("steamapps/common") }
             return (Array(Set(roots)), [])
         } catch { return (roots, [config]) }
     }

@@ -11,7 +11,7 @@ func runReadOnlyInterfaceContracts() async throws {
     let original = Data("fixture must survive preview".utf8)
     try original.write(to: file)
     let before = try manager.attributesOfItem(atPath: file.path)
-    let runtime = CleanupRuntime(home: home)
+    let runtime = CleanupRuntime(home: home, fileSystem: ReviewScanFileSystem(home: home))
     let scan = try await ReadOnlyInterface.run(ReadOnlyRequest(arguments: ["scan", "--module", "general", "--home", home.path]), runtime: runtime)
     require(scan.schemaVersion == 1 && scan.scan?.modules.map(\.module) == [.general], "read-only schema and requested module scope must be explicit")
     require(scan.scan?.candidates.contains { $0.url.resolvingSymlinksInPath().path == cache.resolvingSymlinksInPath().path && $0.defaultSelection == false } == true, "read-only scan must use production classification")

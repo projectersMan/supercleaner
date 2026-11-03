@@ -128,181 +128,190 @@ public struct SystemScanCoordinator: Sendable {
 
     public func scan(
         context: ScanContext,
+        generationID: UUID = UUID(),
+        modules requestedModules: Set<ScanModuleID> = Set(ScanModuleID.allCases),
         runningBundleIdentifiers: Set<String> = [],
         moduleResult: @escaping @Sendable (SystemScanModuleResult) async -> Void = { _ in },
         progress: @escaping @Sendable (SystemScanProgressEvent) async -> Void = { _ in }
     ) async -> SystemScanReport? {
-        let generationID = UUID()
         let startedAt = Date()
         let tracker = SystemScanProgressTracker(generationID: generationID)
         var outcomes: [SystemScanOutcome] = []
 
         await withTaskGroup(of: SystemScanOutcome.self) { group in
-            group.addTask {
-                await progress(await tracker.event(module: .general, state: .scanning))
-                let report = await SystemCleanupScanner(applicationScanner: applicationScanner, coordinator: generalCoordinator)
-                    .scan(context: context, pack: rulePack)
-                let state: ScanModuleState = report.failures.isEmpty ? .completed : .limited
-                let message = report.failures.isEmpty ? nil : L10n.text("{0} 个区域受限", String(describing: report.failures.count))
-                let status = ScanModuleStatus(module: .general, state: state, startedAt: report.startedAt, completedAt: report.completedAt, message: message, limitations: report.failures.map(\.limitation))
-                let outcome = SystemScanOutcome.general(report, status)
-                await moduleResult(outcome.moduleResult(generationID: generationID))
-                await progress(await tracker.event(module: .general, state: state, message: message, limitations: status.limitations))
-                return outcome
-            }
-            group.addTask {
-                let module = ScanModuleID.applications
-                let moduleStartedAt = Date()
-                await progress(await tracker.event(module: module, state: .scanning))
-                let inventory = await applicationScanner.installedApplications(
-                    context: context,
-                    runningBundleIdentifiers: runningBundleIdentifiers,
-                    maximumDepth: 12, maximumEntries: 30_000
-                )
-                let baseline = await applicationAnalyzer.analyze(inventory: inventory, context: context)
-                let running = inventory.applications.filter { $0.isRunning && !$0.isSystem }
-                var analyzedInventory = baseline
-                if !running.isEmpty && !Task.isCancelled {
-                    let initialStatus = ScanModuleStatus(module: module, state: baseline.moduleCoverage.isLimited ? .limited : .completed,
-                        startedAt: moduleStartedAt, completedAt: Date(), message: L10n.text("基础分析完成，正在补充运行中的应用关联。"))
-                    await moduleResult(SystemScanOutcome.applications(baseline, initialStatus).moduleResult(generationID: generationID))
-                    // Basic ownership analysis is already actionable. Optional
-                    // runtime observations supplement it without locking cleanup.
-                    await progress(await tracker.event(module: module, state: initialStatus.state,
-                        message: initialStatus.message, limitations: initialStatus.limitations))
-                    let observations = await ApplicationRuntimeSampler().observe(applications: running, home: context.homeDirectory) { partial in
-                        await moduleResult(SystemScanOutcome.applications(baseline.observing(partial), initialStatus).moduleResult(generationID: generationID))
-                    }
-                    analyzedInventory = baseline.observing(observations)
+            if requestedModules.contains(.general) {
+                group.addTask {
+                    await progress(await tracker.event(module: .general, state: .scanning))
+                    let report = await SystemCleanupScanner(applicationScanner: applicationScanner, coordinator: generalCoordinator)
+                        .scan(context: context, pack: rulePack)
+                    let state: ScanModuleState = report.failures.isEmpty ? .completed : .limited
+                    let message = report.failures.isEmpty ? nil : L10n.text("{0} 个区域受限", String(describing: report.failures.count))
+                    let status = ScanModuleStatus(module: .general, state: state, startedAt: report.startedAt, completedAt: report.completedAt, message: message, limitations: report.failures.map(\.limitation))
+                    let outcome = SystemScanOutcome.general(report, status)
+                    await moduleResult(outcome.moduleResult(generationID: generationID))
+                    await progress(await tracker.event(module: .general, state: state, message: message, limitations: status.limitations))
+                    return outcome
                 }
-                let coverage = analyzedInventory.moduleCoverage
-                let state: ScanModuleState = coverage.isLimited ? .limited : .completed
-                let message = coverage.isLimited ? coverage.summary : nil
-                let completedAt = Date()
-                let status = ScanModuleStatus(
-                    module: module,
-                    state: state,
-                    startedAt: moduleStartedAt,
-                    completedAt: completedAt,
-                    message: message,
-                    limitations: coverage.limitations
-                )
-                let outcome = SystemScanOutcome.applications(analyzedInventory, status)
-                await moduleResult(outcome.moduleResult(generationID: generationID))
-                await progress(await tracker.event(
-                    module: module,
-                    state: state,
-                    message: message,
-                    limitations: coverage.limitations
-                ))
-                return outcome
             }
-            group.addTask {
-                let module = ScanModuleID.largeFiles
-                let moduleStartedAt = Date()
-                await progress(await tracker.event(module: module, state: .scanning))
-                let indexedTree = try? await IndexedLargeFileScanner(
-                    minimumBytes: diskUsageScanner.minimumFileBytes,
-                    index: largeFileIndex
-                ).scan(context: context)
-                if let indexedTree,
-                   let indexedCandidates = try? await LargeFileScanner(
-                       minimumBytes: diskUsageScanner.minimumFileBytes
-                   ).candidates(from: indexedTree, context: context) {
+            if requestedModules.contains(.applications) {
+                group.addTask {
+                    let module = ScanModuleID.applications
+                    let moduleStartedAt = Date()
+                    await progress(await tracker.event(module: module, state: .scanning))
+                    let inventory = await applicationScanner.installedApplications(
+                        context: context,
+                        runningBundleIdentifiers: runningBundleIdentifiers,
+                        maximumDepth: 12, maximumEntries: 30_000
+                    )
+                    let baseline = await applicationAnalyzer.analyze(inventory: inventory, context: context)
+                    let running = inventory.applications.filter { $0.isRunning && !$0.isSystem }
+                    var analyzedInventory = baseline
+                    if !running.isEmpty && !Task.isCancelled {
+                        let initialStatus = ScanModuleStatus(module: module, state: baseline.moduleCoverage.isLimited ? .limited : .completed,
+                            startedAt: moduleStartedAt, completedAt: Date(), message: L10n.text("基础分析完成，正在补充运行中的应用关联。"))
+                        await moduleResult(SystemScanOutcome.applications(baseline, initialStatus).moduleResult(generationID: generationID))
+                        // Basic ownership analysis is already actionable. Optional
+                        // runtime observations supplement it without locking cleanup.
+                        await progress(await tracker.event(module: module, state: initialStatus.state,
+                            message: initialStatus.message, limitations: initialStatus.limitations))
+                        let observations = await ApplicationRuntimeSampler().observe(applications: running, home: context.homeDirectory) { partial in
+                            await moduleResult(SystemScanOutcome.applications(baseline.observing(partial), initialStatus).moduleResult(generationID: generationID))
+                        }
+                        analyzedInventory = baseline.observing(observations)
+                    }
+                    let coverage = analyzedInventory.moduleCoverage
+                    let state: ScanModuleState = coverage.isLimited ? .limited : .completed
+                    let message = coverage.isLimited ? coverage.summary : nil
+                    let completedAt = Date()
                     let status = ScanModuleStatus(
                         module: module,
-                        state: .completed,
+                        state: state,
                         startedAt: moduleStartedAt,
-                        completedAt: indexedTree.scannedAt,
-                        message: L10n.text("使用 Spotlight 索引完成大文件扫描")
+                        completedAt: completedAt,
+                        message: message,
+                        limitations: coverage.limitations
                     )
-                    let outcome = SystemScanOutcome.largeFiles(indexedTree, indexedCandidates, status)
+                    let outcome = SystemScanOutcome.applications(analyzedInventory, status)
                     await moduleResult(outcome.moduleResult(generationID: generationID))
                     await progress(await tracker.event(
                         module: module,
-                        state: .completed,
-                        message: status.message
+                        state: state,
+                        message: message,
+                        limitations: coverage.limitations
                     ))
                     return outcome
                 }
-                do {
-                    try Task.checkCancellation()
-                    let tree = try await diskUsageScanner.scan(context: context)
-                    let candidates = try await LargeFileScanner(
+            }
+            if requestedModules.contains(.largeFiles) {
+                group.addTask {
+                    let module = ScanModuleID.largeFiles
+                    let moduleStartedAt = Date()
+                    await progress(await tracker.event(module: module, state: .scanning))
+                    let indexedTree = try? await IndexedLargeFileScanner(
                         minimumBytes: diskUsageScanner.minimumFileBytes,
-                        maximumDepth: diskUsageScanner.maximumDepth,
-                        maximumEntries: diskUsageScanner.maximumEntries
-                    ).candidates(from: tree, context: context)
-                    let limited = !tree.coverage.unavailableRoots.isEmpty || tree.coverage.budgetLimitedModules.contains(module)
-                    let state: ScanModuleState = limited ? .limited : .completed
-                    let message = limited ? L10n.text("部分目录不可访问或达到扫描预算") : nil
-                    let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: tree.scannedAt, message: message)
-                    let outcome = SystemScanOutcome.largeFiles(tree, candidates, status)
-                    await moduleResult(outcome.moduleResult(generationID: generationID))
-                    await progress(await tracker.event(module: module, state: state, message: message))
-                    return outcome
-                } catch {
-                    let completedAt = Date()
-                    if let indexedTree {
-                        let indexedCandidates = (try? await LargeFileScanner(
-                            minimumBytes: diskUsageScanner.minimumFileBytes
-                        ).candidates(from: indexedTree, context: context)) ?? []
-                        let message = L10n.text("Spotlight 索引仅提供候选预览；精确目录扫描未完成")
+                        index: largeFileIndex
+                    ).scan(context: context)
+                    if let indexedTree,
+                       let indexedCandidates = try? await LargeFileScanner(
+                           minimumBytes: diskUsageScanner.minimumFileBytes
+                       ).candidates(from: indexedTree, context: context) {
                         let status = ScanModuleStatus(
                             module: module,
-                            state: .limited,
+                            state: .completed,
                             startedAt: moduleStartedAt,
-                            completedAt: completedAt,
-                            message: message
+                            completedAt: indexedTree.scannedAt,
+                            message: L10n.text("使用 Spotlight 索引完成大文件扫描")
                         )
-                        let outcome = SystemScanOutcome.largeFiles(
-                            indexedTree,
-                            indexedCandidates,
-                            status
-                        )
+                        let outcome = SystemScanOutcome.largeFiles(indexedTree, indexedCandidates, status)
                         await moduleResult(outcome.moduleResult(generationID: generationID))
                         await progress(await tracker.event(
                             module: module,
-                            state: .limited,
-                            message: message
+                            state: .completed,
+                            message: status.message
                         ))
                         return outcome
                     }
-                    let message = String(describing: error)
-                    let status = ScanModuleStatus(module: module, state: .failed, startedAt: moduleStartedAt, completedAt: completedAt, message: message)
-                    let outcome = SystemScanOutcome.largeFiles(
-                        DiskUsageTree(roots: [], largeFiles: [], coverage: CoverageSummary(), scannedAt: completedAt),
-                        [], status
-                    )
-                    await moduleResult(outcome.moduleResult(generationID: generationID))
-                    await progress(await tracker.event(module: module, state: .failed, message: message))
-                    return outcome
+                    do {
+                        try Task.checkCancellation()
+                        let tree = try await diskUsageScanner.scan(context: context)
+                        let candidates = try await LargeFileScanner(
+                            minimumBytes: diskUsageScanner.minimumFileBytes,
+                            maximumDepth: diskUsageScanner.maximumDepth,
+                            maximumEntries: diskUsageScanner.maximumEntries
+                        ).candidates(from: tree, context: context)
+                        let limited = !tree.coverage.unavailableRoots.isEmpty || tree.coverage.budgetLimitedModules.contains(module)
+                        let state: ScanModuleState = limited ? .limited : .completed
+                        let message = limited ? L10n.text("部分目录不可访问或达到扫描预算") : nil
+                        let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: tree.scannedAt, message: message)
+                        let outcome = SystemScanOutcome.largeFiles(tree, candidates, status)
+                        await moduleResult(outcome.moduleResult(generationID: generationID))
+                        await progress(await tracker.event(module: module, state: state, message: message))
+                        return outcome
+                    } catch {
+                        let completedAt = Date()
+                        if let indexedTree {
+                            let indexedCandidates = (try? await LargeFileScanner(
+                                minimumBytes: diskUsageScanner.minimumFileBytes
+                            ).candidates(from: indexedTree, context: context)) ?? []
+                            let message = L10n.text("Spotlight 索引仅提供候选预览；精确目录扫描未完成")
+                            let status = ScanModuleStatus(
+                                module: module,
+                                state: .limited,
+                                startedAt: moduleStartedAt,
+                                completedAt: completedAt,
+                                message: message
+                            )
+                            let outcome = SystemScanOutcome.largeFiles(
+                                indexedTree,
+                                indexedCandidates,
+                                status
+                            )
+                            await moduleResult(outcome.moduleResult(generationID: generationID))
+                            await progress(await tracker.event(
+                                module: module,
+                                state: .limited,
+                                message: message
+                            ))
+                            return outcome
+                        }
+                        let message = String(describing: error)
+                        let status = ScanModuleStatus(module: module, state: .failed, startedAt: moduleStartedAt, completedAt: completedAt, message: message)
+                        let outcome = SystemScanOutcome.largeFiles(
+                            DiskUsageTree(roots: [], largeFiles: [], coverage: CoverageSummary(), scannedAt: completedAt),
+                            [], status
+                        )
+                        await moduleResult(outcome.moduleResult(generationID: generationID))
+                        await progress(await tracker.event(module: module, state: .failed, message: message))
+                        return outcome
+                    }
                 }
             }
-            group.addTask {
-                let module = ScanModuleID.agentEnvironment
-                let moduleStartedAt = Date()
-                await progress(await tracker.event(module: module, state: .scanning))
-                do {
-                    let inventory = try await agentScanner.scanAssetInventory(context: context)
-                    let completedAt = Date()
-                    let state: ScanModuleState = inventory.isComplete ? .completed : .limited
-                    let message = inventory.isComplete ? nil : L10n.text("部分 Agent 路径未完整检查")
-                    let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: completedAt, message: message, limitations: inventory.limitations)
-                    let outcome = SystemScanOutcome.agentEnvironment(inventory, status)
-                    await moduleResult(outcome.moduleResult(generationID: generationID))
-                    await progress(await tracker.event(module: module, state: state, message: message, limitations: inventory.limitations))
-                    return outcome
-                } catch {
-                    let completedAt = Date()
-                    let message = String(describing: error)
-                    let status = ScanModuleStatus(module: module, state: .failed, startedAt: moduleStartedAt, completedAt: completedAt, message: message)
-                    let outcome = SystemScanOutcome.agentEnvironment(
-                        AgentAssetInventory(assets: [], skills: [], reachedBudget: false), status
-                    )
-                    await moduleResult(outcome.moduleResult(generationID: generationID))
-                    await progress(await tracker.event(module: module, state: .failed, message: message))
-                    return outcome
+            if requestedModules.contains(.agentEnvironment) {
+                group.addTask {
+                    let module = ScanModuleID.agentEnvironment
+                    let moduleStartedAt = Date()
+                    await progress(await tracker.event(module: module, state: .scanning))
+                    do {
+                        let inventory = try await agentScanner.scanAssetInventory(context: context)
+                        let completedAt = Date()
+                        let state: ScanModuleState = inventory.isComplete ? .completed : .limited
+                        let message = inventory.isComplete ? nil : L10n.text("部分 Agent 路径未完整检查")
+                        let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: completedAt, message: message, limitations: inventory.limitations)
+                        let outcome = SystemScanOutcome.agentEnvironment(inventory, status)
+                        await moduleResult(outcome.moduleResult(generationID: generationID))
+                        await progress(await tracker.event(module: module, state: state, message: message, limitations: inventory.limitations))
+                        return outcome
+                    } catch {
+                        let completedAt = Date()
+                        let message = String(describing: error)
+                        let status = ScanModuleStatus(module: module, state: .failed, startedAt: moduleStartedAt, completedAt: completedAt, message: message)
+                        let outcome = SystemScanOutcome.agentEnvironment(
+                            AgentAssetInventory(assets: [], skills: [], reachedBudget: false), status
+                        )
+                        await moduleResult(outcome.moduleResult(generationID: generationID))
+                        await progress(await tracker.event(module: module, state: .failed, message: message))
+                        return outcome
+                    }
                 }
             }
 
@@ -363,6 +372,9 @@ public struct SystemScanCoordinator: Sendable {
             agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount,
             agentScanCoverage: agentScanCoverage
         )
-        return report.isCommitEligible ? report : nil
+        if requestedModules == Set(ScanModuleID.allCases) {
+            return report.isCommitEligible ? report : nil
+        }
+        return requestedModules.allSatisfy { report.modules[$0]?.state.isTerminal == true } ? report : nil
     }
 }

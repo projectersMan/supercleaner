@@ -1,4 +1,9 @@
 /* Application interface and diagnostic messages. Parameters use {0}, {1}, etc. */
+"访问检查未通过" = "Access check failed";
+"当前 App 可读取完全磁盘访问检查位置；其他位置以实际扫描为准" = "This app can read the Full Disk Access check location; access elsewhere is determined by the scan.";
+"当前 App 访问保护位置被拒绝。请检查当前版本授权，必要时重启；可继续扫描可访问位置。" = "This app was denied access to the protected check location. Check authorization for this version and restart if needed; accessible locations can still be scanned.";
+"无法确认完全磁盘访问状态；目录缺失或读取错误不代表未授权，可继续扫描可访问位置。" = "Full Disk Access could not be verified. A missing directory or read error does not establish missing authorization; accessible locations can still be scanned.";
+"扫描用时：{0}" = "Elapsed: {0}";
 "Agent 环境" = "Agent Environment";
 "按平台呈现本机 Agent 的 Skill 与 MCP 配置。官方路径由独立规则表维护，项目目录会识别 Codex 与 Claude 的仓库级资源；MCP 仅提取服务器名称和传输方式，不保存或展示密钥、环境变量与请求头。Skill 和 MCP 默认保留，不会自动清理。" = "Browse local Agent Skills and MCP configurations by platform. Official paths are maintained in a dedicated registry; project folders include repository resources for Codex and Claude. MCP reads only server names and transport types, never storing or displaying secrets, environment variables, or headers. Skills and MCP configurations are kept by default and are never cleaned automatically.";
 "类型" = "Type";
@@ -22,7 +27,6 @@
 "共 {0} 个 Skill" = "{0} Skills in total";
 "已折叠 {0} 个重复发现" = "{0} duplicate discoveries collapsed";
 "其中 {0} 个已加入删除计划" = "{0} included in the deletion plan";
-"{0} 个服务器" = "{0} servers";
 "从删除计划移除 MCP 配置" = "Remove MCP configuration from the deletion plan";
 "将 MCP 配置加入删除计划；配置会移入隔离区，可从恢复记录找回" = "Add MCP configuration to the deletion plan; it will be quarantined and can be restored from Recovery";
 "此 MCP 配置当前不可删除：路径受保护或无法验证" = "This MCP configuration cannot be deleted: its path is protected or cannot be verified";
@@ -149,8 +153,8 @@
 "已改为手动保留；已删除项目不会自动彻底删除" = "Changed to manual retention; deleted items will not be permanently deleted automatically";
 "已更新自动彻底删除时间" = "Updated the scheduled permanent deletion time";
 "无法更新自动删除时间：{0}" = "Could not update automatic deletion time: {0}";
-"扫描开始后将依次请求桌面、文稿和下载文件夹权限；拒绝某项后会继续扫描其余可访问位置" = "The scan will request access to Desktop, Documents, and Downloads in order. Denying one location will not prevent scanning other accessible locations";
-"正在重新扫描；需要时将依次请求文件夹权限，完成前继续保留上一次结果" = "Scanning again; folder access will be requested as needed. Previous results remain available until completion";
+"正在扫描可访问位置；不会修改任何文件" = "Scanning accessible locations without changing any files";
+"正在重新扫描可访问位置；完成前保留上一次结果" = "Scanning accessible locations again; previous results remain available until completion";
 "用户已取消" = "Canceled by user";
 "扫描已取消，继续使用上一次完整结果" = "Scan canceled; using the previous complete results";
 "扫描已取消；已经完成的模块结果仍可查看" = "Scan canceled; completed module results are still available";
@@ -189,7 +193,6 @@
 "应用卸载未完成，执行记录已保留以供启动恢复：{0}" = "Uninstall incomplete; execution records retained for startup recovery: {0}";
 "应用卸载未完成" = "Uninstall incomplete";
 "批量卸载计划无效：{0}" = "Invalid batch uninstall plan: {0}";
-"文件夹权限检查完成，正在扫描支持且可安全访问的位置；不会修改任何文件" = "Folder access checks complete. Scanning supported, safely accessible locations without changing files";
 "清理规则无法验证" = "Cleanup rules could not be verified";
 "扫描已停止：{0}" = "Scan stopped: {0}";
 "完整扫描完成，已生成清理方案" = "Full scan complete; cleanup plan ready";
@@ -264,7 +267,7 @@
 "分析完整" = "Analysis complete";
 "分析受限" = "Limited analysis";
 "运行中 · 暂不可卸载" = "Running · Cannot uninstall yet";
-"系统保护" = "System protected";
+"系统保护" = "Protected";
 "无法分析" = "Cannot analyze";
 "等待分析" = "Waiting for analysis";
 "系统目录" = "system directory";
@@ -784,10 +787,6 @@
 "macOS 不提供只读查询接口；将在首次真实卸载时安全验证" = "macOS has no read-only query for this permission; it will be safely verified during the first actual uninstall";
 "可访问所有已启用的扫描区域" = "All enabled scan locations are accessible";
 "可读取已启用的系统保护扫描区域" = "Enabled system-protected scan locations are readable";
-"当前没有可用于验证完全磁盘访问的系统保护目录" = "No system-protected directories are available to verify Full Disk Access";
-"无法从当前账户的目录状态确认；可重新检查或在扫描结果中查看实际覆盖范围" = "The current account's directories do not establish permission status; check again or review actual scan coverage";
-"部分受系统保护区域不可访问；其余清理和历史恢复仍可使用" = "Some system-protected locations are inaccessible; other cleanup and recovery remain available";
-"系统保护目录不可读取；请在系统设置中为当前 App 开启完全磁盘访问" = "System-protected directories are unreadable; enable Full Disk Access for this app in System Settings";
 "达到项目扫描预算" = "Project scan budget reached";
 "目录无法读取" = "Directory unreadable";
 "产物内容未完整验证" = "Artifact content not fully verified";
@@ -964,7 +963,6 @@
 "派生缓存" = "Derived cache";
 "浏览器缓存" = "Browser cache";
 "目录无法完整检查" = "Folder inspection incomplete";
-"部分完成" = "Partially complete";
 "位置已发生变化" = "Location changed during scan";
 "扫描已取消" = "Scan canceled";
 "清理规则暂时无法读取" = "Cleanup rules are temporarily unavailable";
@@ -993,3 +991,54 @@
 "已移入系统废纸篓，可在清空前恢复；清空废纸篓后才会释放空间。" = "Items moved to macOS Trash can be restored before it is emptied. Empty Trash to free disk space.";
 "已彻底删除的项目无法恢复。" = "Permanently deleted items cannot be restored.";
 "已移入恢复区" = "Moved to Recovery";
+
+"模型下载已取消" = "Model download cancelled";
+"Agent 分析失败：{0}" = "Agent analysis failed: {0}";
+"尚未分析" = "Not analyzed";
+"Agent 功能重叠分析" = "Agent capability overlap analysis";
+"本机模型状态" = "Local model status";
+"使用 Google EmbeddingGemma 2 在本机分析 Skill 与 MCP 的功能覆盖。约 310 MB 模型已随 App 打包，首次使用无需下载；不连接 MCP 服务。" = "Analyze Skill and MCP capability coverage locally with Google EmbeddingGemma 2. The approximately 310 MB model is bundled with the app, so no first-run download is needed; MCP services are never contacted.";
+"下载并启用模型" = "Download and enable model";
+"移除本机下载副本" = "Remove downloaded copy";
+"已移除本机下载副本；App 内置模型仍可用" = "Downloaded copy removed; the bundled model is still available.";
+"覆盖阈值" = "Coverage threshold";
+"正在下载 EmbeddingGemma 2…" = "Downloading EmbeddingGemma 2…";
+"模型已安装" = "Model installed";
+"尚未安装模型；扫描仍可正常使用" = "Model not installed; scanning remains available";
+"下载进度：{0}%" = "Download progress: {0}%";
+"Agent 分析已取消" = "Agent analysis canceled";
+"正在读取本机能力索引…" = "Reading the local capability index…";
+"按平台呈现本机 Agent 的 Skill 与 MCP 配置。官方路径由独立规则表维护，项目目录会识别 Codex 与 Claude 的仓库级资源；MCP 仅提取服务器名称和传输方式，不保存或展示密钥、环境变量与请求头。Skill 与 MCP 按相同阈值生成预选建议，最终清理仍由你手动确认。" = "Browse local Agent Skills and MCP configurations by platform. Official paths are maintained in a dedicated registry; project folders include repository resources for Codex and Claude. MCP reads only server names and transport types, never storing or displaying secrets, environment variables, or headers. Skills and MCP use the same threshold for preselection; you still confirm cleanup manually.";
+"重新计算全部包含关系" = "Recalculate all containment";
+"Skill 与 MCP 使用同一阈值：能力被其他同类对象联合包含达到阈值时默认勾选。普通扫描复用已知关系，仅分析新增对象；此按钮重新扫描 Agent 资源并重建全部关系。最终清理仍需你确认。" = "Skills and MCP use the same threshold: items are preselected when other items of the same type jointly cover enough of their capabilities. Regular scans reuse known relationships and analyze new items only. This button rescans Agent resources and rebuilds all relationships. Cleanup still requires your confirmation.";
+"正在分析新增对象的能力包含关系…" = "Analyzing capability containment for new items…";
+"新增分析 {0} 项，复用 {1} 项；计算 {2} 对新关系，{3} 项联合包含达到阈值" = "Analyzed {0} new items, reused {1}; calculated {2} new pairs, and {3} items meet the combined containment threshold";
+"复用 {0} 项已知数据；没有新增对象，未重新分析" = "Reused {0} known items; no new items, so no analysis was repeated";
+"已按 {0}% 阈值更新预选，复用已有包含关系" = "Updated preselection at {0}% using cached containment relationships";
+"其他 Skill 对本项的覆盖（前 3 名）" = "Other Skills covering this item (top 3)";
+"其他 MCP 对本项的覆盖（前 3 名）" = "Other MCP configurations covering this item (top 3)";
+"{0}%" = "{0}%";
+"未提取到能力描述" = "No capability descriptions found";
+"暂无其他对象覆盖" = "No coverage from other items";
+"Agent 能力分析需要 macOS 14 或更高版本及 Apple Silicon；其他功能可正常使用。" = "Agent capability analysis requires macOS 14 or later on Apple Silicon. Other features remain available.";
+"继续扫描" = "Resume Scan";
+"部分模块已取消；已有结果保留，可分别继续扫描。" = "Some modules were canceled; existing results are kept. Resume each module separately.";
+
+/* Centralized permission setup */
+"配置访问权限" = "Configure access permissions";
+"在这里集中配置扫描与卸载所需的访问权限。系统授权需由你确认；返回后自动重新检查。" = "Configure access for scanning and uninstalling in one place. Confirm permissions in macOS; access is checked again when you return.";
+"稍后再说" = "Not now";
+"继续扫描可访问位置" = "Scan accessible locations";
+
+/* Accessible-scope scan completion */
+"可访问范围扫描完成，已生成清理方案" = "Scan of accessible locations complete; cleanup plan ready";
+"扫描已结束，{0} 个模块仍有未完成项" = "Scan ended; {0} modules have incomplete work";
+
+/* Agent analysis availability */
+"分析规则已更新，旧索引不能使用。请在设置中重新计算全部包含关系；完成后自动显示覆盖排名并勾选符合阈值的项目。" = "The analysis rules changed, so the old index cannot be used. Recalculate all containment in Settings; coverage rankings and eligible default selections appear when it finishes.";
+"点击全扫描时检查权限" = "Permissions are checked when you start a full scan";
+"执行卸载时由系统确认" = "macOS confirms access when you uninstall an app";
+"当前筛选范围内没有匹配项；切换“全部”可搜索完整应用清单，包括运行中和系统应用。" = "No matches in this scope. Choose All to search the complete app list, including running and system apps.";
+"扫描权限提示" = "Scan permissions";
+"继续使用" = "Continue";
+"建议在系统设置中开启完全磁盘访问，以扫描更多位置。也可直接使用并跳过不可访问位置；App 管理在实际卸载时由系统确认。之后可在设置中调整，此提醒只显示一次。" = "Enable Full Disk Access in System Settings to scan more locations. You can also continue with accessible locations; macOS confirms App Management when you uninstall an app. Permissions can be adjusted in Settings. This reminder appears only once.";

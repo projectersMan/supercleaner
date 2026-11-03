@@ -65,7 +65,8 @@ public enum MCPConfigurationCatalogSupport {
         homeDirectory: URL,
         fileSystem: any FileSystemAccess
     ) async -> MCPConfigurationRecord? {
-        guard isSupportedConfiguration(url: url) else { return nil }
+        guard isSupportedConfiguration(url: url),
+              await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: fileSystem) else { return nil }
         let rule = AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: homeDirectory)
         let sourceLabel = rule?.sourceLabel ?? inferredSourceLabel(url: url, provider: provider)
         let text: String

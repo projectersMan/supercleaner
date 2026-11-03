@@ -130,8 +130,8 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
         // claim that it is running. We cannot safely unregister another app.
         for app in applications {
             for leaf in ["LoginItems", "LaunchAgents", "LaunchDaemons", "LaunchServices"] {
-                guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
-                remaining -= 1
+                guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 let root = app.bundleURL.appendingPathComponent("Contents/Library/" + leaf)
                 guard await context.fileSystem.fileExists(root) else { continue }
                 do {
@@ -140,8 +140,8 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                     let children = try await context.fileSystem.children(of: root)
                     scanned.append(root)
                     for child in children.sorted(by: { $0.path < $1.path }) where !child.lastPathComponent.hasPrefix(".") {
-                        guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
-                        remaining -= 1
+                        guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                        if context.enforcesEntryBudgets { remaining -= 1 }
                         if leaf == "LoginItems", child.pathExtension.lowercased() != "app" { continue }
                         if (leaf == "LaunchAgents" || leaf == "LaunchDaemons"), child.pathExtension.lowercased() != "plist" { continue }
                         services.append((child, [app.bundleURL.path], [app.id]))
@@ -172,8 +172,8 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                 // Never select the vendor parent, including unreadable parents.
                 resourcesToMatch.removeAll { $0.standardizedFileURL.path == vendor.standardizedFileURL.path }
                 if let resourceURL, !Self.isWithin(resourceURL.standardizedFileURL.path, vendor.standardizedFileURL.path) { continue }
-                guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
-                remaining -= 1
+                guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 guard let identity = try? await context.fileSystem.identity(at: vendor), identity.kind == .directory,
                       vendor.resolvingSymlinksInPath().path == vendor.standardizedFileURL.path else { continue }
                 do {
@@ -190,8 +190,8 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
                 // all service definitions: another service can reference it.
                 if let resourceURL, spec.kind != .launchAgent && spec.kind != .launchDaemon,
                    child.standardizedFileURL.path != resourceURL.standardizedFileURL.path { continue }
-                guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
-                remaining -= 1
+                guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 if diagnosticDirectories.contains(child.standardizedFileURL.path) { continue }
                 if sharedRootPaths.contains(child.standardizedFileURL.path) { continue }
                 var owners = applications.filter { application in
@@ -261,14 +261,14 @@ public struct ApplicationOwnershipGraphBuilder: Sendable {
         for file in Set(files).sorted(by: { $0.path < $1.path }) {
             if Task.isCancelled { budgetLimited = true; break }
             guard await context.fileSystem.fileExists(file) else { continue }
-            guard remaining > 0, Date() < deadline else { budgetLimited = true; break }
-            remaining -= 1
+            guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline else { budgetLimited = true; break }
+            if context.enforcesEntryBudgets { remaining -= 1 }
             do {
                 let text = try await context.fileSystem.readText(at: file, maximumBytes: 1_048_576)
                 scanned.append(file)
                 for (offset, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-                    guard remaining > 0, Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
-                    remaining -= 1
+                    guard (!context.enforcesEntryBudgets || remaining > 0), Date() < deadline, !Task.isCancelled else { budgetLimited = true; break }
+                    if context.enforcesEntryBudgets { remaining -= 1 }
                     let location = ApplicationReferenceLocation(file: file, line: offset + 1, kind: .configuration)
                     for app in referenceApplications where Self.containsReference(String(line), to: app.bundleURL.path)
                         || Self.containsReference(String(line), to: app.bundleIdentifier) {

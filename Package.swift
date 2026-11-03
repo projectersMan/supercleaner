@@ -21,7 +21,9 @@ let package = Package(
             name: "CleanerCore",
             resources: [.process("Resources")]
         ),
-        .executableTarget(name: "CleanerApp", dependencies: ["CleanerCore", .product(name: "Sparkle", package: "Sparkle")],
+        .target(name: "AgentOverlapAI", dependencies: ["CleanerCore"],
+                resources: [.copy("Resources/Models")]),
+        .executableTarget(name: "CleanerApp", dependencies: ["CleanerCore", "AgentOverlapAI", .product(name: "Sparkle", package: "Sparkle")],
                           linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
         .executableTarget(name: "CleanerHelper", dependencies: ["CleanerCore"]),
         .executableTarget(name: "CleanerCLI", dependencies: ["CleanerCore"]),

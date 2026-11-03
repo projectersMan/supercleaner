@@ -13,15 +13,14 @@ struct AgentEnvironmentView: View {
                 ScanRequiredView(destinationTitle: L10n.text("Agent 环境")) { model.navigateToScan() }
             } else {
                 filterBar
-                ZStack {
+                Text(model.agentOverlapStatus)
+                    .font(.caption).foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24).padding(.bottom, 8)
+                if selectedSection == .skills {
                     skillsContent
-                        .opacity(selectedSection == .skills ? 1 : 0)
-                        .allowsHitTesting(selectedSection == .skills)
-                        .accessibilityHidden(selectedSection != .skills)
+                } else {
                     mcpContent
-                        .opacity(selectedSection == .mcp ? 1 : 0)
-                        .allowsHitTesting(selectedSection == .mcp)
-                        .accessibilityHidden(selectedSection != .mcp)
                 }
             }
         }
@@ -33,7 +32,7 @@ struct AgentEnvironmentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("Agent 环境"))
                     .font(.largeTitle.bold())
-                Text(L10n.text("按平台呈现本机 Agent 的 Skill 与 MCP 配置。官方路径由独立规则表维护，项目目录会识别 Codex 与 Claude 的仓库级资源；MCP 仅提取服务器名称和传输方式，不保存或展示密钥、环境变量与请求头。Skill 和 MCP 默认保留，不会自动清理。"))
+                Text(L10n.text("按平台呈现本机 Agent 的 Skill 与 MCP 配置。官方路径由独立规则表维护，项目目录会识别 Codex 与 Claude 的仓库级资源；MCP 仅提取服务器名称和传输方式，不保存或展示密钥、环境变量与请求头。Skill 与 MCP 按相同阈值生成预选建议，最终清理仍由你手动确认。"))
                     .foregroundColor(.secondary)
             }
             Spacer()
@@ -214,36 +213,38 @@ private struct MCPConfigurationRow: View {
     private var isSelected: Bool { candidate.map { model.selectedIDs.contains($0.id) } ?? false }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                mcpSelectionControl
-                Image(systemName: "network")
-                    .foregroundColor(.purple)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(configuration.sourceLabel)
-                        .font(.headline)
-                    Text(configuration.fileURL.lastPathComponent)
-                        .font(.caption.monospaced())
-                        .foregroundColor(.secondary)
+        HStack(alignment: .top, spacing: 16) {
+            mcpSelectionControl
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "network")
+                        .foregroundColor(.purple)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(configuration.sourceLabel)
+                            .font(.headline)
+                        Text(configuration.fileURL.lastPathComponent)
+                            .font(.caption.monospaced())
+                            .foregroundColor(.secondary)
+                    }
                 }
-                Spacer()
-                SkillMetadataBadge(
-                    title: L10n.text("{0} 个服务器", String(describing: configuration.servers.count)),
-                    color: configuration.servers.isEmpty ? .secondary : .blue
-                )
+                HStack(spacing: 8) {
+                    SkillMetadataBadge(title: configuration.provider.displayTitle, color: .purple)
+                    SkillMetadataBadge(title: configuration.scope.displayTitle, color: .blue)
+                    SkillMetadataBadge(title: configuration.parseStatus.displayTitle, color: configuration.parseStatus.color)
+                }
+                Text(configuration.fileURL.path)
+                    .font(.caption.monospaced())
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
-            HStack(spacing: 8) {
-                SkillMetadataBadge(title: configuration.provider.displayTitle, color: .purple)
-                SkillMetadataBadge(title: configuration.scope.displayTitle, color: .blue)
-                SkillMetadataBadge(title: configuration.parseStatus.displayTitle, color: configuration.parseStatus.color)
-            }
-            Text(configuration.fileURL.path)
-                .font(.caption.monospaced())
-                .foregroundColor(.secondary)
-                .lineLimit(2)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            AgentContainmentLabel(match: model.agentOverlapMatchBySourceID["mcp|\(configuration.id)"], kind: .mcp, status: model.agentOverlapStatus)
         }
         .padding(.vertical, 6)
-        .listRowBackground(isSelected || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .contentShape(Rectangle())
+        .background(isSelected || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.12)), alignment: .bottom)
+        .listRowBackground(Color.clear)
         .onHover { isHovered = $0 }
     }
 
@@ -254,7 +255,6 @@ private struct MCPConfigurationRow: View {
                 set: { _ in model.toggle(candidate) }
             )) { EmptyView() }
             .toggleStyle(.checkbox)
-            .tint(Color.accentColor)
             .labelsHidden()
             .disabled(!candidate.risk.isSelectable)
             .accessibilityLabel(SelectionLabelPolicy.cleanupToggle(
@@ -268,7 +268,6 @@ private struct MCPConfigurationRow: View {
         } else {
             Toggle(isOn: .constant(false)) { EmptyView() }
                 .toggleStyle(.checkbox)
-                .tint(Color.accentColor)
                 .labelsHidden()
                 .disabled(true)
                 .help(L10n.text("无法验证此 MCP 配置，暂不能加入删除计划"))
@@ -282,69 +281,71 @@ private struct AgentSkillRow: View {
     @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Toggle(isOn: Binding(
-                    get: { binding.decision == .plannedForDeletion },
-                    set: { shouldDelete in
-                        model.setAgentSkillDecision(shouldDelete ? .plannedForDeletion : .retain, skillID: binding.id)
-                    }
-                )) { EmptyView() }
-                .toggleStyle(.checkbox)
-                .tint(Color.accentColor)
-                .labelsHidden()
-                .disabled(!binding.isDeletionAvailable)
-                .accessibilityLabel(SelectionLabelPolicy.cleanupToggle(
-                    name: binding.skill.displayName,
-                    isSelected: binding.decision == .plannedForDeletion,
-                    isBlocked: !binding.isDeletionAvailable
-                ))
-                .help(binding.isDeletionAvailable
-                    ? (binding.decision == .plannedForDeletion ? L10n.text("从删除计划移除") : L10n.text("加入删除计划"))
-                    : binding.decisionReason)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(binding.skill.displayName)
-                        .font(.headline)
-                        .lineLimit(1)
-                    if let summary = binding.skill.summary, !summary.isEmpty {
-                        Text(summary)
-                            .font(.callout)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
-                    }
+        HStack(alignment: .top, spacing: 16) {
+            Toggle(isOn: Binding(
+                get: { binding.decision == .plannedForDeletion },
+                set: { shouldDelete in
+                    model.setAgentSkillDecision(shouldDelete ? .plannedForDeletion : .retain, skillID: binding.id)
+                }
+            )) { EmptyView() }
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            .disabled(!binding.isDeletionAvailable)
+            .accessibilityLabel(SelectionLabelPolicy.cleanupToggle(
+                name: binding.skill.displayName,
+                isSelected: binding.decision == .plannedForDeletion,
+                isBlocked: !binding.isDeletionAvailable
+            ))
+            .help(binding.isDeletionAvailable
+                ? (binding.decision == .plannedForDeletion ? L10n.text("从删除计划移除") : L10n.text("加入删除计划"))
+                : binding.decisionReason)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(binding.skill.displayName)
+                    .font(.headline)
+                    .lineLimit(1)
+                if let summary = binding.skill.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                    SkillMetadataBadge(title: binding.skill.scope.displayTitle, color: .blue)
+                    SkillMetadataBadge(title: binding.skill.source.displayTitle, color: binding.skill.source.color)
+                    SkillMetadataBadge(title: binding.skill.kind.displayTitle, color: binding.skill.kind.color)
+                    SkillMetadataBadge(title: binding.skill.parseStatus.displayTitle, color: .orange)
+                }
+                if !binding.skill.tags.isEmpty {
+                    SkillTagCloud(values: Array(binding.skill.tags.prefix(4)))
+                }
+                Text(binding.skill.skillRootURL.path)
+                    .font(.caption.monospaced())
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                HStack(spacing: 10) {
+                    Text(L10n.text("关联 {0} 个目录单元", String(describing: binding.linkedAssets.count)))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(L10n.text("可释放 {0}", String(describing: ByteCountFormatter.cleanerString(bytes: binding.reclaimableBytes))))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                if !binding.isDeletionAvailable {
+                    Text(binding.decisionReason)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
-            HStack(spacing: 8) {
-                SkillMetadataBadge(title: binding.skill.scope.displayTitle, color: .blue)
-                SkillMetadataBadge(title: binding.skill.source.displayTitle, color: binding.skill.source.color)
-                SkillMetadataBadge(title: binding.skill.kind.displayTitle, color: binding.skill.kind.color)
-                SkillMetadataBadge(title: binding.skill.parseStatus.displayTitle, color: .orange)
-            }
-            if !binding.skill.tags.isEmpty {
-                SkillTagCloud(values: Array(binding.skill.tags.prefix(4)))
-            }
-            Text(binding.skill.skillRootURL.path)
-                .font(.caption.monospaced())
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-                .textSelection(.enabled)
-            HStack(spacing: 10) {
-                Text(L10n.text("关联 {0} 个目录单元", String(describing: binding.linkedAssets.count)))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(L10n.text("可释放 {0}", String(describing: ByteCountFormatter.cleanerString(bytes: binding.reclaimableBytes))))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            if !binding.isDeletionAvailable {
-                Text(binding.decisionReason)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            AgentContainmentLabel(match: model.agentOverlapMatchBySourceID["skill|\(binding.id)"], kind: .skill, status: model.agentOverlapStatus)
         }
         .padding(.vertical, 6)
-        .listRowBackground(binding.decision == .plannedForDeletion || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .contentShape(Rectangle())
+        .background(binding.decision == .plannedForDeletion || isHovered ? Color.accentColor.opacity(0.10) : Color.clear)
+        .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.12)), alignment: .bottom)
+        .listRowBackground(Color.clear)
         .onHover { isHovered = $0 }
     }
 }
@@ -488,10 +489,8 @@ private struct SkillDecisionControl: View {
             HStack(spacing: 8) {
                 Button(L10n.text("保留"), action: retainAction)
                     .buttonStyle(.borderedProminent)
-                    .tint(decision == .retain ? .secondary : .gray.opacity(0.4))
                 Button(L10n.text("加入删除计划"), action: deleteAction)
                     .buttonStyle(.borderedProminent)
-                    .tint(decision == .plannedForDeletion ? .red : .gray.opacity(0.4))
                     .disabled(!isDeletionAvailable)
             }
             Text(reason)

@@ -22,8 +22,17 @@ DAEMON_PLIST=${APP}/Contents/Library/LaunchDaemons/${HELPER_ID}.plist
 [[ $(/usr/libexec/PlistBuddy -c 'Print :Label' ${DAEMON_PLIST}) == ${HELPER_ID} ]] || { print -u2 "FAIL: Helper label mismatch"; exit 1; }
 [[ $(/usr/libexec/PlistBuddy -c "Print :MachServices:${HELPER_ID}" ${DAEMON_PLIST}) == true ]] || { print -u2 "FAIL: Helper Mach service mismatch"; exit 1; }
 [[ -f ${APP}/Contents/Resources/Rules/base-rules.json ]] || { print -u2 "FAIL: bundled rules missing"; exit 1; }
-[[ -f ${APP}/Contents/Resources/SuperCleaner_CleanerCore.bundle/base-rules.json ]] || { print -u2 "FAIL: SwiftPM CleanerCore resource bundle missing"; exit 1; }
+CORE_BUNDLE=${APP}/Contents/Resources/SuperCleaner_CleanerCore.bundle
+[[ -f ${CORE_BUNDLE}/base-rules.json || -f ${CORE_BUNDLE}/Contents/Resources/base-rules.json ]] || { print -u2 "FAIL: SwiftPM CleanerCore resource bundle missing"; exit 1; }
 [[ -f ${APP}/Contents/Resources/Sparkle-LICENSE.txt && -f ${APP}/Contents/Frameworks/Sparkle.framework/Sparkle ]] || { print -u2 "FAIL: embedded updater missing"; exit 1; }
+
+MODEL_ASSET=${APP}/Contents/Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/embeddinggemma-2-Q8_0.gguf
+[[ -f ${MODEL_ASSET} && ! -L ${MODEL_ASSET} ]] || { print -u2 "FAIL: bundled Agent model missing"; exit 1; }
+[[ $(/usr/bin/stat -f %z ${MODEL_ASSET}) == 309855456 ]] || { print -u2 "FAIL: bundled Agent model size mismatch"; exit 1; }
+[[ $(/usr/bin/shasum -a 256 ${MODEL_ASSET} | /usr/bin/awk '{print $1}') == 2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135 ]] || { print -u2 "FAIL: bundled Agent model checksum mismatch"; exit 1; }
+[[ -f ${MODEL_ASSET:h}/LICENSE.txt && -f ${MODEL_ASSET:h}/NOTICE.txt && -f ${APP}/Contents/Resources/GemmaEmbed-LICENSE.txt ]] || { print -u2 "FAIL: Agent license notices missing"; exit 1; }
+[[ -x ${APP}/Contents/MacOS/AgentInference && -d ${APP}/Contents/Resources/GemmaEmbed_GemmaEmbed.bundle ]] || { print -u2 "FAIL: Agent inference runtime missing"; exit 1; }
+/usr/bin/codesign --verify --strict ${APP}/Contents/MacOS/AgentInference
 
 for KEY in CFBundleVersion CFBundleShortVersionString; do
   [[ $(/usr/libexec/PlistBuddy -c "Print :${KEY}" ${APP}/Contents/Info.plist) == $(/usr/libexec/PlistBuddy -c "Print :${KEY}" ${APP}/Contents/Resources/HelperInfo.plist) ]] || { print -u2 "FAIL: app/helper version mismatch"; exit 1; }
@@ -36,12 +45,14 @@ done
 MINIMUM=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' ${APP}/Contents/Info.plist)
 [[ ${MINIMUM} == 13.0 ]] || { print -u2 "FAIL: minimum macOS is ${MINIMUM}"; exit 1; }
 /usr/bin/codesign --verify --deep --strict --verbose=2 ${APP}
-if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0} == 1 ]]; then
+if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-1} == 1 ]]; then
   SIGNATURE=$(/usr/bin/codesign -dv ${APP} 2>&1)
   if [[ ${SIGNATURE} == *"Signature=adhoc"* ]]; then
     print -u2 "FAIL: a certificate-signed app is required for stable privacy authorization across builds"
     exit 1
   fi
+  REQUIREMENT=$(/usr/bin/codesign -d -r- ${APP} 2>&1)
+  [[ ( ${REQUIREMENT} == *"anchor "* || ${REQUIREMENT} == *'certificate leaf = H"'* ) && ${REQUIREMENT} != *"cdhash "* ]] || { print -u2 "FAIL: stable certificate-bound identity required"; exit 1; }
 fi
 ${APP}/Contents/MacOS/CleanerApp --smoke-test
 ${APP}/Contents/MacOS/CleanerApp --update-self-check

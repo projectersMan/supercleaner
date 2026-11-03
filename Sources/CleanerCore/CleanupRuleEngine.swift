@@ -83,11 +83,11 @@ public struct CleanupRuleEngine: Scanner {
                 }
                 while let (url, depth) = pending.popLast() {
                     try Task.checkCancellation()
-                    guard discoveryRemaining > 0 else {
+                    guard (!context.enforcesEntryBudgets || discoveryRemaining > 0) else {
                         output.failures.append(ScanFailure(scannerID: id, message: L10n.text("达到扫描数量上限"), path: root, reason: .budget))
                         break
                     }
-                    discoveryRemaining -= 1
+                    if context.enforcesEntryBudgets { discoveryRemaining -= 1 }
                     if reservedRoots.contains(where: { url.path == $0.path || url.path.hasPrefix($0.path + "/") }) { continue }
                     do {
                         try Self.validateTraversal(url, context: context)
@@ -186,11 +186,11 @@ public struct CleanupRuleEngine: Scanner {
                 let (sum, overflow) = bytes.addingReportingOverflow(entryIdentity.size)
                 bytes = overflow ? .max : sum
             case .directory:
-                guard depth < (rule.maximumDepth ?? 8), remaining > 0 else { incomplete = true; budgetLimited = true; continue }
+                guard depth < (rule.maximumDepth ?? 8), (!context.enforcesEntryBudgets || remaining > 0) else { incomplete = true; budgetLimited = true; continue }
                 do {
                     for child in try await context.fileSystem.children(of: entry) {
-                        guard remaining > 0 else { incomplete = true; budgetLimited = true; break }
-                        remaining -= 1
+                        guard (!context.enforcesEntryBudgets || remaining > 0) else { incomplete = true; budgetLimited = true; break }
+                        if context.enforcesEntryBudgets { remaining -= 1 }
                         do { pending.append((child, try await context.fileSystem.identity(at: child), depth + 1)) }
                         catch { incomplete = true }
                     }

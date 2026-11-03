@@ -1,0 +1,7 @@
+App/Helper 0.3.0 (74)
+Build/installed/DMG match: 123 files and symlinks
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and license notices verified
+DMG SHA-256 13f4c1c8d2c4361cabad0f19b9320b07867352836ca8186dd9ae5c014a16fc73
+Installed App launched; Settings shows 0.3.0 (74), returned to Cleanup Center
+Tooltip scope verified by source/compile; no new full scan or hover-popup runtime test

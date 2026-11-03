@@ -1,0 +1,15 @@
+{
+  "originHash" : "98187406968b427722a780b778d7fb6e3feed86184d1636a71d9a26d369977a9",
+  "pins" : [
+    {
+      "identity" : "gemma-embed-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/maralski/gemma-embed-swift.git",
+      "state" : {
+        "revision" : "5d10200c6a6dfd4cece6b34e3707f3972c153ef1",
+        "version" : "0.4.1"
+      }
+    }
+  ],
+  "version" : 3
+}

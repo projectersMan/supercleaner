@@ -88,7 +88,7 @@ public struct ApplicationDiagnosticScanner: Sendable {
                 let children = try await context.fileSystem.children(of: root.url)
                 scanned.append(root.url)
                 for file in children.sorted(by: { $0.path < $1.path }) {
-                    guard entries < maximumEntries, Date() < deadline, !Task.isCancelled else { limited = true; break }
+                    guard (!context.enforcesEntryBudgets || entries < maximumEntries), Date() < deadline, !Task.isCancelled else { limited = true; break }
                     entries += 1
                     let identity: FileIdentity
                     do { identity = try await context.fileSystem.identity(at: file) }

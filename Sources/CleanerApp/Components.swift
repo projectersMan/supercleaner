@@ -342,9 +342,12 @@ struct DimensionActionBar: View {
                         ? L10n.text("当前没有已选项目。可手动勾选应用，或展开后逐项选择；扫描不会默认选中任何卸载项。")
                         : L10n.text("约 {0}；删除后可在恢复记录中找回。", String(describing: ByteCountFormatter.cleanerString(bytes: summary.bytes)))
         ) {
+            if model.canResumeCurrentModuleScan {
+                Button(L10n.text("继续扫描")) { model.resumeCurrentModuleScan() }
+            }
             if model.isCurrentModuleScanning {
                 ProgressView().controlSize(.small)
-                Button(L10n.text("取消扫描")) { model.cancelScan() }
+                Button(L10n.text("取消扫描")) { model.cancelCurrentModuleScan() }
             } else if model.phase == .executing {
                 ProgressView().controlSize(.small)
                 Button(L10n.text("停止后续项目")) { model.cancelExecution() }
@@ -369,9 +372,12 @@ struct DimensionActionBar: View {
             title: selected.isEmpty ? L10n.text("尚未选择清理内容") : L10n.text("已选 {0} 项", String(describing: selected.count)),
             detail: detail(count: selected.count, bytes: bytes)
         ) {
+            if model.canResumeCurrentModuleScan {
+                Button(L10n.text("继续扫描")) { model.resumeCurrentModuleScan() }
+            }
             if model.isCurrentModuleScanning {
                 ProgressView().controlSize(.small)
-                Button(L10n.text("取消扫描")) { model.cancelScan() }
+                Button(L10n.text("取消扫描")) { model.cancelCurrentModuleScan() }
                 deleteButton.disabled(true)
             } else if model.phase == .executing {
                 ProgressView().controlSize(.small)

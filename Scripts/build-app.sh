@@ -8,8 +8,10 @@ APP=${BUILD_ROOT}/SuperCleaner.app
 SCRATCH=${PROJECT_ROOT}/.build/release-scratch
 CACHE=${PROJECT_ROOT}/.build/release-cache
 CLANG_CACHE=${PROJECT_ROOT}/.build/release-clang-cache
+AGENT_SCRATCH=${PROJECT_ROOT}/.build/agent-inference
 DEVELOPER_DIR=$(/usr/bin/xcode-select -p)
 SIGN_IDENTITY=$(/bin/zsh "${SCRIPT_DIR}/signing-identity.sh")
+SIGN_MODE=$(/bin/zsh "${SCRIPT_DIR}/signing-identity.sh" --mode)
 BUNDLE_ID=${SUPERCLEANER_BUNDLE_ID:-com.example.SuperCleaner}
 [[ ${BUNDLE_ID} =~ '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+){2,}$' ]] || { print -u2 "Invalid Bundle ID"; exit 1; }
 HELPER_ID=${BUNDLE_ID}.helper
@@ -18,6 +20,10 @@ VERSION_VALUES=("${(@f)$(/usr/bin/python3 "${SCRIPT_DIR}/version.py" resolve)}")
 DISPLAY_VERSION=${VERSION_VALUES[1]}
 BUILD_NUMBER=${VERSION_VALUES[2]}
 /usr/bin/python3 "${SCRIPT_DIR}/check-localizations.py"
+MODEL_ASSET=${PROJECT_ROOT}/Sources/AgentOverlapAI/Resources/Models/embeddinggemma-2-Q8_0.gguf
+[[ -f ${MODEL_ASSET} && ! -L ${MODEL_ASSET} ]] || { print -u2 "FAIL: bundled Agent model missing"; exit 1; }
+[[ $(/usr/bin/stat -f %z ${MODEL_ASSET}) == 309855456 ]] || { print -u2 "FAIL: bundled Agent model size mismatch"; exit 1; }
+[[ $(/usr/bin/shasum -a 256 ${MODEL_ASSET} | /usr/bin/awk '{print $1}') == 2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135 ]] || { print -u2 "FAIL: bundled Agent model checksum mismatch"; exit 1; }
 
 if [[ ${DEVELOPER_DIR} == */CommandLineTools && -d /Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk ]]; then
   export SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX15.5.sdk
@@ -25,6 +31,10 @@ else
   export SDKROOT=$(/usr/bin/xcrun --sdk macosx --show-sdk-path)
 fi
 export CLANG_MODULE_CACHE_PATH=${CLANG_CACHE}
+
+AGENT_BUILD=(--package-path ${PROJECT_ROOT}/AgentInference --disable-sandbox --cache-path ${CACHE} --scratch-path ${AGENT_SCRATCH} --configuration release --arch arm64)
+/usr/bin/swift build ${AGENT_BUILD[@]} --product AgentInference
+AGENT_BIN_PATH=$(/usr/bin/swift build ${AGENT_BUILD[@]} --show-bin-path)
 
 COMMON=(--disable-sandbox --cache-path ${CACHE} --scratch-path ${SCRATCH} --configuration release)
 /usr/bin/swift build ${COMMON[@]} --product CoreContractChecks
@@ -72,6 +82,11 @@ fi
 /bin/cp ${SCRATCH}/artifacts/sparkle/Sparkle/LICENSE ${APP}/Contents/Resources/Sparkle-LICENSE.txt
 /bin/cp ${PROJECT_ROOT}/Sources/CleanerCore/Resources/base-rules.json ${APP}/Contents/Resources/Rules/base-rules.json
 /bin/cp -R ${BIN_PATH}/SuperCleaner_CleanerCore.bundle ${APP}/Contents/Resources/
+/bin/cp -R ${BIN_PATH}/SuperCleaner_AgentOverlapAI.bundle ${APP}/Contents/Resources/
+/bin/cp -R ${AGENT_BIN_PATH}/GemmaEmbed_GemmaEmbed.bundle ${APP}/Contents/Resources/
+/bin/cp ${AGENT_SCRATCH}/checkouts/gemma-embed-swift/LICENSE ${APP}/Contents/Resources/GemmaEmbed-LICENSE.txt
+/bin/cp ${AGENT_BIN_PATH}/AgentInference ${APP}/Contents/MacOS/AgentInference
+/bin/chmod 755 ${APP}/Contents/MacOS/AgentInference
 /bin/cp ${PROJECT_ROOT}/Resources/HelperInfo.plist ${APP}/Contents/Resources/HelperInfo.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${HELPER_ID}" ${APP}/Contents/Resources/HelperInfo.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER}" ${APP}/Contents/Resources/HelperInfo.plist
@@ -91,9 +106,9 @@ DAEMON_PLIST=${APP}/Contents/Library/LaunchDaemons/${HELPER_ID}.plist
 /bin/chmod 755 ${APP}/Contents/MacOS/CleanerApp ${APP}/Contents/MacOS/supercleaner ${APP}/Contents/Library/LaunchServices/${HELPER_ID}
 
 SIGN_OPTIONS=(--force --sign "${SIGN_IDENTITY}")
-if [[ ${SIGN_IDENTITY} == - ]]; then
-  # Hardened library validation cannot identify ad-hoc dynamic frameworks.
-  # This development-only choice must never reach the production release gate.
+if [[ ${SIGN_MODE} != apple ]]; then
+  # Local certificates have no Apple team identity or timestamp service.
+  # Production gates still require Developer ID, runtime and timestamps.
   SIGN_OPTIONS+=(--options 0 --timestamp=none)
 else
   SIGN_OPTIONS+=(--options runtime --timestamp)
@@ -108,11 +123,12 @@ done
 /usr/bin/codesign ${SIGN_OPTIONS[@]} ${APP}/Contents/Frameworks/Sparkle.framework
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${HELPER_ID} ${APP}/Contents/Library/LaunchServices/${HELPER_ID}
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${BUNDLE_ID}.cli ${APP}/Contents/MacOS/supercleaner
+/usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${BUNDLE_ID}.agent-inference ${APP}/Contents/MacOS/AgentInference
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${BUNDLE_ID} ${APP}
 ${BIN_PATH}/CoreContractChecks --check-cli ${APP}/Contents/MacOS/supercleaner
 ${BIN_PATH}/CoreContractChecks --check-cli-config ${APP}/Contents/MacOS/supercleaner
 HELPER_EXPECTED_EXIT=0
-if [[ ${SIGN_IDENTITY} == - || ${BUNDLE_ID} == com.example.* ]]; then HELPER_EXPECTED_EXIT=78; fi
+if [[ ${SIGN_MODE} != apple || ${BUNDLE_ID} == com.example.* ]]; then HELPER_EXPECTED_EXIT=78; fi
 ${BIN_PATH}/CoreContractChecks --check-helper-identity ${APP}/Contents/Library/LaunchServices/${HELPER_ID} ${HELPER_EXPECTED_EXIT}
 ${BIN_PATH}/CoreContractChecks --check-production-gate ${APP} ${SCRIPT_DIR}/check-production-signing.sh
 if [[ ${SIGN_IDENTITY} == - ]]; then

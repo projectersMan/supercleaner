@@ -7,10 +7,8 @@ PROJECT_ROOT=${SCRIPT_DIR:h}
 APP=${1:-${PROJECT_ROOT}/build/SuperCleaner.app}
 [[ ${APP} == /* && -d ${APP} && ! -L ${APP} ]] || { print -u2 "FAIL: explicit regular app bundle required"; exit 1; }
 CONFIG=${APP}/Contents/Resources/release-configuration.json
-CHECKER=${PROJECT_ROOT}/.build/release-scratch/arm64-apple-macosx/release/CoreContractChecks
-if [[ ! -x ${CHECKER} ]]; then
-  CHECKER=${PROJECT_ROOT}/.build/release-scratch/x86_64-apple-macosx/release/CoreContractChecks
-fi
+BIN_PATH=$(/usr/bin/swift build --package-path ${PROJECT_ROOT} --scratch-path ${PROJECT_ROOT}/.build/release-scratch --configuration release --show-bin-path)
+CHECKER=${BIN_PATH}/CoreContractChecks
 [[ -x ${CHECKER} && -f ${CONFIG} ]] || { print -u2 "FAIL: built checker and complete public release configuration required"; exit 1; }
 ${CHECKER} --validate-release-config ${CONFIG} --complete
 TEAM=$(/usr/bin/plutil -extract teamIdentifier raw -o - ${CONFIG})
@@ -19,6 +17,7 @@ BUNDLE_ID=$(/usr/bin/plutil -extract bundleIdentifier raw -o - ${CONFIG})
 REQUIREMENT="anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"${TEAM}\" and ! entitlement[\"com.apple.security.get-task-allow\"] exists"
 SPARKLE=${APP}/Contents/Frameworks/Sparkle.framework/Versions/B
 TARGETS=(${APP} ${APP}/Contents/MacOS/supercleaner ${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper
+  ${APP}/Contents/MacOS/AgentInference
   ${APP}/Contents/Frameworks/Sparkle.framework ${SPARKLE}/Autoupdate ${SPARKLE}/Updater.app
   ${SPARKLE}/XPCServices/Downloader.xpc ${SPARKLE}/XPCServices/Installer.xpc)
 for TARGET in ${TARGETS[@]}; do
@@ -26,7 +25,7 @@ for TARGET in ${TARGETS[@]}; do
   DETAILS=$(/usr/bin/codesign -dv --verbose=4 ${TARGET} 2>&1)
   [[ ${DETAILS} == *"runtime)"* && ${DETAILS} == *"Timestamp="* && ${DETAILS} != *"Signature=adhoc"* ]] || { print -u2 "FAIL: Hardened Runtime and secure timestamp required: ${TARGET}"; exit 1; }
 done
-for PAIR in "${APP}|${BUNDLE_ID}" "${APP}/Contents/MacOS/supercleaner|${BUNDLE_ID}.cli" "${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper|${BUNDLE_ID}.helper"; do
+for PAIR in "${APP}|${BUNDLE_ID}" "${APP}/Contents/MacOS/supercleaner|${BUNDLE_ID}.cli" "${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper|${BUNDLE_ID}.helper" "${APP}/Contents/MacOS/AgentInference|${BUNDLE_ID}.agent-inference"; do
   /usr/bin/codesign --verify --strict -R="${REQUIREMENT} and identifier \"${PAIR#*|}\"" "${PAIR%%|*}"
 done
 /usr/bin/codesign --verify --deep --strict --all-architectures ${APP}

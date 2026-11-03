@@ -26,4 +26,10 @@
   <key>SUSignedFeedFailureExpirationInterval</key><integer>0</integer>
   <key>NSAppBundlesUsageDescription</key>
   <string>Analyze applications and, after your explicit selection, safely quarantine them and their recoverable associated files.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Scan your Desktop for supported cleanup items and large files. Files are only removed after your confirmation.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Scan your Documents for supported cleanup items and large files. Files are only removed after your confirmation.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Scan your Downloads for installers and large files. Files are only removed after your confirmation.</string>
 </dict></plist>

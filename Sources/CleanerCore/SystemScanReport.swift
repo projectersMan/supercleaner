@@ -281,6 +281,17 @@ public struct SystemScanReport: Sendable {
         )
     }
 
+    public func updatingModuleStatuses(_ statuses: [ScanModuleID: ScanModuleStatus]) -> SystemScanReport {
+        SystemScanReport(
+            metadata: metadata, modules: statuses, generalCandidates: generalCandidates,
+            applicationInventory: applicationInventory, applicationUninstallInventory: applicationUninstallInventory,
+            diskUsageTree: diskUsageTree, largeFileCandidates: largeFileCandidates,
+            agentAssets: agentAssets, agentSkills: agentSkills, agentMCPConfigurations: agentMCPConfigurations,
+            agentProviderCoverage: agentProviderCoverage, agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount,
+            agentScanCoverage: agentScanCoverage
+        )
+    }
+
     private static func combinedCoverage(_ values: CoverageSummary...) -> CoverageSummary {
         CoverageSummary(
             scannedRoots: values.flatMap(\.scannedRoots),

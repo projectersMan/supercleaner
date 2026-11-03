@@ -44,6 +44,7 @@ struct CleanerGUI: App {
             ContentView()
                 .environment(\.locale, L10n.language.locale)
         }
+        .windowToolbarStyle(.unified)
         .defaultSize(width: 1280, height: 820)
     }
 }

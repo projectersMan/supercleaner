@@ -1,0 +1,4 @@
+App/Helper 0.2.35 (68)
+Build/installed/DMG manifests match: 123 files and symlinks
+Model size/SHA-256 and license notices verified
+DMG SHA-256 8a313463fc3a7283f906d0ee085a906315b1329b55b6ddd5ff0eef000d47812d

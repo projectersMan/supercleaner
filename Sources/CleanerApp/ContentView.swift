@@ -20,8 +20,8 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Cleaner")
             .navigationSplitViewColumnWidth(min: 210, ideal: 238)
+            .background(SidebarToolbarAlignment())
         } detail: {
             VStack(spacing: 0) {
                 destinationView(for: model.selection).frame(
@@ -39,7 +39,9 @@ struct ContentView: View {
                         .disabled(model.updateInProgress)
                 }
             }
+            .navigationTitle("SuperCleaner")
         }
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear { model.bootstrap() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.helper.refresh()
@@ -50,6 +52,12 @@ struct ContentView: View {
             set: { if !$0 { model.dismissDeletionSheet() } }
         )) {
             DeletionOperationSheet(model: model)
+        }
+        .alert(L10n.text("扫描权限提示"), isPresented: $model.showsPermissionIntroduction) {
+            Button(L10n.text("打开系统设置…"), action: model.openFullDiskAccessSettings)
+            Button(L10n.text("继续使用"), role: .cancel) {}
+        } message: {
+            Text(L10n.text("建议在系统设置中开启完全磁盘访问，以扫描更多位置。也可直接使用并跳过不可访问位置；App 管理在实际卸载时由系统确认。之后可在设置中调整，此提醒只显示一次。"))
         }
     }
 

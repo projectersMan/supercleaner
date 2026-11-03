@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public enum PermissionLevel: String, Codable, Hashable, Sendable {
     case full
@@ -52,6 +53,8 @@ public struct PermissionSnapshot: Codable, Hashable, Sendable {
 }
 
 public struct PermissionStatusService: Sendable {
+    public static let fullDiskAccessSettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
+    public static let appManagementSettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles")!
     private let fileSystem: any FileSystemAccess
     private let homeDirectory: URL
     private let appManagementObservation: PermissionCapabilityStatus
@@ -67,24 +70,27 @@ public struct PermissionStatusService: Sendable {
     }
 
     public func snapshot() async -> PermissionSnapshot {
+        // Other apps' data directories can have independent restrictions. They
+        // are not evidence that this process lacks Full Disk Access.
         let probes = [
             homeDirectory.appendingPathComponent("Library/Application Support/com.apple.TCC", isDirectory: true),
-            homeDirectory.appendingPathComponent("Library/Mail", isDirectory: true),
-            homeDirectory.appendingPathComponent("Library/Safari", isDirectory: true),
-            homeDirectory.appendingPathComponent("Library/Messages", isDirectory: true),
+            URL(fileURLWithPath: "/Library/Application Support/com.apple.TCC", isDirectory: true),
         ]
-        var readableProbeCount = 0
-        var inaccessible = 0
+        var access = PermissionCapabilityStatus.unverified
         for probe in probes {
             do {
                 _ = try await fileSystem.children(of: probe)
-                readableProbeCount += 1
+                access = .granted
+                break
             } catch {
-                if await fileSystem.fileExists(probe) { inaccessible += 1 }
+                let failure = error as NSError
+                let denied = (failure.domain == NSPOSIXErrorDomain && [Int(EACCES), Int(EPERM)].contains(failure.code))
+                    || (failure.domain == NSCocoaErrorDomain && failure.code == NSFileReadNoPermissionError)
+                if denied { access = .actionRequired }
             }
         }
-        let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
-        let appManagementSettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles")!
+        let settingsURL = Self.fullDiskAccessSettingsURL
+        let appManagementSettingsURL = Self.appManagementSettingsURL
         let appManagementExplanation: String = switch appManagementObservation {
         case .granted: L10n.text("最近一次应用卸载已通过系统授权并成功删除")
         case .actionRequired: L10n.text("最近一次应用操作被系统拒绝或未完成，请检查 App 管理权限")
@@ -95,52 +101,31 @@ public struct PermissionStatusService: Sendable {
             settingsURL: appManagementSettingsURL,
             explanation: appManagementExplanation
         )
-        if readableProbeCount > 0 {
-            return PermissionSnapshot(
-                level: .full,
-                availableCategories: Set(CleanupCategory.allCases),
-                affectedCategories: [],
-                settingsURL: settingsURL,
-                explanation: L10n.text("可访问所有已启用的扫描区域"),
-                fullDiskAccess: PermissionCapabilitySnapshot(
-                    status: .granted,
-                    settingsURL: settingsURL,
-                    explanation: L10n.text("可读取已启用的系统保护扫描区域")
-                ),
-                appManagement: appManagement
-            )
+        let explanation: String
+        switch access {
+        case .granted:
+            explanation = L10n.text("当前 App 可读取完全磁盘访问检查位置；其他位置以实际扫描为准")
+        case .actionRequired:
+            explanation = L10n.text("当前 App 访问保护位置被拒绝。请检查当前版本授权，必要时重启；可继续扫描可访问位置。")
+        case .unverified:
+            explanation = L10n.text("无法确认完全磁盘访问状态；目录缺失或读取错误不代表未授权，可继续扫描可访问位置。")
         }
-        if inaccessible == 0 {
-            let affected: Set<CleanupCategory> = [.applicationSupport, .log, .configuration]
-            return PermissionSnapshot(
-                level: .limited,
-                availableCategories: Set(CleanupCategory.allCases).subtracting(affected),
-                affectedCategories: affected,
-                settingsURL: settingsURL,
-                explanation: L10n.text("当前没有可用于验证完全磁盘访问的系统保护目录"),
-                fullDiskAccess: PermissionCapabilitySnapshot(
-                    status: .unverified,
-                    settingsURL: settingsURL,
-                    explanation: L10n.text("无法从当前账户的目录状态确认；可重新检查或在扫描结果中查看实际覆盖范围")
-                ),
-                appManagement: appManagement
-            )
-        }
-        let affected: Set<CleanupCategory> = [.applicationSupport, .log, .configuration]
+        let affected: Set<CleanupCategory> = access == .granted ? [] : [.applicationSupport, .log, .configuration]
         return PermissionSnapshot(
-            level: .limited,
+            level: access == .granted ? .full : .limited,
             availableCategories: Set(CleanupCategory.allCases).subtracting(affected),
             affectedCategories: affected,
             settingsURL: settingsURL,
-            explanation: L10n.text("部分受系统保护区域不可访问；其余清理和历史恢复仍可使用"),
+            explanation: explanation,
             fullDiskAccess: PermissionCapabilitySnapshot(
-                status: .actionRequired,
+                status: access,
                 settingsURL: settingsURL,
-                    explanation: L10n.text("系统保护目录不可读取；请在系统设置中为当前 App 开启完全磁盘访问")
+                explanation: explanation
             ),
             appManagement: appManagement
         )
     }
+
 }
 
 public enum PermissionScanStartPolicy {
@@ -166,6 +151,30 @@ public struct ScanPermissionPreflight: Sendable {
             guard !Task.isCancelled else { return }
             let folder = homeDirectory.appendingPathComponent(name, isDirectory: true)
             _ = try? await fileSystem.children(of: folder)
+        }
+    }
+
+    public func requestScanAccess(homeDirectory: URL, includeStandardFolders: Bool) async {
+        if includeStandardFolders { await requestStandardFolderAccess(homeDirectory: homeDirectory) }
+        var roots = ApplicationAssociationPathRegistry.roots(home: homeDirectory).map(\.url)
+        roots += ["Applications", "Movies", "Music", "Pictures", "Library/Mail", "Library/Messages", "Library/Safari", "Library/Application Support/com.apple.TCC"]
+            .map { homeDirectory.appendingPathComponent($0, isDirectory: true) }
+        for provider in AgentProvider.allCases {
+            roots += AgentResourcePathRegistry.homeRelativeRoots(for: provider)
+                .map { homeDirectory.appendingPathComponent($0) }
+            roots += AgentResourcePathRegistry.absoluteRoots(for: provider).map(\.url)
+            roots += AgentResourcePathRegistry.environmentRoots(for: provider).map(\.url)
+        }
+        let applicationDataRoots = Set(["Application Support", "Containers", "Group Containers", "Caches", "WebKit", "HTTPStorages"]
+            .map { homeDirectory.appendingPathComponent("Library/" + $0).standardizedFileURL })
+        var pending = roots.map { ($0.standardizedFileURL, applicationDataRoots.contains($0.standardizedFileURL) ? 2 : 0) }
+        var visited = Set<URL>()
+        while let (directory, depth) = pending.popLast() {
+            guard !Task.isCancelled else { return }
+            guard visited.insert(directory).inserted,
+                  let identity = try? await fileSystem.identity(at: directory), identity.kind == .directory,
+                  let children = try? await fileSystem.children(of: directory) else { continue }
+            if depth > 0 { pending += children.map { ($0.standardizedFileURL, depth - 1) } }
         }
     }
 }

@@ -1,0 +1,10 @@
+App/Helper 0.2.37 (70)
+Build/installed/DMG manifests match: 123 files and symlinks
+Fixed signing certificate SHA-1: 106EFE6967C308B187E41A6FD8E5DFA3B3C4480C
+Different-content certificate-bound DR check passed; ad-hoc replacement rejected
+Updated actual App accepted by previously installed App requirement
+PermissionStatusTests: 6 passed
+Final installed App permission preflight: Full Disk Access Available, no repeated grant after same-certificate replacement
+Settings and setup: Files and Folders section absent
+Model size/SHA-256 and license notices verified
+DMG SHA-256 08b8078c425a98fa0e9064ced54beebc436adc26393f63336f104cf79c120ea0

@@ -60,10 +60,10 @@ public struct ApplicationCleanupScanner: Sendable {
                 try CleanupRuleEngine.validateTraversal(root, context: context)
                 guard try await context.fileSystem.identity(at: root).kind == .directory else { return [] }
                 let all = try await context.fileSystem.children(of: root).sorted { $0.path < $1.path }
-                if all.count > maximumDiscoveryEntries {
+                if context.enforcesEntryBudgets && all.count > maximumDiscoveryEntries {
                     output.failures.append(.init(scannerID: "system-cleanup.discovery", message: L10n.text("达到扫描数量上限"), path: root, reason: .budget))
                 }
-                let result = Array(all.prefix(max(0, maximumDiscoveryEntries)))
+                let result = context.enforcesEntryBudgets ? Array(all.prefix(max(0, maximumDiscoveryEntries))) : all
                 listingCache[root] = result
                 return result
             } catch {

@@ -1,115 +1,80 @@
 import CleanerCore
+import Foundation
 import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var model: AppModel
-    @State private var hoveredResultModule: ScanModuleID?
-    @State private var showsFullDiskAccessPrompt = false
+    @State private var hoveredModule: ScanModuleID?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 hero
-                if model.isScanRunning {
-                    scanProgress
-                    if model.hasCompletedScan { previousReportNotice }
-                } else if model.systemReport != nil {
-                    scanProgress
-                } else {
-                    scanCoverage
-                    preScanTrust
-                }
+                scanCoverage
+                preScanTrust
             }
             .padding(.horizontal, 34).padding(.vertical, 28)
-        }
-        .alert(L10n.text("建议检查完全磁盘访问权限"), isPresented: $showsFullDiskAccessPrompt) {
-            Button(L10n.text("打开系统设置")) { model.openFullDiskAccessSettings() }
-            Button(L10n.text("仍然开始扫描")) { model.startFullScan() }
-            Button(L10n.text("取消"), role: .cancel) {}
-        } message: {
-            Text(L10n.text("完全磁盘访问由 macOS 管理，SuperCleaner 不能自行获取。开启后重新扫描可能发现更多可清理项；不开启也可以继续扫描可访问的位置。"))
         }
     }
 
     private var hero: some View {
         HStack(alignment: .center, spacing: 26) {
-            Image(systemName: model.isScanRunning ? "internaldrive.badge.magnifyingglass" : "shield.lefthalf.filled")
+            Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 54)).foregroundStyle(.tint).frame(width: 72)
             VStack(alignment: .leading, spacing: 9) {
-                Text(heroTitle).font(.system(size: 34, weight: .semibold))
-                Text(heroDetail).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-                if model.isScanRunning {
-                    HStack(spacing: 12) {
-                        ProgressView().controlSize(.small)
-                        Button(L10n.text("取消扫描")) { model.cancelScan() }
-                    }
-                    .padding(.top, 8)
-                } else if model.systemReport != nil {
-                    HStack(spacing: 14) {
-                        Button(L10n.text("重新完整扫描"), action: requestScan)
-                            .controlSize(.large)
-                            .disabled(model.oneClickCleanupIsRunning || model.bootstrapInProgress)
-                        if model.sessionCleanupSummary.itemCount > 0 {
-                            Label(
-                                L10n.text("本次打开已清理 {0} 项 · {1}", String(describing: model.sessionCleanupSummary.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: model.sessionCleanupSummary.bytes))),
-                                systemImage: "checkmark.circle.fill"
-                            )
-                            .font(.callout.weight(.semibold))
-                            .foregroundColor(.green)
-                        }
-                    }
-                    .padding(.top, 8)
-                } else {
-                    Button(action: requestScan) {
+                Text(L10n.text("先完整扫描，再决定清理什么")).font(.system(size: 34, weight: .semibold))
+                Text(L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。"))
+                    .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 18) {
+                    Button(action: model.startFullScan) {
                         Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
                             .font(.headline).padding(.horizontal, 8).padding(.vertical, 4)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .padding(.top, 8)
-                    .disabled(model.bootstrapInProgress)
+                    .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
                     .accessibilityHint(L10n.text("只读扫描系统清理、应用、大文件和 Agent 环境"))
+                    fullScanElapsed
                 }
+                .padding(.top, 8)
             }
             Spacer()
         }
         .padding(.vertical, 14)
     }
 
-    private func requestScan() {
-        guard model.permissionSnapshot?.fullDiskAccess.status != .granted else {
-            model.startFullScan()
-            return
+    private var fullScanElapsed: some View {
+        Group {
+            if let startedAt = model.fullScanStartedAt {
+                if let stoppedAt = model.fullScanStoppedAt {
+                    elapsedText(from: startedAt, to: stoppedAt)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        elapsedText(from: startedAt, to: context.date)
+                    }
+                }
+            } else {
+                Text(L10n.text("扫描用时：{0}", "00:00:00")).hidden()
+            }
         }
-        showsFullDiskAccessPrompt = true
+        .font(.subheadline).foregroundColor(.secondary).monospacedDigit()
+        .lineLimit(1).frame(width: 180, alignment: .leading)
     }
 
-    private var heroTitle: String {
-        if model.isScanRunning { return L10n.text("正在扫描整个支持范围") }
-        return model.systemReport != nil ? L10n.text("清理中心") : L10n.text("先完整扫描，再决定清理什么")
-    }
-
-    private var heroDetail: String {
-        if model.isScanRunning {
-            return L10n.text("扫描依据清晰、删除前复核、删除后可恢复")
-        }
-        if model.systemReport != nil {
-            return L10n.text("系统清理扫描完成后即可一键处理默认勾选项；应用、大文件和 Agent 环境请进入对应页面手动选择。")
-        }
-        return L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。")
+    private func elapsedText(from startedAt: Date, to current: Date) -> Text {
+        let seconds = max(0, Int(current.timeIntervalSince(startedAt)))
+        let duration = String(format: "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+        return Text(L10n.text("扫描用时：{0}", duration))
     }
 
     private var scanCoverage: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L10n.text("一次扫描包含")).font(.title2.bold())
             VStack(spacing: 0) {
-                ScanScopeRow(icon: "trash", title: L10n.text("系统清理"), detail: L10n.text("缓存、日志、临时文件、安装包、开发缓存"), color: .green)
-                Divider()
-                ScanScopeRow(icon: "app.dashed", title: L10n.text("应用卸载"), detail: L10n.text("以 App 为单位，展开应用本体与精确关联项"), color: .blue)
-                Divider()
-                ScanScopeRow(icon: "doc.text.magnifyingglass", title: L10n.text("大文件"), detail: L10n.text("按目录展开具体文件，不按体积自动清理"), color: .orange)
-                Divider()
-                ScanScopeRow(icon: "terminal", title: L10n.text("Agent 环境"), detail: L10n.text("按真实目录和 Skill 标记动态组织，再逐条决定删或不删"), color: .purple)
+                ForEach(ScanModuleID.allCases, id: \.self) { module in
+                    moduleScopeRow(module)
+                    if module != .agentEnvironment { Divider() }
+                }
             }
             .padding(.horizontal, 8)
             Label(L10n.text("扫描受支持的位置，不声称遍历启动磁盘的每一个字节"), systemImage: "info.circle")
@@ -117,26 +82,38 @@ struct DashboardView: View {
         }
     }
 
-    private var scanProgress: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.text("维度状态")).font(.title2.bold())
-            VStack(spacing: 0) {
-                ForEach(ScanModuleID.allCases, id: \.self) { module in
-                    let status = model.scanProgressByModule[module] ?? ScanModuleStatus(module: module, state: .waiting)
-                    moduleStatusRow(module: module, status: status)
-                    Divider()
+    private func moduleScopeRow(_ module: ScanModuleID) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                model.openScanResult(module)
+            } label: {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: module.icon).font(.title2).foregroundColor(module.color).frame(width: 28)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(module.resultDestinationTitle).fontWeight(.semibold)
+                        Text(module.scopeDetail).font(.caption).foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    HStack {
+                        if let status = model.scanProgressByModule[module] {
+                            ScanModuleStateView(state: status.state)
+                        }
+                    }
+                    .frame(width: 150, alignment: .trailing)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 14)
+                .frame(minHeight: 66)
+                .background(hoveredModule == module ? Color.accentColor.opacity(0.08) : Color.clear)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 14))
+            .buttonStyle(.plain)
+            .onHover { hoveredModule = $0 ? module : nil }
+            .accessibilityHint(L10n.text("打开{0}扫描结果", module.resultDestinationTitle))
+            let failures = model.cleanupFailures(for: module)
+            if !failures.isEmpty { moduleFailureList(failures, module: module) }
         }
-    }
-
-    private var previousReportNotice: some View {
-        Label(L10n.text("新扫描完成前，上一次完整报告仍被安全保留。"), systemImage: "clock.arrow.circlepath")
-            .font(.callout).foregroundColor(.secondary).padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var preScanTrust: some View {
@@ -145,43 +122,7 @@ struct DashboardView: View {
             TrustItem(icon: "play.circle", title: L10n.text("删除前检查"), detail: L10n.text("自动复验，跳过变化或占用项"))
             TrustItem(icon: "arrow.uturn.backward.circle", title: L10n.text("默认可恢复"), detail: L10n.text("删除后可恢复，恢复不覆盖原文件"))
         }
-    }
-
-    @ViewBuilder private func moduleStatusRow(
-        module: ScanModuleID,
-        status: ScanModuleStatus
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Group {
-                if model.hasScanResult(for: module) {
-                    Button {
-                        model.openScanResult(module)
-                    } label: {
-                        moduleStatusHeader(module: module, status: status, showsChevron: true)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(L10n.text("打开{0}扫描结果", String(describing: module.resultDestinationTitle)))
-                } else {
-                    moduleStatusHeader(module: module, status: status, showsChevron: false)
-                }
-            }
-            .padding(.vertical, 6)
-            .background(
-                hoveredResultModule == module && model.hasScanResult(for: module)
-                    ? module.color.opacity(0.09)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .onHover { isHovering in
-                hoveredResultModule = isHovering && model.hasScanResult(for: module) ? module : nil
-            }
-            let failures = model.cleanupFailures(for: module)
-            if !failures.isEmpty {
-                moduleFailureList(failures, module: module)
-            }
-        }
-        .padding(.vertical, 12)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func moduleFailureList(_ failures: [DefaultCleanupFailure], module: ScanModuleID) -> some View {
@@ -217,83 +158,6 @@ struct DashboardView: View {
         .padding(.trailing, 8)
     }
 
-    private func moduleStatusHeader(
-        module: ScanModuleID,
-        status: ScanModuleStatus,
-        showsChevron: Bool
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: module.icon).foregroundColor(module.color).frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(module.title).fontWeight(.medium)
-                if module == .general {
-                    if let message = status.message {
-                        Text(message).font(.caption).foregroundColor(.secondary)
-                    }
-                    if let cleanupStatus = model.oneClickStatus(for: module) {
-                        Text(cleanupStatus)
-                            .font(.caption)
-                            .fontWeight(model.hasCleanupFailures(for: module) ? .semibold : .regular)
-                            .foregroundColor(
-                                model.oneClickActiveModules.contains(module)
-                                    ? .blue
-                                    : model.hasCleanupFailures(for: module) ? .orange : .secondary
-                            )
-                    }
-                } else if model.hasScanResult(for: module), let detail = model.scanDiscoverySummary?.detail(for: module) {
-                    Text(detail).font(.caption).foregroundColor(.secondary)
-                } else if status.state == .failed, let message = status.message {
-                    Text(message).font(.caption).foregroundColor(.secondary).lineLimit(1)
-                }
-            }
-            Spacer()
-            moduleCleanupState(module: module, status: status)
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-
-    @ViewBuilder private func moduleCleanupState(
-        module: ScanModuleID,
-        status: ScanModuleStatus
-    ) -> some View {
-        if model.hasScanResult(for: module) {
-            if model.oneClickActiveModules.contains(module) || model.activeCleanupModules.contains(module) {
-                Label(L10n.text("正在清理"), systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.tint)
-            } else if model.cleanedModules.contains(module) {
-                Label(L10n.text("已清理"), systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            } else if model.hasDiscoveredContent(for: module) {
-                Text(L10n.text("立即清理")).foregroundStyle(.tint)
-            } else {
-                Label(L10n.text("无需清理"), systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.secondary)
-            }
-        } else {
-            ScanModuleStateView(state: status.state)
-        }
-    }
-}
-
-private struct ScanScopeRow: View {
-    let icon: String, title: String, detail: String
-    let color: Color
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon).font(.title2).foregroundColor(color).frame(width: 28)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).fontWeight(.semibold)
-                Text(detail).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 14).frame(maxWidth: .infinity, alignment: .leading)
-    }
 }
 
 private struct ScanModuleStateView: View {
@@ -317,12 +181,21 @@ private struct TrustItem: View {
                 Text(detail).font(.caption).foregroundColor(.secondary)
             }
         }
-        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
 private extension ScanModuleID {
+    var scopeDetail: String {
+        switch self {
+        case .general: L10n.text("缓存、日志、临时文件、安装包、开发缓存")
+        case .applications: L10n.text("以 App 为单位，展开应用本体与精确关联项")
+        case .largeFiles: L10n.text("按目录展开具体文件，不按体积自动清理")
+        case .agentEnvironment: L10n.text("按真实目录和 Skill 标记动态组织，再逐条决定删或不删")
+        }
+    }
+
     var title: String {
         switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用"); case .largeFiles: L10n.text("大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
     }
@@ -342,8 +215,7 @@ private extension ScanModuleState {
         switch self {
         case .waiting: L10n.text("等待")
         case .scanning: L10n.text("扫描中")
-        case .completed: L10n.text("扫描完成")
-        case .limited: L10n.text("部分完成")
+        case .completed, .limited: L10n.text("扫描完成")
         case .failed: L10n.text("失败")
         case .cancelled: L10n.text("已取消")
         }
@@ -352,8 +224,7 @@ private extension ScanModuleState {
         switch self {
         case .waiting: "clock"
         case .scanning: "magnifyingglass"
-        case .completed: "checkmark.circle.fill"
-        case .limited: "exclamationmark.triangle.fill"
+        case .completed, .limited: "checkmark.circle.fill"
         case .failed: "xmark.circle.fill"
         case .cancelled: "stop.circle"
         }
@@ -362,8 +233,7 @@ private extension ScanModuleState {
         switch self {
         case .waiting: .secondary
         case .scanning: .accentColor
-        case .completed: .green
-        case .limited: .orange
+        case .completed, .limited: .green
         case .failed: .red
         case .cancelled: .secondary
         }

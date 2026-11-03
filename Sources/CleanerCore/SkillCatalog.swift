@@ -38,6 +38,7 @@ public struct SkillCatalogEntry: Identifiable, Codable, Hashable, Sendable {
     public let tags: [String]
     public let triggers: [String]
     public let tools: [String]
+    public let functionalSections: [String]
     public let pluginName: String?
     public let registryName: String?
     public let pluginVersion: String?
@@ -58,6 +59,7 @@ public struct SkillCatalogEntry: Identifiable, Codable, Hashable, Sendable {
         tags: [String],
         triggers: [String],
         tools: [String],
+        functionalSections: [String] = [],
         pluginName: String?,
         registryName: String?,
         pluginVersion: String?,
@@ -77,6 +79,7 @@ public struct SkillCatalogEntry: Identifiable, Codable, Hashable, Sendable {
         self.tags = SkillCatalogSupport.uniqueStrings(tags)
         self.triggers = SkillCatalogSupport.uniqueStrings(triggers)
         self.tools = SkillCatalogSupport.uniqueStrings(tools)
+        self.functionalSections = SkillCatalogSupport.uniqueStrings(functionalSections)
         self.pluginName = pluginName
         self.registryName = registryName
         self.pluginVersion = pluginVersion
@@ -101,6 +104,7 @@ public struct SkillCatalogEntry: Identifiable, Codable, Hashable, Sendable {
             tags: preferred.tags + fallback.tags,
             triggers: preferred.triggers + fallback.triggers,
             tools: preferred.tools + fallback.tools,
+            functionalSections: preferred.functionalSections + fallback.functionalSections,
             pluginName: preferred.pluginName ?? fallback.pluginName,
             registryName: preferred.registryName ?? fallback.registryName,
             pluginVersion: preferred.pluginVersion ?? fallback.pluginVersion,
@@ -145,9 +149,12 @@ public enum SkillCatalogSupport {
         discoveredURL: URL,
         fileSystem: any FileSystemAccess
     ) async -> SkillCatalogEntry? {
-        guard let location = await canonicalLocation(for: discoveredURL, fileSystem: fileSystem) else {
+        guard await AgentCatalogPathPolicy.isDirectPath(discoveredURL, fileSystem: fileSystem),
+              let location = await canonicalLocation(for: discoveredURL, fileSystem: fileSystem) else {
             return nil
         }
+        if let manifestURL = location.manifestURL,
+           !(await AgentCatalogPathPolicy.isDirectPath(manifestURL, fileSystem: fileSystem)) { return nil }
         let metadata = await readMetadata(
             rootURL: location.rootURL,
             manifestURL: location.manifestURL,
@@ -170,6 +177,7 @@ public enum SkillCatalogSupport {
             tags: metadata.tags,
             triggers: metadata.triggers,
             tools: metadata.tools,
+            functionalSections: metadata.functionalSections,
             pluginName: sourceInfo.pluginName,
             registryName: sourceInfo.registryName,
             pluginVersion: sourceInfo.pluginVersion,
@@ -287,7 +295,7 @@ public enum SkillCatalogSupport {
         }
         let candidates = manifestNames.map { rootURL.appendingPathComponent($0) }
         for candidate in candidates {
-            if await fileSystem.fileExists(candidate) {
+            if (try? await fileSystem.identity(at: candidate)) != nil {
                 return candidate.standardizedFileURL
             }
         }
@@ -307,6 +315,7 @@ public enum SkillCatalogSupport {
                 tags: [],
                 triggers: [],
                 tools: [],
+                functionalSections: [],
                 parseStatus: .pathFallback
             )
         }
@@ -321,6 +330,7 @@ public enum SkillCatalogSupport {
                 tags: parsed.tags,
                 triggers: parsed.triggers,
                 tools: parsed.tools,
+                functionalSections: parsed.functionalSections,
                 parseStatus: parsed.parseStatus
             )
         } catch {
@@ -331,6 +341,7 @@ public enum SkillCatalogSupport {
                 tags: [],
                 triggers: [],
                 tools: [],
+                functionalSections: [],
                 parseStatus: .pathFallback
             )
         }
@@ -357,6 +368,7 @@ public enum SkillCatalogSupport {
             tags: tags,
             triggers: triggers,
             tools: tools,
+            functionalSections: [body],
             parseStatus: parseStatus
         )
     }
@@ -601,6 +613,7 @@ private struct SkillCatalogMetadata {
     let tags: [String]
     let triggers: [String]
     let tools: [String]
+    let functionalSections: [String]
     let parseStatus: SkillMetadataParseStatus
 }
 

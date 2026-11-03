@@ -1,0 +1,8 @@
+App/Helper 0.2.38 (71)
+Build/installed/DMG match: 123 files and symlinks
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and license notices verified
+DMG SHA-256 6acff3771593ebe66a6271ae110cabe21c7219a3736e0389476a5cfab319db5f
+Actual UI: App Management static explanation, no validation badge in settings/setup; FDA Available
+First visit: 94 applications, 22 uninstallable; visible app icons present without placeholder
+No deletion executed; no automated test suite run

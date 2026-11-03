@@ -35,13 +35,15 @@ public struct HistoricalResidueScanner: Sendable {
         var results: [CleanupCandidate] = []
 
         for (relativeRoot, category, cacheRoot) in roots {
-            guard remaining > 0 else { break }
+            guard !Task.isCancelled else { break }
+            guard (!context.enforcesEntryBudgets || remaining > 0) else { break }
             let root = context.homeDirectory.appendingPathComponent(relativeRoot, isDirectory: true)
             guard await context.fileSystem.fileExists(root), await context.fileSystem.isReadable(root) else { continue }
             guard let children = try? await context.fileSystem.children(of: root) else { continue }
             for child in children.sorted(by: { $0.path < $1.path }) {
-                guard remaining > 0 else { break }
-                remaining -= 1
+                guard !Task.isCancelled else { break }
+                guard (!context.enforcesEntryBudgets || remaining > 0) else { break }
+                if context.enforcesEntryBudgets { remaining -= 1 }
                 guard let identity = try? await context.fileSystem.identity(at: child),
                       identity.kind != .symbolicLink,
                       let identifier = Self.identifier(for: child.lastPathComponent),
@@ -107,10 +109,11 @@ public struct HistoricalResidueScanner: Sendable {
         var seen = Set<String>()
         var total: UInt64 = 0
         var remaining = 2_000
-        while let (current, depth) = pending.popLast(), remaining > 0 {
+        while let (current, depth) = pending.popLast(), (!context.enforcesEntryBudgets || remaining > 0) {
+            guard !Task.isCancelled else { break }
             guard seen.insert(current.path).inserted,
                   let currentIdentity = try? await context.fileSystem.identity(at: current) else { continue }
-            remaining -= 1
+            if context.enforcesEntryBudgets { remaining -= 1 }
             if currentIdentity.kind == .file { total += currentIdentity.size; continue }
             guard depth < maximumDepth, let children = try? await context.fileSystem.children(of: current) else { continue }
             pending.append(contentsOf: children.map { ($0, depth + 1) })

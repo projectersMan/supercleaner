@@ -1,0 +1,6 @@
+{
+  "algorithmVersion": "complete-capability-containment-v4",
+  "minimumFeatureSimilarity": 0.95,
+  "minimumFeatureLetters": 4,
+  "maximumFeatureCharacters": 768
+}

@@ -1,6 +1,7 @@
 import AppKit
 import CleanerCore
 import Foundation
+import AgentOverlapAI
 
 /// Builds the live adapter graph behind one construction seam. AppModel owns
 /// product state; it does not need to know how journals, quarantine, Helper
@@ -10,12 +11,20 @@ import Foundation
     let runtime: CleanupRuntime
     let helper: HelperSettingsModel
     let cleanupCoordinator: CleanupExecutionCoordinator
+    let overlapModelManager: AgentEmbeddingModelManager
+    let overlapStore: AgentOverlapStore
 
     static func live(home: URL) -> AppInfrastructure {
         let fileSystem = LocalFileSystem()
         let helper = HelperSettingsModel()
         let runtime = CleanupRuntime(home: home, fileSystem: fileSystem)
         let support = home.appendingPathComponent("Library/Application Support/SuperCleaner", isDirectory: true)
+        let overlapModelManager = AgentEmbeddingModelManager(applicationSupportURL: support)
+        let overlapStore = AgentOverlapStore(
+            url: support.appendingPathComponent("agent-containment-index.plist"),
+            descriptionSources: [support.appendingPathComponent("agent-overlap-index-v2.plist"),
+                                 support.appendingPathComponent("agent-overlap-index.json")]
+        )
         let logsRoot = home.appendingPathComponent("Library/Logs", isDirectory: true).standardizedFileURL.path.lowercased()
         let activeCheck: @Sendable (URL) async -> Bool = { url in
             await MainActor.run {
@@ -60,7 +69,9 @@ import Foundation
             fileSystem: fileSystem,
             runtime: runtime,
             helper: helper,
-            cleanupCoordinator: coordinator
+            cleanupCoordinator: coordinator,
+            overlapModelManager: overlapModelManager,
+            overlapStore: overlapStore
         )
     }
 }

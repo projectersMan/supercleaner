@@ -258,7 +258,7 @@ public struct ApplicationScanner: Sendable {
         // root-level app bundles. Never recurse through a whole backup/network disk.
         let volumes = URL(fileURLWithPath: "/Volumes", isDirectory: true)
         if applicationRoots == nil, let mounted = try? await context.fileSystem.children(of: volumes) {
-            for volume in mounted.prefix(64) where !volume.lastPathComponent.hasPrefix(".") {
+            for volume in mounted.prefix(context.enforcesEntryBudgets ? 64 : mounted.count) where !volume.lastPathComponent.hasPrefix(".") {
                 guard let values = try? volume.resourceValues(forKeys: [.volumeIsLocalKey, .volumeIsReadOnlyKey]),
                       values.volumeIsLocal == true else { continue }
                 roots.append(volume.appendingPathComponent("Applications", isDirectory: true))
@@ -277,7 +277,7 @@ public struct ApplicationScanner: Sendable {
         }
         var seenPaths = Set<String>()
         let normalizedMaximumDepth = maximumDepth.map { max(0, $0) }
-        var remainingEntries = maximumEntries.map { max(0, $0) }
+        var remainingEntries = context.enforcesEntryBudgets ? maximumEntries.map { max(0, $0) } : nil
         var reachedLimit = false
 
         rootLoop: for root in roots {
@@ -460,7 +460,7 @@ public struct UninstallPlanner: Sendable {
         ownership: ApplicationOwnershipNode? = nil
     ) async throws -> UninstallPlanBuildResult {
         var items: [UninstallItem] = []
-        var remainingSizeEntries = maximumSizeEntries.map { max(0, $0) }
+        var remainingSizeEntries = context.enforcesEntryBudgets ? maximumSizeEntries.map { max(0, $0) } : nil
         var reachedSizeBudget = false
         var limitations: [ScanLimitation] = []
         let bundleIdentity = try await context.fileSystem.identity(at: application.bundleURL)

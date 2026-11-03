@@ -1,0 +1,9 @@
+App/Helper 0.3.1 (75)
+Build/installed/DMG match: 123 files and symlinks
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and license notices verified
+Actual UI: two launches without permission window; full scan starts directly
+UserDefaults introductionShown persisted as 1 through normal App use
+DMG SHA-256 335527047aa8e48d8b0d4cb8ed0d47df3ec0af7d28622a5f1ae12701d345766c
+Actual UI: 980 Skills / 45 MCP configurations; Skill hover and MCP selected-row backgrounds share the separator bottom and horizontal bounds
+No cleanup performed; native list verification completed without changing deletion selections

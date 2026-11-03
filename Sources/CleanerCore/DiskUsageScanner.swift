@@ -118,7 +118,7 @@ public struct DiskUsageScanner: Sendable {
         var roots: [DiskUsageNode] = []
         var scannedRoots: [URL] = []
         var unavailableRoots: [URL] = []
-        var remainingEntries = maximumEntries
+        var remainingEntries = context.enforcesEntryBudgets ? maximumEntries : nil
         var reachedBudget = false
         let deletedContent = DeletedContentScanExclusion(homeDirectory: context.homeDirectory)
 

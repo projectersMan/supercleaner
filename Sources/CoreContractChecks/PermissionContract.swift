@@ -43,7 +43,7 @@ func runPermissionContracts() async {
 
 private actor DeniedPermissionFileSystem: FileSystemAccess {
     func identity(at url: URL) throws -> FileIdentity { throw FileSystemError.missing(url) }
-    func children(of url: URL) throws -> [URL] { throw FileSystemError.unreadableContent(url) }
+    func children(of url: URL) throws -> [URL] { throw CocoaError(.fileReadNoPermission) }
     func isReadable(_ url: URL) -> Bool { !url.path.contains("Library/Mail") }
     func isWritable(_ url: URL) -> Bool { false }
     func fileExists(_ url: URL) -> Bool { true }

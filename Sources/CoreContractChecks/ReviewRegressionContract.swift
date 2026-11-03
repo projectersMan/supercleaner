@@ -112,7 +112,7 @@ func runReviewExpiryRegressionContracts() async throws {
 
 /// Limit all discovery to the fixture home; never follow environment roots into
 /// the real user's Agent data. Permission failures are injected at the FS seam.
-private struct ReviewScanFileSystem: FileSystemAccess {
+struct ReviewScanFileSystem: FileSystemAccess {
     let home: URL
     var unreadableDirectory: URL?
     var unverifiablePath: URL?

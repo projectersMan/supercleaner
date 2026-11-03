@@ -398,11 +398,12 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
             traversals.append(ProviderTraversal(adapter: adapter, roots: roots))
         }
 
-        while maximumAssets.map({ assets.count < $0 }) ?? true {
+        let assetLimit = context.enforcesEntryBudgets ? maximumAssets : nil
+        while assetLimit.map({ assets.count < $0 }) ?? true {
             try Task.checkCancellation()
             var madeProgress = false
             for index in traversals.indices {
-                guard maximumAssets.map({ assets.count < $0 }) ?? true else { break }
+                guard assetLimit.map({ assets.count < $0 }) ?? true else { break }
                 while traversals[index].cursor < traversals[index].queue.count {
                     try Task.checkCancellation()
                     let entry = traversals[index].queue[traversals[index].cursor]
@@ -419,6 +420,9 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         limitations.append(Self.limitation(url, L10n.text("无法验证 Agent 路径身份")))
                         continue
                     }
+                    guard identity.kind != .symbolicLink else { continue }
+                    if entry.depth == 0,
+                       !(await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: context.fileSystem)) { continue }
                     scannedRoots.insert(entry.root.url)
 
                     var classification = await traversals[index].adapter.classify(
@@ -451,6 +455,8 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     ))
                     let activity = activity(for: url, identity: identity, context: context)
                     let resourceKind = resourceKind(for: classification, candidate: candidate)
+                    let resourceScope = AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: context.homeDirectory)?.scope
+                        ?? entry.root.scope
                     let eligibility = eligibility(
                         for: resourceKind,
                         risk: candidate.risk,
@@ -459,7 +465,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     assets.append(AgentAssetRecord(
                         candidate: candidate,
                         provider: entry.root.provider,
-                        scope: entry.root.scope,
+                        scope: resourceScope,
                         resourceKind: resourceKind,
                         activity: activity,
                         cleanupEligibility: eligibility,
@@ -467,7 +473,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     ))
                     if let configuration = await MCPConfigurationCatalogSupport.makeRecord(
                         provider: entry.root.provider,
-                        scope: entry.root.scope,
+                        scope: resourceScope,
                         url: url,
                         homeDirectory: context.homeDirectory,
                         fileSystem: context.fileSystem
@@ -477,7 +483,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     if classification.kind == .skill,
                        let skillEntry = await SkillCatalogSupport.makeEntry(
                            provider: entry.root.provider,
-                           scope: entry.root.scope,
+                           scope: resourceScope,
                            discoveredURL: url,
                            fileSystem: context.fileSystem
                        ) {

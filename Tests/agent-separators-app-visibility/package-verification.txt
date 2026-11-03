@@ -1,0 +1,10 @@
+App/Helper 0.2.39 (72)
+Build/installed/DMG match: 123 files and symlinks
+Default applicationScope: Uninstallable (user correction preserved)
+Same fixed signing certificate; previous installed DR accepts updated App
+Model length/SHA-256 and license notices verified
+Skill and MCP separators visually verified on identical same-batch Agent view source before final default-scope-only replacement
+Six screenshot applications found in All; all Running and locked against uninstall
+Filtered empty result explains All scope; Chrome returns in All
+No cleanup executed; no automated test suite run
+DMG SHA-256 125d162817d2405c11f4f2eb5584123168fbab251cee647f805b0be6a8995130

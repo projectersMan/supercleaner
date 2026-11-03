@@ -6,7 +6,7 @@ struct ApplicationsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(L10n.text("应用卸载")).font(.largeTitle.bold())
                 Text(L10n.text("基础扫描识别应用归属；运行观察补充关联线索。展开核对后选择卸载内容，用户数据需手动确认。"))
                     .foregroundColor(.secondary)
@@ -29,7 +29,9 @@ struct ApplicationsView: View {
         } else if model.applications.isEmpty {
             EmptyState(title: L10n.text("没有可展示的应用"), message: L10n.text("扫描没有发现可展示的应用；可查看扫描覆盖范围。"), icon: "app.dashed")
         } else if model.visibleApplications.isEmpty {
-            EmptyState(title: L10n.text("没有匹配的应用"), message: L10n.text("调整搜索词或筛选范围；完整应用清单仍然保留。"), icon: "magnifyingglass")
+            EmptyState(title: L10n.text("没有匹配的应用"), message: model.applicationScope == .all
+                ? L10n.text("调整搜索词或筛选范围；完整应用清单仍然保留。")
+                : L10n.text("当前筛选范围内没有匹配项；切换“全部”可搜索完整应用清单，包括运行中和系统应用。"), icon: "magnifyingglass")
         } else {
             ScrollView {
                 LazyVStack(spacing: 8) {
@@ -43,33 +45,57 @@ struct ApplicationsView: View {
     }
 
     private var applicationToolbar: some View {
-        HStack(spacing: 12) {
-            TextField(L10n.text("搜索名称、Bundle ID 或路径"), text: $model.applicationQuery)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 220)
-            Picker(L10n.text("范围"), selection: $model.applicationScope) {
-                ForEach(ApplicationListScope.allCases, id: \.self) { scope in Text(scope.displayTitle).tag(scope) }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                applicationSearch
+                ApplicationScopePicker(selection: $model.applicationScope)
+                    .frame(width: 420).fixedSize(horizontal: false, vertical: true)
+                applicationSort
+                applicationCount
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 420)
-            Picker(L10n.text("排序"), selection: $model.applicationSortOrder) {
-                ForEach(ApplicationSortOrder.allCases, id: \.self) { order in
-                    Text(order.displayTitle).tag(order)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    applicationSearch
+                    Spacer(minLength: 0)
+                    applicationCount
+                }
+                HStack(spacing: 12) {
+                    ApplicationScopePicker(selection: $model.applicationScope)
+                        .frame(width: 420).fixedSize(horizontal: false, vertical: true)
+                    applicationSort
+                    Spacer(minLength: 0)
                 }
             }
-            .pickerStyle(.menu)
-            .fixedSize()
-            Text(L10n.text("{0} / {1} 个应用", String(describing: model.applicationFilterSummary.visibleCount), String(describing: model.applicationFilterSummary.totalCount)))
-                .font(.caption).foregroundColor(.secondary).fixedSize()
-            Spacer()
-            Button { model.refreshApplications() } label: {
-                Label(model.isLoadingApplications ? L10n.text("分析中") : L10n.text("刷新应用"), systemImage: "arrow.clockwise")
-            }
-            .disabled(model.isLoadingApplications || model.deepScanningApplicationID != nil || model.isScanRunning || model.phase == .executing)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .font(.caption)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var applicationSearch: some View {
+        TextField(L10n.text("搜索名称、Bundle ID 或路径"), text: $model.applicationQuery)
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 260)
+    }
+
+    private var applicationSort: some View {
+        Picker(L10n.text("排序"), selection: $model.applicationSortOrder) {
+            ForEach(ApplicationSortOrder.allCases, id: \.self) { order in
+                Text(order.displayTitle).tag(order)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(width: 140)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var applicationCount: some View {
+        Text(L10n.text("{0} / {1} 个应用", String(describing: model.applicationFilterSummary.visibleCount), String(describing: model.applicationFilterSummary.totalCount)))
+            .monospacedDigit().foregroundColor(.secondary)
+            .frame(width: 140, alignment: .trailing)
+            .lineLimit(1)
     }
 }
 
@@ -83,6 +109,12 @@ private struct ApplicationUninstallRow: View {
     @State private var isHovered = false
 
     private var plan: UninstallPlan? { analysis?.plan }
+    private var visibleLimitations: [ScanLimitation] {
+        (analysis?.limitations ?? []).filter(model.applicationScanPresentation.shows)
+    }
+    private var hasOnlyAccessSkips: Bool {
+        analysis?.state == .limited && analysis?.limitations.isEmpty == false && visibleLimitations.isEmpty
+    }
     /// Keep the summary count and size aligned with rows that show an enabled checkbox.
     private var selectableItems: [UninstallItem] {
         guard let plan else { return [] }
@@ -113,12 +145,7 @@ private struct ApplicationUninstallRow: View {
 
                 ApplicationIconView(bundleURL: application.bundleURL, version: application.version)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(application.name).fontWeight(.semibold).lineLimit(1)
-                        if application.isRunning {
-                            Label(L10n.text("运行中"), systemImage: "circle.fill").font(.caption2.weight(.semibold)).foregroundColor(.green)
-                        }
-                    }
+                    Text(application.name).fontWeight(.semibold).lineLimit(1)
                     Text(application.bundleIdentifier).font(.caption.monospaced()).foregroundColor(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 16)
@@ -127,7 +154,9 @@ private struct ApplicationUninstallRow: View {
                         .font(.callout.weight(.medium))
                         .frame(minWidth: 150, alignment: .trailing)
                 }
-                AnalysisStateBadge(analysis: analysis)
+                if analysis?.state != .complete && !hasOnlyAccessSkips {
+                    AnalysisStateBadge(analysis: analysis)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -284,17 +313,18 @@ private struct ApplicationUninstallRow: View {
     private func expandedContent(plan: UninstallPlan) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: analysis?.state == .limited ? "exclamationmark.triangle" : "info.circle")
-                    .foregroundColor(analysis?.state == .limited ? .orange : .secondary)
+                Image(systemName: analysis?.state == .limited && !hasOnlyAccessSkips ? "exclamationmark.triangle" : "info.circle")
+                    .foregroundColor(analysis?.state == .limited && !hasOnlyAccessSkips ? .orange : .secondary)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(application.bundleURL.path).font(.caption.monospaced()).textSelection(.enabled)
-                    Text(analysis?.message ?? L10n.text("可选择移除经确认独占的用户数据和关联文件；共享内容、系统资源及仍有引用的项目继续保护。"))
+                    Text((hasOnlyAccessSkips ? nil : analysis?.message) ?? L10n.text("可选择移除经确认独占的用户数据和关联文件；共享内容、系统资源及仍有引用的项目继续保护。"))
                         .font(.caption).foregroundColor(.secondary)
                 }
             }
             .padding(.horizontal, 54)
             .padding(.vertical, 10)
-            if let limitations = analysis?.limitations, !limitations.isEmpty {
+            if !visibleLimitations.isEmpty {
+                let limitations = visibleLimitations
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(limitations.prefix(8)) { limitation in
                         VStack(alignment: .leading, spacing: 3) {

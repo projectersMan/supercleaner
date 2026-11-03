@@ -281,7 +281,11 @@ private actor AgentContractFileSystem: FileSystemAccess {
         ]
     }
 
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        if let identity = identities[url.path] { return identity }
+        guard identities.keys.contains(where: { $0.hasPrefix(url.path + "/") }) else { throw FileSystemError.missing(url) }
+        return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 0, kind: .directory)
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
@@ -369,7 +373,11 @@ private actor ExternalAgentRootsContractFileSystem: FileSystemAccess {
         })
     }
 
-    func identity(at url: URL) throws -> FileIdentity { identities[url.path]! }
+    func identity(at url: URL) throws -> FileIdentity {
+        if let identity = identities[url.path] { return identity }
+        guard identities.keys.contains(where: { $0.hasPrefix(url.path + "/") }) else { throw FileSystemError.missing(url) }
+        return FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 0, modificationTime: 0, kind: .directory)
+    }
     func children(of url: URL) -> [URL] { childrenByPath[url.path, default: []] }
     func isReadable(_ url: URL) -> Bool { true }
     func isWritable(_ url: URL) -> Bool { true }
