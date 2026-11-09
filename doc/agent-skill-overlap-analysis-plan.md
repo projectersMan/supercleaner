@@ -7,3 +7,11 @@
 新增模型库本身最低要求macOS14，不能继续让它抬高整个应用平台要求。因此保留主应用/Helper/CLI的macOS13配置，通过独立AgentInference可执行包承载固定GemmaEmbed依赖；根依赖锁文件与远端一致。该进程仅供Agent语义分析使用，模型、许可及进程随App打包，不修改其他模块。
 
 本批只递增patch/build一次，不新增或运行测试，不提交代码，不改写用户真实索引。最终App、DMG及范围审计在交付前核对。
+
+## 0.3.8 显示范围
+
+- 将显示筛选的初值设为「已选中」。局部 100 分，直接对应用户操作。[AppModel.swift](../Sources/CleanerApp/AppModel.swift)
+- Skill 和 MCP 共用同一筛选状态。全局 98 分，继续由一个初值控制两个列表。
+- 使用说明记录如何切换到「全部」。[README.md](../README.md)
+- 架构文档记录两个列表共用筛选的行为。[architecture.md](../docs/architecture.md)
+- 递增补丁版本和构建号。[Version.json](../Version.json)

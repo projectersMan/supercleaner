@@ -41,7 +41,7 @@ ContentView仅为首次权限说明挂载原生alert；PermissionSetupView、大
 
 全扫描计时由AppModel持有本轮起止时间：beginFullScan直接设置起点，计入必要的首次预访问，四模块和Agent分析均空闲时记录终点。Dashboard仅用局部TimelineView按秒更新按钮右侧固定宽度的时分秒文字；结束后切换静态文字，不每秒刷新整个AppModel。取消/失败后冻结，继续同轮扫描沿用原起点；完整重扫重置，完成后的单模块刷新保留上一轮全扫描用时。
 
-`SystemScanCoordinator` 并行运行系统清理、应用、较大文件和 Agent 环境模块，并以同一 `generationID` 汇总为 `SystemScanReport`。模块结果可渐进展示；完整重扫会产生新 generation，使旧选择与旧计划失效。全量扫描的四个模块由AppModel分别持有任务和运行令牌，共享同一generation；SystemScanCoordinator按指定模块执行原有扫描器。取消只失效并取消对应任务，继续扫描仅重跑该模块并复用其他模块结果；用户更改大文件阈值时会重扫大文件模块。Agent 环境模块同时产出 `agentAssets`、`agentSkills` 和 `agentMCPConfigurations`：分别承载环境目录与真实清理单元、Skill 元数据与分组索引、MCP 配置来源和去敏服务器摘要。
+`SystemScanCoordinator` 并行运行系统清理、应用、重复大文件和 Agent 环境模块，并以同一 `generationID` 汇总为 `SystemScanReport`。模块结果可渐进展示；完整重扫会产生新 generation，使旧选择与旧计划失效。全量扫描的四个模块由AppModel分别持有任务和运行令牌，共享同一generation；SystemScanCoordinator按指定模块执行原有扫描器。取消只失效并取消对应任务，继续扫描仅重跑该模块并复用其他模块结果；用户更改大文件阈值时会重扫大文件模块。Agent 环境模块同时产出 `agentAssets`、`agentSkills` 和 `agentMCPConfigurations`：分别承载环境目录与真实清理单元、Skill 元数据与分组索引、MCP 配置来源和去敏服务器摘要。
 
 Agent推理由独立的macOS14/arm64进程承载（AgentInference单独SwiftPM包，固定GemmaEmbed0.4.1），主应用、Helper与CLI继续以macOS13编译，根包仅保留原有Sparkle外部依赖。AgentOverlapAI通过本机标准输入/输出顺序请求向量，取消请求会结束该Agent进程；Agent模型接入与已授权的四模块独立控制、标题栏对齐分别维护。
 
@@ -69,9 +69,9 @@ Agent页保留GitHub基线布局、路径、复选框、原有筛选和分组；
 
 系统清理的通用扫描在规则结果合并后执行一次有边界的历史卸载残留扫描，并把结果追加到同一份 `general` 候选集合，因此不增加新的 UI 模块。扫描只检查用户 `Library` 下的缓存、应用支持、偏好、保存状态和容器目录；只有名称为完整反向域名 Bundle ID、当前应用清单中不存在、未活动且不是符号链接的条目才进入候选。完整清单覆盖时，`Library/Caches` 下的条目可进入建议清理；其他目录只有在确认目录为空时才进入建议清理。这里的“可重建”依据是缓存目录本身的系统语义或空目录事实，而不是文件年龄或对具体应用内部格式的推断。非空的应用支持、偏好和容器数据进入建议保留。共享容器、Apple 条目、活动项、歧义项和清单不完整的结果不会升级为可安全清理。
 
-`ContentView` 是维度操作区的唯一布局所有者。系统清理、应用卸载、较大文件和 Agent 环境在各自结果可用时统一挂载一个 `DimensionActionBar`，该组件复用 `SelectionActionBar` 的视觉布局，并根据当前维度绑定候选清理选择或应用卸载选择。各维度页面只负责内容和选择交互，不再内嵌独立底栏；`AppNavigationPolicy.showsDimensionActionBar(for:)` 是该外层承载关系的契约入口。当前维度处于等待或扫描状态时，底栏统一展示扫描进度和取消入口并禁用删除；扫描状态优先于执行状态展示。应用卸载与普通候选在执行态统一展示执行进度和停止后续项目入口，并禁用确认删除；应用批量卸载同时由 `AppModel.canExecuteUninstallBatch` 与 `executeUninstallBatch` 拒绝扫描态执行。Dashboard 的失败项安全重试在扫描期间禁用，并明确提示扫描完成后再重试。
+`ContentView` 是维度操作区的唯一布局所有者。系统清理、应用卸载、重复大文件和 Agent 环境在各自结果可用时统一挂载一个 `DimensionActionBar`，该组件复用 `SelectionActionBar` 的视觉布局，并根据当前维度绑定候选清理选择或应用卸载选择。各维度页面只负责内容和选择交互，不再内嵌独立底栏；`AppNavigationPolicy.showsDimensionActionBar(for:)` 是该外层承载关系的契约入口。当前维度处于等待或扫描状态时，底栏统一展示扫描进度和取消入口并禁用删除；扫描状态优先于执行状态展示。应用卸载与普通候选在执行态统一展示执行进度和停止后续项目入口，并禁用确认删除；应用批量卸载同时由 `AppModel.canExecuteUninstallBatch` 与 `executeUninstallBatch` 拒绝扫描态执行。Dashboard 的失败项安全重试在扫描期间禁用，并明确提示扫描完成后再重试。
 
-`AppModel` 根据 `DefaultCleanupPolicy` 和用户选择构建候选集合，再由 `PlanBuilder` 生成不可变 `CleanupPlan`。“一键系统清理”只构建系统清理默认项的计划；系统模块结果发布后即可执行。应用与大文件默认不选；Agent扫描默认不选，能力累计覆盖达到设置阈值且安全可选的Skill/MCP会由Agent分析加入预选，最终清理仍须确认。Agent 环境页按建议展示结果，按平台、范围和资源类型查询、分组，并支持删除决策。`ScanDiscoverySummary`计算应用、大文件、Agent平台、Skill目录和MCP服务器定义数量，独立于用户当前选择；清理中心保留固定范围说明，具体清单进入对应模块查看；扫描受限、失败和取消仍保留其真实状态。确认界面不修改文件；确认后进入真实执行。`CleanupExecutor` 不信任扫描时状态，会再次检查：
+`AppModel` 根据 `DefaultCleanupPolicy` 和用户选择构建候选集合，再由 `PlanBuilder` 生成不可变 `CleanupPlan`。“一键系统清理”只构建系统清理默认项的计划；系统模块结果发布后即可执行。应用默认不选。大文件默认勾选已核验的重复项和符合安全条件的安装文件，进入对应页面确认。Agent 扫描默认不选，能力累计覆盖达到设置阈值且安全可选的Skill/MCP会由Agent分析加入预选，最终清理仍须确认。Agent 环境页的 Skill 和 MCP 共用显示筛选，默认显示「已选中」。页面按平台、范围和资源类型查询、分组，并支持删除决策。`ScanDiscoverySummary`计算应用、大文件、Agent平台、Skill目录和MCP服务器定义数量，独立于用户当前选择；清理中心保留固定范围说明，具体清单进入对应模块查看；扫描受限、失败和取消仍保留其真实状态。确认界面不修改文件；确认后进入真实执行。`CleanupExecutor` 不信任扫描时状态，会再次检查：
 
 1. 计划是否过期；
 2. 规则版本是否一致；
@@ -93,7 +93,11 @@ Agent页保留GitHub基线布局、路径、复选框、原有筛选和分组；
 
 Agent 目录扫描的条目/深度截断、身份读取失败和目录枚举失败均携带路径限制与平台覆盖证据。深度边界仅在仍有子项未遍历时视为截断，空目录不误报；读取失败不混作预算耗尽。完整扫描与只读 JSON 共用这些证据，不把受限结果标为完成；JSON 通过 `agent_provider_coverage` 保留平台状态。
 
-大文件扫描优先使用 Spotlight 元数据索引。索引成功后直接发布文件级结果，不再额外启动一次从 Home 目录开始的精确递归；只有 Spotlight 不可用时才回退到精确目录扫描。系统协调器对生产扫描设置有限深度和条目预算，避免大文件与 Agent 环境同时扫描时无限占用磁盘 I/O；底层扫描器仍支持显式传入 `nil` 预算用于诊断和测试。
+重复大文件模块先用 Spotlight 获取大文件候选。索引不可用时，回退到受深度和条目预算约束的目录扫描。发现阶段结束后，模块先跨格式核验精确副本，再把 ZIP 与同级文件夹进行完整对照，最后发布一份带建议的大文件报告。两层各自限制读盘和耗时。ZIP 用清单中未压缩文件的总大小判定匹配文件夹能否达到门槛，再核对磁盘上的路径、类型和大小。完整匹配的目录才进入内容比较，所有成员都分块核验。
+
+重复建议使用原候选 ID 和 `LargeFileCleanupProof`，记录待移走对象及保留路径。安装包预选复用 `InstallerDiscovery` 的安装文件格式表及大文件本地快照检查，不另扫目录或读取安装包内容。已核验的副本组和 ZIP 保留件优先，避免安装包规则把保留对象加回选择。已完成的清理会按路径使受影响的证据失效。计划拒绝同时移走保留路径，执行器在实际移动前复验快照，含重复建议的批次进入手动保留的隔离区。页面默认展示「全部大文件」并按选择排序；切换到「重复大文件」后，底栏只提交该范围内的选择。见 [重复大文件实施与验收](../doc/large-file-duplicates-plan.md)。
+
+桌面端在启动大文件模块时读取 `largeFiles.preselectInstallers` 的当前设置值并传给协调器。全量扫描、刷新和继续扫描共用该入口。扫描结果保留安装包类型证据；只有安装包规则的默认选择标记受设置影响。当前结果和手动勾选不会被修改，查重证据仍有优先级。CLI 保持默认策略。
 
 ## 执行日志 → 执行 → 历史 → 调度
 

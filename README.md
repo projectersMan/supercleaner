@@ -4,8 +4,8 @@
 
 ## Features
 
-- Scan caches, logs, temporary files, installers, developer artifacts, historical uninstall remnants, and large files.
-- Review evidence and safety status before cleanup; app and large-file results require explicit selection; Agent capability coverage can preselect eligible Skills and MCP configurations for your confirmation.
+- Scan caches, logs, temporary files, installers, developer artifacts, historical uninstall remnants, and duplicate large files.
+- Review evidence and safety status before cleanup. Duplicate Large Files and Agent capability analysis preselect eligible items for your confirmation. Application uninstall selection is manual.
 - Plan application uninstallations with related files and installation ownership checks.
 - Find project artifacts such as `node_modules`, `target`, `.build`, `build`, and `dist`, while protecting active projects and tracked content.
 - Discover Codex, Claude, Cursor, Trae, and other AI agent environments. Inspect Skills, MCP configurations, sessions, caches, and worktrees with protections for sensitive data.
@@ -24,7 +24,13 @@ open build/SuperCleaner.app
 
 The Cleanup Center keeps its introduction, four scan scopes, and three safety cards in place before, during, and after scanning. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout.
 
+**Duplicate Large Files** opens in **All Large Files**, sorted **By Selection** so selected items and their folders come first. The same scan preselects one copy per verified identical group, ZIPs verified against sibling folders, and eligible large installer files (`.dmg`, `.pkg`, `.mpkg`, `.xip`, `.iso`). Protected, active, and retained files are excluded from installer preselection. A matching sibling folder must have a total logical file size at least as large as both the current threshold and the ZIP. Individual members can be any size, and every member must match. Review the reason and any retained path before confirming cleanup. See the [scan and cleanup workflow](doc/large-file-duplicates-plan.md).
+
+To change installer preselection, go to **Settings → Duplicate Large Files → Preselect large installer files**. It is on by default. Changes apply the next time you scan or refresh large files. Installers remain available for manual selection, and verified duplicate and extracted ZIP defaults still apply.
+
 Agent environment scans use the bundled Google EmbeddingGemma 2 model to analyze directional capability containment: Skill against other Skills, and MCP against other MCP configurations. Skills and MCP use the same default 85% threshold, configurable in Settings. When the union of capabilities provided by other items of the same type reaches that threshold, eligible items are preselected. Existing file protections remain in force, covering items are retained, and deletion still requires your manual confirmation.
+
+**Agent Environment** opens with **Selected** for both Skills and MCP. Choose **All** in the display menu to see the full scan results.
 
 The Agent page keeps the original inventory, paths, checkboxes, grouping, and filters. Each row ranks up to three other items by how much of the current item they cover, with names and paths to distinguish copies. Hover over an individual Top 3 item to see its complete path, including the parts truncated in the list. The combined coverage summary is omitted from the interface. The internal calculation uses all other items, not just the displayed three: 86 distinct descriptions covered out of 100 means 86%, which meets the default 85% threshold. Overlapping coverage is counted once. All extracted capability descriptions are retained; reference lists are excluded and long descriptions are split without a 64-item sampling cap. These are estimates from scanned descriptions, not a count of verified runtime functions. After upgrading from the old analysis policy, use Recalculate all containment to replace old scores.
 
@@ -64,7 +70,7 @@ The Uninstall Apps search and filter bar uses the same compact spacing and verti
 
 1. Open SuperCleaner and start a full scan from **Overview**. Grant macOS permissions when prompted for protected locations.
 2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Historical uninstall remnants appear in **Cleanup Center**: orphaned caches and verified empty residual directories with complete Bundle ID and application-inventory evidence can be suggested for cleanup, while non-empty application-support data stays in suggested retention for review. Select an item to inspect its path, evidence, and safety status.
-3. Choose what to include. Eligible system cleanup items can be preselected; application, large-file, and agent workspace findings require your explicit selection. Blocked items cannot be selected.
+3. Choose what to include. Eligible system cleanup items, large files, and Agent analysis findings may be preselected for review. Application uninstall selection is manual. Blocked items cannot be selected.
 4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting. By default, items move to macOS Trash after safety checks and record saving. Choose a retention period in **Settings** to keep items in Recovery first.
 5. Open **Recovery** to review completed operations and restore retained items while they remain available. Recovery and Trash contents are excluded from large-file results and their totals.
 

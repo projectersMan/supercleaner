@@ -216,7 +216,7 @@ extension CleanupCategory {
         case .temporaryFile: L10n.text("临时文件")
         case .installerArtifact: L10n.text("安装产物")
         case .developerCache: L10n.text("开发工具缓存")
-        case .largeFile: L10n.text("大文件")
+        case .largeFile: L10n.text("重复大文件")
         case .application: L10n.text("应用程序")
         case .applicationSupport: L10n.text("应用支持数据")
         case .agentSkill: "Agent Skill"
@@ -422,7 +422,7 @@ struct OneClickCleanupActionBar: View {
     var body: some View {
         let defaults = model.defaultCleanupSelection
         let candidateCount = defaults?.systemCleanup.count ?? 0
-        let bytes = defaults?.bytes ?? 0
+        let bytes = defaults?.systemCleanup.reduce(UInt64(0)) { $0 + $1.bytes } ?? 0
 
         Divider()
         SelectionActionBar(
@@ -458,7 +458,7 @@ struct OneClickCleanupActionBar: View {
         }
         guard model.hasScanResult(for: .general) else { return L10n.text("系统清理扫描完成后可处理默认勾选项。") }
         guard candidateCount > 0 else {
-            return L10n.text("应用、大文件和 Agent 环境可进入对应页面手动选择。")
+            return L10n.text("应用、重复大文件和 Agent 环境可进入对应页面核对和确认。")
         }
         return L10n.text("约 ") + ByteCountFormatter.cleanerString(bytes: bytes) + L10n.text("；仅处理系统默认项，可从恢复记录找回。")
     }

@@ -115,6 +115,10 @@ public actor CleanupExecutor {
             )
         }
         let selected = plan.selectedItems
+        if LargeFileCleanupProof.conflictingCandidate(in: selected.map(\.candidate)) != nil {
+            return rejected(plan: plan, receiptID: receiptID, startedAt: startedAt,
+                reason: L10n.text("清理计划包含必须保留的文件或目录"))
+        }
         let batchCandidates = selected.map(\.candidate).filter { candidate in
             candidate.source == .general || candidate.source == .historicalApplicationResidue
         }
@@ -263,11 +267,17 @@ public actor CleanupExecutor {
                             results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("文件身份已变化")))
                             continue
                         }
-                        if Task.isCancelled { stoppedByCancellation = true; break }
-                        guard !plan.isExpired(at: now()) else {
-                            results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在文件身份校验期间已过期，请重新扫描")))
-                            continue
-                        }
+                    }
+                    if let proof = candidate.largeFileProof, !proof.isCurrent(for: candidate) {
+                        results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged,
+                            message: L10n.text("副本或保留内容已变化，请刷新重复大文件")))
+                        continue
+                    }
+                    if Task.isCancelled { stoppedByCancellation = true; break }
+                    guard !plan.isExpired(at: now()) else {
+                        results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                            message: L10n.text("计划在文件身份校验期间已过期，请重新扫描")))
+                        continue
                     }
                     try await fileSystem.move(candidate.url, to: destination)
                 }

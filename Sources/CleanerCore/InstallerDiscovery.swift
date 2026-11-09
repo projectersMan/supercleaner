@@ -9,7 +9,11 @@ public struct InstallerDiscovery: Sendable {
     public let maximumEntries: Int
     public let timeLimit: TimeInterval
     public let additionalRoots: [URL]
-    private let extensions: Set<String> = ["dmg", "pkg", "mpkg", "xip", "iso"]
+    static let fileExtensions: Set<String> = ["dmg", "pkg", "mpkg", "xip", "iso"]
+
+    static func formatEvidence(_ format: String) -> Evidence {
+        Evidence(code: "installer-type", summary: L10n.text("安装文件格式：{0}", format))
+    }
 
     public init(maximumDepth: Int = 6, maximumEntries: Int = 25_000, timeLimit: TimeInterval = 20, additionalRoots: [URL] = []) {
         self.maximumDepth = maximumDepth
@@ -64,7 +68,7 @@ public struct InstallerDiscovery: Sendable {
                     guard identity.kind == .file || identity.kind == .directory else { continue }
                     let ext = url.pathExtension.lowercased()
                     let isPackage = ["pkg", "mpkg"].contains(ext)
-                    var recognized = extensions.contains(ext) && (identity.kind == .file || isPackage)
+                    var recognized = Self.fileExtensions.contains(ext) && (identity.kind == .file || isPackage)
                     if ext == "zip", identity.kind == .file, await context.fileSystem.isReadable(url) {
                         do {
                             recognized = try await isInstallerArchive(url, timeout: min(3, remainingSeconds()))
@@ -86,7 +90,7 @@ public struct InstallerDiscovery: Sendable {
                             url: url, displayName: url.lastPathComponent, category: .installerArtifact,
                             bytes: measured.bytes, risk: risk,
                             evidence: [Evidence(code: "installer-source", summary: source, details: configuredRoot.path),
-                                       Evidence(code: "installer-type", summary: ext == "zip" ? L10n.text("已验证安装归档结构和完整性") : L10n.text("安装文件格式：{0}", String(describing: ext))),
+                                       ext == "zip" ? Evidence(code: "installer-type", summary: L10n.text("已验证安装归档结构和完整性")) : Self.formatEvidence(ext),
                                        Evidence(code: "manual-selection", summary: L10n.text("已识别的安装包；安装完成且不再需要时可清理"))],
                             identity: identity, source: .general, lastAccessDate: Date(timeIntervalSince1970: Double(identity.modificationTime)),
                             isActive: active, defaultSelection: false

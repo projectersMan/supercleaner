@@ -1,0 +1,5 @@
+module CleanerZIP [system] {
+    header "CleanerZIP.h"
+    link "archive"
+    export *
+}

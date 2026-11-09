@@ -38,7 +38,9 @@ extension SystemScanReport {
 
     public func reconcilingCleanup(_ results: [OperationResult]) -> SystemScanReport {
         let removed = Set(results.filter(\.removesSourceFromScan).map { $0.originalURL.standardizedFileURL.path })
-        guard !removed.isEmpty else { return self }
+        let changed = Set(results.filter { $0.status == .skippedIdentityChanged }.map(\.candidateID))
+        guard !removed.isEmpty || largeFileCandidates.contains(where: { $0.largeFileProof != nil && changed.contains($0.id) })
+        else { return self }
         func isRemoved(_ url: URL) -> Bool {
             removed.contains { ApplicationOwnershipGraphBuilder.isWithin(url.standardizedFileURL.path, $0) }
         }
@@ -76,7 +78,12 @@ extension SystemScanReport {
         return SystemScanReport(metadata: metadata, modules: modules,
             generalCandidates: generalCandidates.filter { !isRemoved($0.url) },
             applicationInventory: apps, applicationUninstallInventory: uninstall, diskUsageTree: disk,
-            largeFileCandidates: largeFileCandidates.filter { !isRemoved($0.url) },
+            largeFileCandidates: largeFileCandidates.filter { !isRemoved($0.url) }.map { candidate in
+                guard let proof = candidate.largeFileProof,
+                      changed.contains(candidate.id) || proof.retained.contains(where: { $0.isWithin(any: removed) })
+                else { return candidate }
+                return candidate.withLargeFileProof(nil)
+            },
             agentAssets: agentAssets.filter { !isRemoved($0.candidate.url) },
             agentSkills: agentSkills.filter { !isRemoved($0.skillRootURL) },
             agentMCPConfigurations: agentMCPConfigurations, agentProviderCoverage: agentProviderCoverage,

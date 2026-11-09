@@ -40,7 +40,7 @@ public struct DefaultCleanupPolicy: Sendable {
         return DefaultCleanupSelection(
             systemCleanup: systemCleanup,
             applicationUninstall: [],
-            largeFiles: [],
+            largeFiles: report.largeFileCandidates.filter(\.isLargeFilePreselected),
             agentEnvironment: []
         )
     }

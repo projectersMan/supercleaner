@@ -23,22 +23,25 @@ private struct DiskUsageTreeRow: View {
     @ObservedObject var model: AppModel
     let node: DiskUsageNode
     let depth: Int
-    @State private var isExpanded = false
+    @State private var expansionOverride: Bool?
     @State private var isHovered = false
+
+    private var isExpanded: Bool { expansionOverride ?? (depth == 0 && node.kind == .directory) }
 
     private var children: [DiskUsageNode] {
         if case let .loaded(children) = node.children {
-            return model.sortedDiskNodes(children)
+            return children
         }
         return []
     }
 
     var body: some View {
+        let candidate = model.diskFileCandidate(for: node)
         VStack(spacing: 2) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     if node.kind == .directory {
-                        Button { isExpanded.toggle() } label: {
+                        Button { expansionOverride = !isExpanded } label: {
                             Image(systemName: isExpanded ? "chevron.down" : "chevron.right").frame(width: 14)
                         }
                         .buttonStyle(.plain)
@@ -49,7 +52,7 @@ private struct DiskUsageTreeRow: View {
                             isOn: Binding(get: { model.isDiskFileSelected(node) }, set: { _ in model.toggleDiskFile(node) })
                         ) { EmptyView() }
                         .toggleStyle(.checkbox).labelsHidden()
-                        .disabled(!node.isReadable)
+                        .disabled(!node.isReadable || candidate?.risk.isSelectable != true)
                         .accessibilityLabel(model.isDiskFileSelected(node) ? L10n.text("从计划移除 {0}", String(describing: node.url.lastPathComponent)) : L10n.text("将 {0} 加入计划", String(describing: node.url.lastPathComponent)))
                     }
                     Image(systemName: node.kind == .directory ? "folder.fill" : "doc.fill")
@@ -72,6 +75,10 @@ private struct DiskUsageTreeRow: View {
                 if node.kind == .directory {
                     Label(L10n.text("目录只用于展开和理解占用，不会作为一个整体加入清理计划。"), systemImage: "folder.badge.questionmark")
                         .font(.caption).foregroundColor(.secondary)
+                } else if let recommendation = candidate?.largeFileRecommendation {
+                    let description = recommendation.details.map { L10n.text("{0} · 保留：{1}", recommendation.summary, $0) }
+                    Text(description ?? recommendation.summary).font(.caption).foregroundColor(.secondary)
+                        .textSelection(.enabled)
                 }
             }
             .padding(16)
@@ -91,7 +98,7 @@ private struct DiskUsageTreeRow: View {
             .accessibilityAddTraits(model.selectedDiskNodeURL == node.url ? .isSelected : [])
 
             if isExpanded {
-                ForEach(children) { child in
+                ForEach(model.sortedDiskNodes(children)) { child in
                     DiskUsageTreeRow(model: model, node: child, depth: depth + 1)
                 }
             }
@@ -112,7 +119,7 @@ private struct DiskUsageTreeRow: View {
             kind: node.kind,
             hasChildren: !children.isEmpty
         ) == .selectAndToggleExpansion {
-            isExpanded.toggle()
+            expansionOverride = !isExpanded
         }
     }
 }

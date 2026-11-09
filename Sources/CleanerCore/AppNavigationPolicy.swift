@@ -16,7 +16,7 @@ public enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .cleanupCenter: L10n.text("清理中心")
         case .systemCleanup: L10n.text("系统清理")
         case .applications: L10n.text("应用卸载")
-        case .largeFiles: L10n.text("大文件")
+        case .largeFiles: L10n.text("重复大文件")
         case .agentEnvironment: L10n.text("Agent 环境")
         case .recovery: L10n.text("恢复记录")
         case .settings: L10n.text("设置")

@@ -23,7 +23,7 @@ struct DashboardView: View {
                 .font(.system(size: 54)).foregroundStyle(.tint).frame(width: 72)
             VStack(alignment: .leading, spacing: 9) {
                 Text(L10n.text("先完整扫描，再决定清理什么")).font(.system(size: 34, weight: .semibold))
-                Text(L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。"))
+                Text(L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、重复大文件和 Agent 环境报告。扫描过程零写入。"))
                     .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 18) {
                     Button(action: model.startFullScan) {
@@ -33,7 +33,7 @@ struct DashboardView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
-                    .accessibilityHint(L10n.text("只读扫描系统清理、应用、大文件和 Agent 环境"))
+                    .accessibilityHint(L10n.text("只读扫描系统清理、应用、重复大文件和 Agent 环境"))
                     fullScanElapsed
                 }
                 .padding(.top, 8)
@@ -116,6 +116,7 @@ struct DashboardView: View {
         }
     }
 
+
     private var preScanTrust: some View {
         HStack(spacing: 14) {
             TrustItem(icon: "eye", title: L10n.text("扫描可解释"), detail: L10n.text("每项都显示路径和发现依据"))
@@ -191,13 +192,13 @@ private extension ScanModuleID {
         switch self {
         case .general: L10n.text("缓存、日志、临时文件、安装包、开发缓存")
         case .applications: L10n.text("以 App 为单位，展开应用本体与精确关联项")
-        case .largeFiles: L10n.text("按目录展开具体文件，不按体积自动清理")
+        case .largeFiles: L10n.text("识别安装包，核验相同副本和已完整解压的 ZIP")
         case .agentEnvironment: L10n.text("按真实目录和 Skill 标记动态组织，再逐条决定删或不删")
         }
     }
 
     var title: String {
-        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用"); case .largeFiles: L10n.text("大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
+        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
     }
     var icon: String {
         switch self { case .general: "trash"; case .applications: "app.dashed"; case .largeFiles: "doc.text.magnifyingglass"; case .agentEnvironment: "terminal" }
@@ -206,7 +207,7 @@ private extension ScanModuleID {
         switch self { case .general: .green; case .applications: .blue; case .largeFiles: .orange; case .agentEnvironment: .purple }
     }
     var resultDestinationTitle: String {
-        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用卸载"); case .largeFiles: L10n.text("大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
+        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用卸载"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
     }
 }
 

@@ -123,7 +123,12 @@ struct ReviewScanFileSystem: FileSystemAccess {
         return path == root || path.hasPrefix(root + "/")
     }
     func identity(at url: URL) async throws -> FileIdentity {
-        guard contains(url), url.resolvingSymlinksInPath().path != unverifiablePath?.resolvingSymlinksInPath().path else { throw FileSystemError.unreadableContent(url) }
+        let path = url.resolvingSymlinksInPath().path
+        let isAncestor = home.resolvingSymlinksInPath().path.hasPrefix(path + "/")
+        // The scanner verifies the fixture's literal ancestors before it descends.
+        guard contains(url) || isAncestor, path != unverifiablePath?.resolvingSymlinksInPath().path else {
+            throw FileSystemError.unreadableContent(url)
+        }
         return try await local.identity(at: url)
     }
     func children(of url: URL) async throws -> [URL] {
@@ -146,7 +151,9 @@ struct ReviewScanFileSystem: FileSystemAccess {
 
 func runReviewCompletenessRegressionContracts() async throws {
     let manager = FileManager.default
-    let home = manager.temporaryDirectory.appendingPathComponent("review-coverage-" + UUID().uuidString).resolvingSymlinksInPath()
+    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Tests", isDirectory: true)
+    let home = fixtures.appendingPathComponent(".review-coverage-" + UUID().uuidString, isDirectory: true)
     defer { try? manager.removeItem(at: home) }
     let providerRoot = home.appendingPathComponent(".codex")
     let boundary = providerRoot.appendingPathComponent("a/b/c/d/e/f/g/h")

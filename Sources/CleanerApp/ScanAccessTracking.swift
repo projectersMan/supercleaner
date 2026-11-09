@@ -84,6 +84,7 @@ struct ScanAccessPresentation {
         case let .largeFiles(tree, _):
             limited = tree.coverage.unavailableRoots.isEmpty || !tree.coverage.budgetLimitedModules.isEmpty
                 || tree.coverage.unavailableRoots.contains { !skips($0) }
+                || original.limitations.contains(where: shows)
         case let .agentEnvironment(inventory):
             limited = inventory.reachedBudget || inventory.coverage.unavailableRoots.contains { !skips($0) }
                 || inventory.limitations.contains(where: shows)

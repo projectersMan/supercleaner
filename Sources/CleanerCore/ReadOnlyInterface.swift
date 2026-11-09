@@ -215,12 +215,14 @@ public enum ReadOnlyInterface {
             limitations = analyzed.moduleCoverage.limitations
             ownership = analyzed.ownershipGraph
         case .largeFiles:
-            let tree: DiskUsageTree
-            if let indexed = try? await IndexedLargeFileScanner().scan(context: context) { tree = indexed }
-            else { tree = try await DiskUsageScanner(maximumDepth: 8, maximumEntries: 50_000).scan(context: context) }
-            candidates = try await LargeFileScanner().candidates(from: tree, context: context)
-            coverage = tree.coverage
-            limited = !coverage.unavailableRoots.isEmpty || !coverage.budgetLimitedModules.isEmpty
+            guard let report = await SystemScanCoordinator(rulePack: pack).scan(context: context, modules: [.largeFiles]),
+                  let status = report.modules[.largeFiles], [.completed, .limited].contains(status.state) else {
+                throw Task.isCancelled ? ReadOnlyInterfaceError.cancelled : ReadOnlyInterfaceError.scanUnavailable
+            }
+            return ReadOnlyScanDocument(metadata: report.metadata,
+                scanStatus: status.state == .limited ? "partial" : "complete", modules: [status],
+                coverage: report.diskUsageTree.coverage, candidates: report.largeFileCandidates,
+                applications: [], agentSkills: [], mcpConfigurations: [], protectionAvailable: context.protectionPolicy.isAvailable)
         case .agentEnvironment:
             let inventory = try await AgentWorkspaceScanner(maximumDepth: 8, maximumAssets: 20_000).scanAssetInventory(context: context)
             candidates = inventory.assets.map(\.candidate)

@@ -187,7 +187,7 @@ extension PermissionsView {
     }
 
     private var largeFileSection: some View {
-        Section(L10n.text("大文件")) {
+        Section(L10n.text("重复大文件")) {
             Picker(
                 L10n.text("文件体积标准"),
                 selection: Binding(
@@ -199,9 +199,16 @@ extension PermissionsView {
                     Text(threshold.displayTitle).tag(threshold)
                 }
             }
-            Text(L10n.text("只把达到该体积的具体文件列为大文件并允许加入计划。扫描只读取目录和大小元数据，不读取文件内容。"))
+            Text(L10n.text("扫描先按大小发现候选，再读取内容核验重复副本和已解压 ZIP。"))
                 .font(.caption)
                 .foregroundColor(.secondary)
+            Toggle(L10n.text("默认勾选大文件中的安装包"), isOn: Binding(
+                get: { model.preselectLargeFileInstallers },
+                set: { model.updateLargeFileInstallerPreselection($0) }
+            ))
+            .toggleStyle(.switch)
+            Text(L10n.text("下次扫描或刷新大文件时生效。关闭后仍可手动勾选安装包。"))
+                .font(.caption).foregroundColor(.secondary)
             if model.largeFileThresholdNeedsRefresh {
                 HStack {
                     Label(L10n.text("当前结果仍使用上一次扫描的标准"), systemImage: "arrow.triangle.2.circlepath")

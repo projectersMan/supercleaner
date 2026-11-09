@@ -3,14 +3,26 @@ import CleanerCore
 import SwiftUI
 
 /// Keep segment geometry independent of the selected label's intrinsic width.
-struct ApplicationScopePicker: NSViewRepresentable {
+struct ApplicationScopePicker: View {
     @Binding var selection: ApplicationListScope
 
-    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+    var body: some View {
+        let scopes = ApplicationListScope.allCases
+        return ScopePicker(labels: scopes.map(\.displayTitle), selection: Binding(
+            get: { scopes.firstIndex(of: selection) ?? 0 },
+            set: { selection = scopes[$0] }
+        ))
+    }
+}
 
+struct ScopePicker: NSViewRepresentable {
+    let labels: [String]
+    @Binding var selection: Int
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
     func makeNSView(context: Context) -> NSSegmentedControl {
         let control = NSSegmentedControl(
-            labels: ApplicationListScope.allCases.map(\.displayTitle),
+            labels: labels,
             trackingMode: .selectOne,
             target: context.coordinator,
             action: #selector(Coordinator.selectScope(_:))
@@ -25,20 +37,20 @@ struct ApplicationScopePicker: NSViewRepresentable {
 
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
         context.coordinator.selection = $selection
-        for (index, scope) in ApplicationListScope.allCases.enumerated() {
-            control.setLabel(scope.displayTitle, forSegment: index)
+        for (index, label) in labels.enumerated() {
+            control.setLabel(label, forSegment: index)
         }
-        control.selectedSegment = ApplicationListScope.allCases.firstIndex(of: selection)!
+        control.selectedSegment = selection
     }
 
     @MainActor final class Coordinator: NSObject {
-        var selection: Binding<ApplicationListScope>
+        var selection: Binding<Int>
 
-        init(selection: Binding<ApplicationListScope>) { self.selection = selection }
+        init(selection: Binding<Int>) { self.selection = selection }
 
         @objc func selectScope(_ sender: NSSegmentedControl) {
-            guard ApplicationListScope.allCases.indices.contains(sender.selectedSegment) else { return }
-            selection.wrappedValue = ApplicationListScope.allCases[sender.selectedSegment]
+            guard (0..<sender.segmentCount).contains(sender.selectedSegment) else { return }
+            selection.wrappedValue = sender.selectedSegment
         }
     }
 }

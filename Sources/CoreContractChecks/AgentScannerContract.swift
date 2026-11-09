@@ -33,15 +33,20 @@ func runAgentScannerContracts() async throws {
     let results = try await scanner.scan(context: context)
     let assets = try await scanner.scanAssets(context: context)
 
-    require(results.first { $0.url.lastPathComponent == "SKILL.md" }?.risk == .blocked, "custom Skill must be blocked")
+    let customSkill = home.appendingPathComponent(".codex/skills/custom/SKILL.md")
+    require(results.first { $0.url == customSkill }?.risk == .blocked, "custom Skill must be blocked")
     require(results.first { $0.url.lastPathComponent == "mcp.json" }?.risk == .review, "MCP config must be eligible only through explicit selection")
     require(results.first { $0.url.lastPathComponent == "AGENTS.md" }?.risk == .blocked, "Agent instructions must be blocked")
     require(results.first { $0.url.lastPathComponent == ".build" }?.risk == .safe, "finished sandbox build cache should be safe")
     require(results.first { $0.url.lastPathComponent == "old-session.jsonl" }?.risk == .review, "sessions must require review")
     require(results.first { $0.url.lastPathComponent == ".codex" }?.risk == .blocked, "provider root must be blocked")
     require(assets.first { $0.candidate.displayName == "model-notes.md" }?.resourceKind != .modelCache, "a filename substring must not classify a model cache")
-    let sharedAssets = assets.filter { $0.candidate.url.path.hasPrefix(home.appendingPathComponent(".agents").path) }
-    require(!sharedAssets.isEmpty && sharedAssets.allSatisfy { $0.provider == .shared && $0.scope == .shared }, "shared Agent roots must have one shared owner")
+    let sharedRoot = home.appendingPathComponent(".agents").path
+    let canonicalSkills = sharedRoot + "/skills"
+    let sharedAssets = assets.filter { $0.candidate.url.path == sharedRoot }
+    let canonicalAssets = assets.filter { $0.candidate.url.path == canonicalSkills || $0.candidate.url.path.hasPrefix(canonicalSkills + "/") }
+    require(sharedAssets.count == 1 && sharedAssets.allSatisfy { $0.provider == .shared && $0.scope == .shared }, "shared Agent roots must have one shared owner")
+    require(!canonicalAssets.isEmpty && canonicalAssets.allSatisfy { $0.provider == .codex && $0.scope == .global }, "the registered user Skills path must be owned by Codex")
     let protectedKinds: Set<AgentResourceKind> = [.skill, .credential, .configuration, .promptKnowledge, .sourceCode, .gitWorktree]
     require(assets.filter { protectedKinds.contains($0.resourceKind) }.allSatisfy { $0.cleanupEligibility == .protected }, "protected Agent resource kinds must never be eligible")
     require(assets.filter { $0.activity == .active }.allSatisfy { $0.cleanupEligibility == .protected }, "active Agent assets must remain protected")
@@ -237,17 +242,19 @@ private actor AgentContractFileSystem: FileSystemAccess {
         let claudeRoot = home.appendingPathComponent(".claude", isDirectory: true)
         let traeRoot = home.appendingPathComponent(".trae", isDirectory: true)
         let sharedRoot = home.appendingPathComponent(".agents", isDirectory: true)
-        let sharedSkill = sharedRoot.appendingPathComponent("skills/shared/SKILL.md")
-        let urls = [root, skills, skill, skill.appendingPathComponent("SKILL.md"), codexConfig, root.appendingPathComponent("mcp.json"), root.appendingPathComponent("AGENTS.md"), sessions, sessions.appendingPathComponent("old-session.jsonl"), sandboxes, finished, build, models, modelNotes, claudeRoot, traeRoot, sharedRoot, sharedSkill]
+        let sharedSkills = sharedRoot.appendingPathComponent("skills", isDirectory: true)
+        let sharedSkillRoot = sharedSkills.appendingPathComponent("shared", isDirectory: true)
+        let sharedSkill = sharedSkillRoot.appendingPathComponent("SKILL.md")
+        let urls = [root, skills, skill, skill.appendingPathComponent("SKILL.md"), codexConfig, root.appendingPathComponent("mcp.json"), root.appendingPathComponent("AGENTS.md"), sessions, sessions.appendingPathComponent("old-session.jsonl"), sandboxes, finished, build, models, modelNotes, claudeRoot, traeRoot, sharedRoot, sharedSkills, sharedSkillRoot, sharedSkill]
         childrenByPath = [
             root.path: [skills, codexConfig, root.appendingPathComponent("mcp.json"), root.appendingPathComponent("AGENTS.md"), sessions, sandboxes, models, modelNotes],
             skills.path: [skill], skill.path: [skill.appendingPathComponent("SKILL.md")],
             sessions.path: [sessions.appendingPathComponent("old-session.jsonl")],
             sandboxes.path: [finished], finished.path: [build],
-            sharedRoot.path: [sharedSkill],
+            sharedRoot.path: [sharedSkills], sharedSkills.path: [sharedSkillRoot], sharedSkillRoot.path: [sharedSkill],
         ]
         identities = Dictionary(uniqueKeysWithValues: urls.map { url in
-            let directoryPaths: Set<String> = [root, skills, skill, sessions, sandboxes, finished, build, models, claudeRoot, traeRoot, sharedRoot].reduce(into: []) { $0.insert($1.path) }
+            let directoryPaths: Set<String> = [root, skills, skill, sessions, sandboxes, finished, build, models, claudeRoot, traeRoot, sharedRoot, sharedSkills, sharedSkillRoot].reduce(into: []) { $0.insert($1.path) }
             return (url.path, FileIdentity(device: 1, inode: UInt64(bitPattern: Int64(url.path.hashValue)), size: 100, modificationTime: Int64(now.addingTimeInterval(-45 * 86_400).timeIntervalSince1970), kind: directoryPaths.contains(url.path) ? .directory : .file))
         })
         textByPath = [

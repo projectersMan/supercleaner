@@ -91,11 +91,13 @@ public actor CleanupExecutionCoordinator {
         claimedPlanIDs.insert(plan.id)
         activePlanIDs.insert(plan.id)
         defer { activePlanIDs.remove(plan.id) }
+        let effectiveRetention: QuarantineRetentionPolicy = plan.selectedItems.contains { $0.candidate.largeFileProof != nil }
+            ? .manual : retentionPolicy
         let entry = ExecutionJournalEntry(
             id: UUID(),
             plan: plan,
             startedAt: now(),
-            retentionPolicy: retentionPolicy
+            retentionPolicy: effectiveRetention
         )
         try await journalStore.upsert(entry)
 
@@ -108,7 +110,7 @@ public actor CleanupExecutionCoordinator {
         try await finalize(receipt: receipt, entry: entry)
         return try await applyImmediateRetentionIfNeeded(
             to: receipt,
-            policy: retentionPolicy
+            policy: effectiveRetention
         )
     }
 

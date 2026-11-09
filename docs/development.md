@@ -22,7 +22,7 @@ Agent分析排查：先核对安装包版本与源码版本，再检查索引mod
 
 应用行的正常分析完成状态不显示徽标；隐藏逻辑仅位于ApplicationsView展示层，不修改Core状态或statusTitle，以保留其他调用方语义。系统保护、运行保护、受限、不可用和等待状态继续展示。
 
-界面布局约定：应用卸载筛选栏对齐[大文件页](../Sources/CleanerApp/DiskSpaceView.swift)，在[ApplicationsView](../Sources/CleanerApp/ApplicationsView.swift)固定搜索260 pt、分段420 pt、排序/数量各140 pt；[ApplicationScopePicker](../Sources/CleanerApp/ApplicationScopePicker.swift)使用原生等分分段控件，纵向按固有高度。窄窗口用ViewThatFits分两行，切换四个选项、计数变化都不能改变同一窗口中的控件位置。两页标题间距、栏内边距和字号保持一致。
+界面布局约定：应用卸载与[重复大文件页](../Sources/CleanerApp/DiskSpaceView.swift)共用原生分段控件。在[ApplicationsView](../Sources/CleanerApp/ApplicationsView.swift)固定搜索260 pt、分段420 pt、排序/数量各140 pt；[ApplicationScopePicker](../Sources/CleanerApp/ApplicationScopePicker.swift)使用原生等分分段控件，纵向按固有高度。窄窗口用ViewThatFits分两行，切换四个选项、计数变化都不能改变同一窗口中的控件位置。两页标题间距、栏内边距和字号保持一致。
 
 - 平台：macOS 13 或更高版本。
 - 语言与 UI：Swift 6、SwiftUI、AppKit。
@@ -232,6 +232,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 - Agent 一级目录分组不再维护外部注册表，必须统一通过 `AgentCatalogRegistry.swift` 中的推断逻辑演进；新增推断规则时优先增强“固定根目录 + 真实文件夹 + Skill Markdown 标记”的识别顺序，不要把规则散落到多个页面文件中。
 - Codex、Claude 等供应商的 Skill/MCP 文件系统位置必须统一维护在 `AgentResourcePathRegistry.swift`；MCP 格式识别与去敏解析统一维护在 `MCPConfigurationCatalog.swift`。更新规则时同步修改官方来源研究记录和 Agent scanner contract，禁止在 View 或 Adapter 中重新散落路径字面量。
 - 修改大文件或 Agent 扫描时，必须同时检查 Spotlight 快速路径、精确递归回退路径和生产预算；不能在 Spotlight 已成功后无条件再次递归扫描整个 Home。
+- 重复大文件在同一个模块任务中依次发现、查重、核验 ZIP，再用共享的格式表识别剩余安装文件。修改该链路时运行 `swift test --filter DuplicateLargeFileTests`，覆盖两种发现入口、安装包预选开关、保留路径冲突、受保护和活跃安装包、ZIP 同级文件夹总大小和结构筛选、小成员内容核验、保留路径变化和恢复。设置持久化和刷新、默认范围、排序与筛选隔离用 [应用自检夹具](../doc/large-file-duplicates-plan.md#验收) 验证。ZIP 读取器通过 [CleanerZIP](../Sources/CleanerZIP/CleanerZIP.h) 绑定 macOS 的系统 libarchive，包构建无需下载 ZIP 依赖。
 
 默认选择修改必须同时核对Skill/MCP：`.agents`默认保留、独立重复副本可预选、`.cache`无需包含关系、明确保留优先、不可选缓存不预选、待删缓存不能支撑其他删除、无模型/索引不阻断缓存预选。目录以AppModel注入home为边界；Skill/MCP本体、manifest及父目录软链接均须在发现/清单入口排除，不改Agent配置或迁移入口。覆盖只使用当前通过检查的清单对象；历史对象不参与新配对，真实对象恢复时用已有向量补齐缺失关系。定向检查见[软链接验证](../Tests/agent-symlink-exclusion/README.md)及Tests/agent-overlap-diagnosis。
 

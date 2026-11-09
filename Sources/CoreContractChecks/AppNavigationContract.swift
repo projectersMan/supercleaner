@@ -3,7 +3,7 @@ import CleanerCore
 func runAppNavigationContracts() {
     require(
         AppDestination.allCases.map(\.title) == [
-            "概览", "清理中心", "系统清理", "应用卸载", "大文件", "Agent 环境", "恢复记录", "设置",
+            "概览", "清理中心", "系统清理", "应用卸载", "重复大文件", "Agent 环境", "恢复记录", "设置",
         ].map { L10n.text($0) },
         "sidebar must expose the approved task-centered destinations"
     )

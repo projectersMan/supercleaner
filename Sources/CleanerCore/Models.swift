@@ -102,6 +102,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
     /// A positive restriction, independent of risk and automatic/deep modes.
     public let requiresExplicitSelection: Bool?
     public let cleanupApplication: CleanupApplication?
+    public let largeFileProof: LargeFileCleanupProof?
 
     public init(
         id: UUID = UUID(),
@@ -118,7 +119,8 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         ruleID: String? = nil,
         defaultSelection: Bool? = nil,
         requiresExplicitSelection: Bool? = nil,
-        cleanupApplication: CleanupApplication? = nil
+        cleanupApplication: CleanupApplication? = nil,
+        largeFileProof: LargeFileCleanupProof? = nil
     ) {
         self.id = id
         self.url = url
@@ -135,6 +137,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         self.defaultSelection = defaultSelection
         self.requiresExplicitSelection = requiresExplicitSelection
         self.cleanupApplication = cleanupApplication
+        self.largeFileProof = largeFileProof
     }
 
     public func replacing(risk: RiskLevel, evidence: [Evidence]) -> CleanupCandidate {
@@ -143,7 +146,36 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
             risk: risk, evidence: evidence, identity: identity, source: source,
             lastAccessDate: lastAccessDate, isActive: isActive,
             ruleID: ruleID, defaultSelection: defaultSelection,
-            requiresExplicitSelection: requiresExplicitSelection, cleanupApplication: cleanupApplication
+            requiresExplicitSelection: requiresExplicitSelection, cleanupApplication: cleanupApplication,
+            largeFileProof: largeFileProof
+        )
+    }
+
+    public var largeFileRecommendation: Evidence? {
+        guard category == .largeFile, source == .diskAnalysis,
+              risk.isSelectable, !isActive, requiresExplicitSelection != true else { return nil }
+        return evidence.first { $0.code == "large-file-verified-copy" || $0.code == "installer-type" }
+    }
+
+    public var isLargeFilePreselected: Bool { defaultSelection == true && largeFileRecommendation != nil }
+
+    func withLargeFileProof(_ proof: LargeFileCleanupProof?) -> CleanupCandidate {
+        let verification = proof.map { Evidence(code: "large-file-verified-copy", summary: $0.title, details: $0.retained.first?.url.path) }
+        return withLargeFileRecommendation(verification, proof: proof, preselected: proof != nil)
+    }
+
+    func withLargeFileInstaller(_ format: String, preselected: Bool) -> CleanupCandidate {
+        withLargeFileRecommendation(InstallerDiscovery.formatEvidence(format), proof: nil, preselected: preselected)
+    }
+
+    private func withLargeFileRecommendation(_ recommendation: Evidence?, proof: LargeFileCleanupProof?, preselected: Bool) -> CleanupCandidate {
+        let previous = evidence.filter { $0.code != "large-file-verified-copy" && $0.code != "installer-type" }
+        return CleanupCandidate(
+            id: id, url: url, displayName: displayName, category: category, bytes: bytes,
+            risk: risk, evidence: previous + (recommendation.map { [$0] } ?? []), identity: identity, source: source,
+            lastAccessDate: lastAccessDate, isActive: isActive, ruleID: ruleID,
+            defaultSelection: preselected, requiresExplicitSelection: requiresExplicitSelection,
+            cleanupApplication: cleanupApplication, largeFileProof: proof
         )
     }
 }

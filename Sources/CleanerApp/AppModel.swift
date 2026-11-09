@@ -52,6 +52,7 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var quarantineSchedules: [UUID: QuarantineSchedule] = [:]
     @Published private(set) var defaultQuarantineRetentionPolicy: QuarantineRetentionPolicy
     @Published private(set) var largeFileThreshold: LargeFileThreshold
+    @Published private(set) var preselectLargeFileInstallers: Bool
     @Published private(set) var permissionSnapshot: PermissionSnapshot?
     @Published var showsPermissionIntroduction = false
     @Published private(set) var scanDeniedPaths: [ScanModuleID: Set<URL>] = [:]
@@ -78,7 +79,8 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var isStoppingDeletion = false
     @Published var selectedApplicationID: URL?
     @Published var selectedDiskNodeURL: URL?
-    @Published var largeFileSortOrder: LargeFileSortOrder = .size
+    @Published var largeFileSortOrder: LargeFileSortOrder = .selection
+    @Published var showsDuplicateLargeFilesOnly = false
     @Published var applicationSortOrder: ApplicationSortOrder = .name {
         didSet { reconcileApplicationSelection() }
     }
@@ -92,7 +94,7 @@ private struct ModuleScanSession: Sendable {
     @Published var agentCleanupPresentation: AgentCleanupPresentation?
     var agentCleanupGenerationID: UUID?
     @Published var agentProviderFilter: AgentProvider?
-    @Published var agentItemsSelectionFilter: AgentItemsSelectionFilter = .all
+    @Published var agentItemsSelectionFilter: AgentItemsSelectionFilter = .selected
     @Published var uninstallSelectedIDs = Set<UUID>()
     @Published var statusMessage: String?
     @Published private(set) var recoveryActionReceiptID: UUID?
@@ -131,6 +133,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     private let home: URL
+    private let largeFilePreferences: UserDefaults
     private let fileSystem: any FileSystemAccess
     private let runtime: CleanupRuntime
     private var planBuilder: PlanBuilder {
@@ -189,16 +192,18 @@ private struct ModuleScanSession: Sendable {
     private var cachedAgentSkillPresentationSelectedIDs = Set<UUID>()
     private var cachedAgentCandidateByPath: [String: CleanupCandidate]?
 
-    init(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
+    init(home: URL = FileManager.default.homeDirectoryForCurrentUser, largeFilePreferences: UserDefaults = .standard) {
         self.home = home
+        self.largeFilePreferences = largeFilePreferences
         protectionPolicy = ProtectionPolicy(homeDirectory: home)
         defaultQuarantineRetentionPolicy = QuarantineRetentionPolicy(storedValue: UserDefaults.standard.string(
             forKey: Self.quarantineRetentionDefaultsKey
         ))
-        let storedLargeFileBytes = (UserDefaults.standard.object(
+        let storedLargeFileBytes = (largeFilePreferences.object(
             forKey: Self.largeFileThresholdDefaultsKey
         ) as? NSNumber)?.uint64Value
         largeFileThreshold = LargeFileThreshold(storedBytes: storedLargeFileBytes)
+        preselectLargeFileInstallers = largeFilePreferences.object(forKey: Self.largeFileInstallerPreselectionDefaultsKey) as? Bool ?? true
         let storedOverlapThreshold = UserDefaults.standard.object(forKey: Self.agentOverlapThresholdDefaultsKey) as? NSNumber
         agentOverlapThreshold = min(1, max(0.5, storedOverlapThreshold?.doubleValue ?? 0.85))
         let infrastructure = AppInfrastructure.live(home: home)
@@ -221,6 +226,7 @@ private struct ModuleScanSession: Sendable {
 
     private static let quarantineRetentionDefaultsKey = "quarantine.retentionPolicy"
     private static let largeFileThresholdDefaultsKey = "largeFiles.minimumBytes"
+    private static let largeFileInstallerPreselectionDefaultsKey = "largeFiles.preselectInstallers"
     private static let appManagementObservationDefaultsKey = "permissions.appManagementObservation"
     private static let permissionIntroductionDefaultsKey = "permissions.introductionShown"
     private static let scanAccessRequestedDefaultsKey = "permissions.scanAccessRequested"
@@ -647,7 +653,13 @@ private struct ModuleScanSession: Sendable {
     }
 
     var selectedCandidates: [CleanupCandidate] {
-        candidates(for: selection).filter { selectedIDs.contains($0.id) }
+        let scoped = selection == .largeFiles && showsDuplicateLargeFilesOnly
+            ? duplicateLargeFiles : candidates(for: selection)
+        return scoped.filter { selectedIDs.contains($0.id) }
+    }
+
+    var duplicateLargeFiles: [CleanupCandidate] {
+        candidates(for: .largeFiles).filter { $0.largeFileProof != nil && $0.largeFileRecommendation != nil }
     }
     var selectedBytes: UInt64 { selectedCandidates.reduce(0) { $0 + $1.bytes } }
     var focusedCandidateID: UUID? { focusState.focusedCandidateID }
@@ -677,7 +689,9 @@ private struct ModuleScanSession: Sendable {
                 ? defaults.systemCleanup.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil }
                 : [],
             applicationUninstall: [],
-            largeFiles: [],
+            largeFiles: hasScanResult(for: .largeFiles)
+                ? defaults.largeFiles.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil }
+                : [],
             agentEnvironment: []
         )
     }
@@ -776,6 +790,7 @@ private struct ModuleScanSession: Sendable {
 
     var canExecuteSelection: Bool {
         guard let module = currentScanModule else { return false }
+        if module == .largeFiles, isCurrentModuleScanning || largeFileThresholdNeedsRefresh { return false }
         return canExecuteCleanup(in: module, hasSelection: !selectedCandidates.isEmpty)
     }
 
@@ -832,7 +847,8 @@ private struct ModuleScanSession: Sendable {
             return agentAssets.map(\.candidate)
         }
         if let cached = cachedCandidatesByDestination[destination] { return cached }
-        let scoped = scopePolicy.candidates(for: destination, from: systemReport?.candidates ?? [])
+        let scoped = destination == .largeFiles ? (systemReport?.largeFileCandidates ?? [])
+            : scopePolicy.candidates(for: destination, from: systemReport?.candidates ?? [])
         let result = CleanupCandidateVisibility.remaining(
             candidates: scoped,
             cleanedCandidateIDs: oneClickCleanedCandidateIDs
@@ -954,10 +970,16 @@ private struct ModuleScanSession: Sendable {
     func updateLargeFileThreshold(_ threshold: LargeFileThreshold) {
         guard threshold != largeFileThreshold else { return }
         largeFileThreshold = threshold
-        UserDefaults.standard.set(NSNumber(value: threshold.bytes), forKey: Self.largeFileThresholdDefaultsKey)
+        largeFilePreferences.set(NSNumber(value: threshold.bytes), forKey: Self.largeFileThresholdDefaultsKey)
         if hasCompletedScan {
-            statusMessage = L10n.text("大文件标准已更新为 ≥ {0}；刷新大文件模块后生效", String(describing: threshold.shortTitle))
+            statusMessage = L10n.text("大文件标准已改为 ≥ {0}，刷新后应用", String(describing: threshold.shortTitle))
         }
+    }
+
+    func updateLargeFileInstallerPreselection(_ enabled: Bool) {
+        guard enabled != preselectLargeFileInstallers else { return }
+        preselectLargeFileInstallers = enabled
+        largeFilePreferences.set(enabled, forKey: Self.largeFileInstallerPreselectionDefaultsKey)
     }
 
     func quarantineSchedule(for receiptID: UUID) -> QuarantineSchedule? {
@@ -1206,15 +1228,18 @@ private struct ModuleScanSession: Sendable {
         return largeFileSortOrder.sorted(nodes, selectedFileURLs: selectedURLs)
     }
 
+    func diskFileCandidate(for node: DiskUsageNode) -> CleanupCandidate? {
+        guard node.kind == .file else { return nil }
+        return largeFileCandidatesByPath[node.url.standardizedFileURL.path]
+    }
+
     func toggleDiskFile(_ node: DiskUsageNode) {
-        guard node.kind == .file,
-              let candidate = largeFileCandidatesByPath[node.url.standardizedFileURL.path]
-        else { return }
-        toggle(candidate)
+        guard let candidate = diskFileCandidate(for: node) else { return }
+        toggle(protectionPolicy.applying(to: candidate))
     }
 
     func isDiskFileSelected(_ node: DiskUsageNode) -> Bool {
-        guard let candidate = largeFileCandidatesByPath[node.url.standardizedFileURL.path] else { return false }
+        guard let candidate = diskFileCandidate(for: node) else { return false }
         return selectedIDs.contains(candidate.id)
     }
 
@@ -1290,6 +1315,10 @@ private struct ModuleScanSession: Sendable {
         do {
             let plan = try planBuilder.build(candidates: candidates(for: selection), selectedIDs: selected)
             executeSelection(plan: plan)
+        } catch PlanBuilderError.retainedLargeFileSelected {
+            let message = L10n.text("清理计划包含必须保留的文件或目录")
+            statusMessage = message
+            phase = .failed(message)
         } catch {
             statusMessage = L10n.text("无法删除：{0}", String(describing: error.localizedDescription))
             phase = .failed(statusMessage ?? L10n.text("无法删除"))
@@ -1497,7 +1526,7 @@ private struct ModuleScanSession: Sendable {
         pendingExecutionResults.removeAll()
         guard !results.isEmpty, let current = systemReport else { return }
         install(current.reconcilingCleanup(results))
-        selectedIDs.formIntersection(Set(systemReport?.candidates.map(\.id) ?? []))
+            selectedIDs.formIntersection(Set(allKnownCleanupCandidates.map(\.id)))
         if let selectedDiskNodeURL, diskUsageTree?.node(at: selectedDiskNodeURL) == nil { self.selectedDiskNodeURL = nil }
     }
 
@@ -1797,7 +1826,7 @@ private struct ModuleScanSession: Sendable {
         recordScanCleanupEffects(receipt.results)
         if let current = systemReport {
             install(current.reconcilingCleanup(receipt))
-            selectedIDs.formIntersection(Set(systemReport?.candidates.map(\.id) ?? []))
+            selectedIDs.formIntersection(Set(allKnownCleanupCandidates.map(\.id)))
             if let selectedDiskNodeURL, diskUsageTree?.node(at: selectedDiskNodeURL) == nil {
                 self.selectedDiskNodeURL = nil
             }
@@ -1900,6 +1929,7 @@ private struct ModuleScanSession: Sendable {
 
     private func startModuleScan(_ module: ScanModuleID, session: ModuleScanSession) {
         let token = UUID()
+        let preselectInstallers = preselectLargeFileInstallers
         let access = ScanAccessTrackingFileSystem(base: session.context.fileSystem)
         let original = session.context
         let context = ScanContext(homeDirectory: original.homeDirectory, fileSystem: access,
@@ -1915,6 +1945,7 @@ private struct ModuleScanSession: Sendable {
             let report = await session.coordinator.scan(
                 context: context, generationID: session.generationID, modules: [module],
                 runningBundleIdentifiers: session.runningBundleIdentifiers,
+                preselectLargeFileInstallers: preselectInstallers,
                 moduleResult: { [weak self] result in
                     let deniedPaths = await access.deniedPaths
                     await self?.receiveModuleScanResult(result, token: token, session: session, deniedPaths: deniedPaths)
@@ -2028,10 +2059,12 @@ private struct ModuleScanSession: Sendable {
               activeScanGenerationID == incoming.generationID
         else { return }
         let next = applyingScanCleanup(to: incoming)
-        let previousLargeFileIDs = Set(systemReport?.largeFileCandidates.map(\.id) ?? [])
+        let previousLargeFiles = systemReport?.largeFileCandidates ?? []
+        let previousLargeFileIDs = Set(previousLargeFiles.map(\.id))
+        let previousRecommendations = Set(previousLargeFiles.filter(\.isLargeFilePreselected).map(\.id))
         let diskSelection = DiskUsageSelectionState(
-            candidates: systemReport?.largeFileCandidates ?? [],
-            selectedIDs: selectedIDs
+            candidates: previousLargeFiles,
+            selectedIDs: selectedIDs.subtracting(previousRecommendations)
         )
         let generationChanged = systemReport?.generationID != next.generationID
         systemReport = next
@@ -2308,8 +2341,11 @@ private struct ModuleScanSession: Sendable {
             next = incoming.updatingModuleStatuses(statuses)
         }
         let generationChanged = systemReport?.generationID != next.generationID
+        let previousRecommendations = Set(systemReport?.largeFileCandidates.filter(\.isLargeFilePreselected).map(\.id) ?? [])
+        let currentRecommendations = Set(next.largeFileCandidates.filter(\.isLargeFilePreselected).map(\.id))
         systemReport = next
         indexLargeFileCandidates(next.largeFileCandidates)
+        selectedIDs.subtract(previousRecommendations.subtracting(currentRecommendations))
         if !isScanRunning { scanProgressByModule = next.modules }
         if generationChanged {
             selectedIDs.removeAll()
@@ -2411,6 +2447,71 @@ private struct ModuleScanSession: Sendable {
 // Exercises the same model gates used by the action bars without executing any
 // filesystem operations or starting the live scanners.
 extension AppModel {
+    static func checkDuplicateLargeFileSelection(home: URL) async throws {
+        struct InvalidSelection: Error, CustomStringConvertible { let description: String }
+        let threshold = LargeFileThreshold.mb10
+        let context = ScanContext(homeDirectory: home)
+        let coordinator = SystemScanCoordinator(diskUsageScanner: DiskUsageScanner(minimumFileBytes: threshold.bytes),
+            largeFileIndex: DuplicateFixtureIndex())
+        let domain = "SuperCleaner.LargeFilePreferencesTests.\(UUID().uuidString)"
+        guard let preferences = UserDefaults(suiteName: domain),
+              let report = await coordinator.scan(context: context, modules: [.largeFiles]),
+              let retained = report.largeFileCandidates.first(where: { $0.url.lastPathComponent == "a.rip" }),
+              let root = report.diskUsageTree.roots.first, case let .loaded(files) = root.children else {
+            throw InvalidSelection(description: "Missing recursive large-file fixture")
+        }
+        defer { preferences.removePersistentDomain(forName: domain) }
+        let model = AppModel(home: home, largeFilePreferences: preferences)
+        model.largeFileThreshold = threshold
+        model.selection = .largeFiles
+        let token = UUID()
+        model.isScanRunning = true
+        model.activeScanToken = token
+        model.activeScanGenerationID = report.generationID
+        model.installProgressive(report, completedModule: .largeFiles, token: token)
+        model.completeScan(report, token: token)
+        let selectedNames = Set(model.selectedCandidates.map(\.displayName))
+        guard model.preselectLargeFileInstallers, !model.showsDuplicateLargeFilesOnly, model.largeFileSortOrder == .selection,
+              selectedNames == ["b.data", "packed.zip", "setup.dmg"],
+              model.sortedDiskNodes(files).first?.url.lastPathComponent == "setup.dmg",
+              model.canExecuteSelection else { throw InvalidSelection(description: "Wrong default scope, order, or selection: \(selectedNames.sorted())") }
+        model.toggle(retained)
+        guard model.selectedCandidates.contains(where: { $0.id == retained.id }) else { throw InvalidSelection(description: "Retained file is missing from all-file selection") }
+        model.showsDuplicateLargeFilesOnly = true
+        guard Set(model.selectedCandidates.map(\.displayName)) == ["b.data", "packed.zip"] else { throw InvalidSelection(description: "Duplicate selection includes other files") }
+        let removed = OperationResult(candidateID: retained.id, originalURL: retained.url,
+            disposition: .quarantined, status: .succeeded, bytes: retained.bytes)
+        model.install(report.reconcilingCleanup([removed]))
+        guard model.duplicateLargeFiles.map(\.displayName) == ["packed.zip"],
+              model.selectedCandidates.map(\.displayName) == ["packed.zip"] else { throw InvalidSelection(description: "Invalid duplicate proof remained selected") }
+        model.showsDuplicateLargeFilesOnly = false
+        guard Set(model.selectedCandidates.map(\.displayName)) == ["packed.zip", "setup.dmg"] else { throw InvalidSelection(description: "Valid installer and ZIP were not preserved") }
+
+        model.updateLargeFileInstallerPreselection(false)
+        guard let reopenedPreferences = UserDefaults(suiteName: domain),
+              !AppModel(home: home, largeFilePreferences: reopenedPreferences).preselectLargeFileInstallers,
+              Set(model.selectedCandidates.map(\.displayName)) == ["packed.zip", "setup.dmg"] else {
+            throw InvalidSelection(description: "Installer preference did not persist or changed the current selection")
+        }
+        let session = ModuleScanSession(coordinator: coordinator, context: context, runningBundleIdentifiers: [],
+            generationID: report.generationID, startedAt: report.startedAt)
+        model.moduleScanSession = session
+        model.activeScanToken = UUID()
+        model.activeScanGenerationID = session.generationID
+        model.isScanRunning = true
+        model.startModuleScan(.largeFiles, session: session)
+        await model.moduleScanTasks[.largeFiles]?.value
+        guard Set(model.selectedCandidates.map(\.displayName)) == ["b.data", "packed.zip"],
+              let installer = model.candidates(for: .largeFiles).first(where: { $0.displayName == "setup.dmg" }) else {
+            throw InvalidSelection(description: "Scan did not honor the installer preference")
+        }
+        model.toggle(installer)
+        guard model.selectedCandidates.contains(installer) else {
+            throw InvalidSelection(description: "Installer is not manually selectable with preselection disabled")
+        }
+        print("PASS: large-file ordering, installer preference persistence and refresh, duplicate filtering and retained-path reconciliation")
+    }
+
     static func checkConcurrentScanCleanup() throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         func check(_ condition: Bool, _ message: String) throws {
@@ -2621,5 +2722,11 @@ extension AppModel {
         try check(model.isDeletionInProgress && model.showsDeletionSheet, "default system cleanup uses the same progress sheet")
         model.oneClickCleanupIsRunning = false
         print("PASS: model cleanup gates, concurrent scans, retained uninstall checkmarks, progress/result/error presentation, cancellation, and manual-only offline selection")
+    }
+}
+
+private struct DuplicateFixtureIndex: LargeFileMetadataIndexing {
+    func matchingFileURLs(minimumBytes: UInt64, scope: URL) async throws -> [URL] {
+        throw LargeFileMetadataIndexError.queryUnavailable
     }
 }

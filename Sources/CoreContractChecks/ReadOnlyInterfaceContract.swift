@@ -45,7 +45,9 @@ func runReadOnlyInterfaceContracts() async throws {
 
 func runReadOnlyCommandLineContracts(binary: String) async throws {
     let manager = FileManager.default
-    let home = manager.temporaryDirectory.appendingPathComponent("cli-contract-\(UUID().uuidString)")
+    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Tests", isDirectory: true)
+    let home = fixtures.appendingPathComponent(".cli-contract-\(UUID().uuidString)", isDirectory: true)
     try manager.createDirectory(at: home, withIntermediateDirectories: true)
     defer { try? manager.removeItem(at: home) }
     for arguments in [["history"], ["scan", "--module", "general"], ["preview", "--module", "general"], ["projects"], ["project-preview"]] {

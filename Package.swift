@@ -17,8 +17,10 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
     ],
     targets: [
+        .systemLibrary(name: "CleanerZIP"),
         .target(
             name: "CleanerCore",
+            dependencies: ["CleanerZIP"],
             resources: [.process("Resources")]
         ),
         .target(name: "AgentOverlapAI", dependencies: ["CleanerCore"],

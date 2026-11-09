@@ -131,6 +131,7 @@ public struct SystemScanCoordinator: Sendable {
         generationID: UUID = UUID(),
         modules requestedModules: Set<ScanModuleID> = Set(ScanModuleID.allCases),
         runningBundleIdentifiers: Set<String> = [],
+        preselectLargeFileInstallers: Bool = true,
         moduleResult: @escaping @Sendable (SystemScanModuleResult) async -> Void = { _ in },
         progress: @escaping @Sendable (SystemScanProgressEvent) async -> Void = { _ in }
     ) async -> SystemScanReport? {
@@ -207,73 +208,43 @@ public struct SystemScanCoordinator: Sendable {
                     let module = ScanModuleID.largeFiles
                     let moduleStartedAt = Date()
                     await progress(await tracker.event(module: module, state: .scanning))
-                    let indexedTree = try? await IndexedLargeFileScanner(
-                        minimumBytes: diskUsageScanner.minimumFileBytes,
-                        index: largeFileIndex
-                    ).scan(context: context)
-                    if let indexedTree,
-                       let indexedCandidates = try? await LargeFileScanner(
-                           minimumBytes: diskUsageScanner.minimumFileBytes
-                       ).candidates(from: indexedTree, context: context) {
-                        let status = ScanModuleStatus(
-                            module: module,
-                            state: .completed,
-                            startedAt: moduleStartedAt,
-                            completedAt: indexedTree.scannedAt,
-                            message: L10n.text("使用 Spotlight 索引完成大文件扫描")
-                        )
-                        let outcome = SystemScanOutcome.largeFiles(indexedTree, indexedCandidates, status)
-                        await moduleResult(outcome.moduleResult(generationID: generationID))
-                        await progress(await tracker.event(
-                            module: module,
-                            state: .completed,
-                            message: status.message
-                        ))
-                        return outcome
-                    }
                     do {
-                        try Task.checkCancellation()
-                        let tree = try await diskUsageScanner.scan(context: context)
-                        let candidates = try await LargeFileScanner(
+                        let tree: DiskUsageTree
+                        if let indexed = try? await IndexedLargeFileScanner(
                             minimumBytes: diskUsageScanner.minimumFileBytes,
-                            maximumDepth: diskUsageScanner.maximumDepth,
-                            maximumEntries: diskUsageScanner.maximumEntries
+                            index: largeFileIndex
+                        ).scan(context: context) {
+                            tree = indexed
+                        } else {
+                            try Task.checkCancellation()
+                            tree = try await diskUsageScanner.scan(context: context)
+                        }
+                        let candidates = try await LargeFileScanner(
+                            minimumBytes: tree.minimumFileBytes
                         ).candidates(from: tree, context: context)
-                        let limited = !tree.coverage.unavailableRoots.isEmpty || tree.coverage.budgetLimitedModules.contains(module)
+                        await progress(await tracker.event(module: module, state: .scanning,
+                            message: L10n.text("正在核验重复副本和已解压 ZIP")))
+                        let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: tree.minimumFileBytes,
+                            preselectInstallers: preselectLargeFileInstallers).analyze(candidates)
+                        try Task.checkCancellation()
+                        let limitations = analysis.limited ? [ScanLimitation(
+                            title: L10n.text("重复大文件核验受限"), path: nil,
+                            impact: L10n.text("查重未覆盖全部候选，仅推荐已核验的重复项"), recovery: L10n.text("刷新后可重新核验"),
+                            reason: .budget
+                        )] : []
+                        let limited = analysis.limited || !tree.coverage.unavailableRoots.isEmpty
+                            || tree.coverage.budgetLimitedModules.contains(module)
                         let state: ScanModuleState = limited ? .limited : .completed
-                        let message = limited ? L10n.text("部分目录不可访问或达到扫描预算") : nil
-                        let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt, completedAt: tree.scannedAt, message: message)
-                        let outcome = SystemScanOutcome.largeFiles(tree, candidates, status)
+                        let message = limited ? L10n.text("部分目录不可访问或达到扫描预算")
+                            : (tree.analysisState == .indexedResults ? L10n.text("使用 Spotlight 索引完成大文件扫描") : nil)
+                        let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt,
+                            completedAt: Date(), message: message, limitations: limitations)
+                        let outcome = SystemScanOutcome.largeFiles(tree, analysis.candidates, status)
                         await moduleResult(outcome.moduleResult(generationID: generationID))
-                        await progress(await tracker.event(module: module, state: state, message: message))
+                        await progress(await tracker.event(module: module, state: state, message: message, limitations: limitations))
                         return outcome
                     } catch {
                         let completedAt = Date()
-                        if let indexedTree {
-                            let indexedCandidates = (try? await LargeFileScanner(
-                                minimumBytes: diskUsageScanner.minimumFileBytes
-                            ).candidates(from: indexedTree, context: context)) ?? []
-                            let message = L10n.text("Spotlight 索引仅提供候选预览；精确目录扫描未完成")
-                            let status = ScanModuleStatus(
-                                module: module,
-                                state: .limited,
-                                startedAt: moduleStartedAt,
-                                completedAt: completedAt,
-                                message: message
-                            )
-                            let outcome = SystemScanOutcome.largeFiles(
-                                indexedTree,
-                                indexedCandidates,
-                                status
-                            )
-                            await moduleResult(outcome.moduleResult(generationID: generationID))
-                            await progress(await tracker.event(
-                                module: module,
-                                state: .limited,
-                                message: message
-                            ))
-                            return outcome
-                        }
                         let message = String(describing: error)
                         let status = ScanModuleStatus(module: module, state: .failed, startedAt: moduleStartedAt, completedAt: completedAt, message: message)
                         let outcome = SystemScanOutcome.largeFiles(

@@ -4,6 +4,7 @@ import Foundation
 public struct ScanDiscoverySummary: Equatable, Sendable {
     public let applicationCount: Int
     public let largeFileCount: Int
+    public let duplicateLargeFileCount: Int
     public let agentCount: Int
     public let skillCount: Int
     public let mcpCount: Int
@@ -11,6 +12,7 @@ public struct ScanDiscoverySummary: Equatable, Sendable {
     public init(report: SystemScanReport) {
         applicationCount = report.applicationInventory.applications.count
         largeFileCount = report.diskUsageTree.largeFiles.count
+        duplicateLargeFileCount = report.largeFileCandidates.filter { $0.largeFileProof != nil && $0.risk.isSelectable }.count
         // Shared resources, Git worktrees and generic MCP stores are not Agent apps.
         let platforms: Set<AgentProvider> = [.codex, .claude, .cursor, .trae]
         var detectedProviders = Set(report.agentAssets.map(\.provider))
@@ -28,7 +30,7 @@ public struct ScanDiscoverySummary: Equatable, Sendable {
         switch module {
         case .general: nil
         case .applications: L10n.text("发现 {0} 个应用", String(describing: applicationCount))
-        case .largeFiles: L10n.text("发现 {0} 个大文件", String(describing: largeFileCount))
+        case .largeFiles: L10n.text("发现 {0} 个可清理的重复大文件", String(duplicateLargeFileCount))
         case .agentEnvironment: L10n.text("发现 {0} 个 Agent · {1} 个 Skill · {2} 个 MCP", String(describing: agentCount), String(describing: skillCount), String(describing: mcpCount))
         }
     }

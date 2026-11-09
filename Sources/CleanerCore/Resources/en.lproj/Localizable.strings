@@ -518,6 +518,8 @@
 "保护清单无法读取，当前禁止删除" = "Protection list unreadable; deletion is disabled";
 "当前规则：{0}" = "Current rules: {0}";
 "文件体积标准" = "File size threshold";
+"默认勾选大文件中的安装包" = "Preselect large installer files";
+"下次扫描或刷新大文件时生效。关闭后仍可手动勾选安装包。" = "Applies the next time you scan or refresh large files. You can still select installers manually.";
 "只把达到该体积的具体文件列为大文件并允许加入计划。扫描只读取目录和大小元数据，不读取文件内容。" = "Only individual files at or above this size are listed as large files and eligible for selection. Scanning reads directory and size metadata, not file contents.";
 "当前结果仍使用上一次扫描的标准" = "Current results still use the previous scan's threshold";
 "删除与恢复" = "Deletion and Recovery";
@@ -1042,3 +1044,25 @@
 "扫描权限提示" = "Scan permissions";
 "继续使用" = "Continue";
 "建议在系统设置中开启完全磁盘访问，以扫描更多位置。也可直接使用并跳过不可访问位置；App 管理在实际卸载时由系统确认。之后可在设置中调整，此提醒只显示一次。" = "Enable Full Disk Access in System Settings to scan more locations. You can also continue with accessible locations; macOS confirms App Management when you uninstall an app. Permissions can be adjusted in Settings. This reminder appears only once.";
+
+"重复大文件" = "Duplicate Large Files";
+"全部大文件" = "All Large Files";
+"扫描会识别安装包、核验相同副本和已完整解压的 ZIP，并勾选建议清理的文件供你确认。" = "Scanning identifies installers, verifies identical copies and fully extracted ZIPs, and preselects suggested files for review.";
+"没有匹配的重复大文件" = "No matching duplicate large files";
+"可切换到全部大文件查看扫描清单。" = "Switch to All Large Files to browse the scan results.";
+"{0} 个文件" = "{0} files";
+"{0} · 保留：{1}" = "{0} · Keep: {1}";
+"内容完全相同" = "Identical contents";
+"ZIP 已完整解压" = "ZIP fully extracted";
+"正在核验重复副本和已解压 ZIP" = "Verifying duplicate copies and extracted ZIPs";
+"重复大文件核验受限" = "Duplicate large file verification was limited";
+"查重未覆盖全部候选，仅推荐已核验的重复项" = "Duplicate checking did not cover every candidate. Only verified duplicates are recommended.";
+"刷新后可重新核验" = "Refresh to verify again";
+"清理计划包含必须保留的文件或目录" = "The cleanup plan includes a file or folder that must be kept";
+"副本或保留内容已变化，请刷新重复大文件" = "The copy or retained content changed. Refresh Duplicate Large Files.";
+"发现 {0} 个可清理的重复大文件" = "Found {0} duplicate large files available for cleanup";
+"扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、重复大文件和 Agent 环境报告。扫描过程零写入。" = "Scan accessible locations for system cleanup, apps, duplicate large files, and Agent resources, including overlaps among Skills and MCP configurations. Scanning does not modify these locations.";
+"只读扫描系统清理、应用、重复大文件和 Agent 环境" = "Read-only scan of system cleanup, applications, duplicate large files, and Agent resources";
+"识别安装包，核验相同副本和已完整解压的 ZIP" = "Identify installers and verify identical copies and fully extracted ZIPs";
+"扫描先按大小发现候选，再读取内容核验重复副本和已解压 ZIP。" = "Scanning discovers candidates by size, then reads their contents to verify duplicates and extracted ZIPs.";
+"应用、重复大文件和 Agent 环境可进入对应页面核对和确认。" = "Review and confirm apps, duplicate large files, and Agent resources on their respective pages.";
