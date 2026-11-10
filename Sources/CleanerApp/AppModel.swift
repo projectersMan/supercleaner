@@ -86,6 +86,8 @@ private struct ModuleScanSession: Sendable {
     }
     @Published var applicationQuery = "" { didSet { reconcileApplicationSelection() } }
     @Published var applicationScope: ApplicationListScope = .uninstallable { didSet { reconcileApplicationSelection() } }
+    @Published private var runningApplicationIDs: Set<String>?
+    private var isPreparingStoppedAppPlans = false
     @Published private(set) var isLoadingApplications = false
     @Published private(set) var deepScanningApplicationID: URL?
     @Published private(set) var deepScanMessages: [URL: String] = [:]
@@ -528,7 +530,11 @@ private struct ModuleScanSession: Sendable {
         cachedAllCandidates = result
         return result
     }
-    var applications: [InstalledApplication] { systemReport?.applicationInventory.applications ?? [] }
+    var applications: [InstalledApplication] {
+        let scanned = systemReport?.applicationInventory.applications ?? []
+        guard let runningApplicationIDs else { return scanned }
+        return scanned.map { $0.withRunningState(runningApplicationIDs.contains($0.bundleIdentifier)) }
+    }
     var diskUsageTree: DiskUsageTree? { systemReport?.diskUsageTree }
     var largeFileThresholdNeedsRefresh: Bool {
         guard let diskUsageTree else { return false }
@@ -750,7 +756,9 @@ private struct ModuleScanSession: Sendable {
         }
     }
     var visibleApplications: [InstalledApplication] {
-        let filtered = ApplicationListFilter(query: applicationQuery, scope: applicationScope).apply(to: accessibleApplications)
+        let pending = applicationScope == .uninstallable ? applicationIDsAwaitingQuitAnalysis : []
+        let filtered = ApplicationListFilter(query: applicationQuery, scope: applicationScope)
+            .apply(to: accessibleApplications).filter { !pending.contains($0.id) }
         let selectedApplicationURLs = applicationSortOrder == .selection
             ? Set(applicationUninstallPlans.compactMap { plan in
                 plan.items.contains(where: { uninstallSelectedIDs.contains($0.id) })
@@ -761,7 +769,8 @@ private struct ModuleScanSession: Sendable {
         return applicationSortOrder.sorted(filtered, selectedApplicationURLs: selectedApplicationURLs)
     }
     var applicationFilterSummary: ApplicationFilterSummary {
-        ApplicationListFilter(query: applicationQuery, scope: applicationScope).summary(for: accessibleApplications)
+        ApplicationFilterSummary(visibleCount: visibleApplications.count, totalCount: accessibleApplications.count,
+            canClear: applicationScope != .all || !applicationQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
     var applicationScanPresentation: ScanAccessPresentation {
         ScanAccessPresentation(deniedPaths: scanDeniedPaths[.applications] ?? [])
@@ -769,9 +778,18 @@ private struct ModuleScanSession: Sendable {
     private var accessibleApplications: [InstalledApplication] {
         applications.filter { !applicationScanPresentation.skips($0.bundleURL) }
     }
+    private var applicationIDsAwaitingQuitAnalysis: Set<URL> {
+        guard let runningApplicationIDs, let inventory = systemReport?.applicationUninstallInventory else { return [] }
+        return Set(inventory.analyses.compactMap { analysis in
+            let app = analysis.application
+            return app.isRunning && !app.isSystem && !runningApplicationIDs.contains(app.bundleIdentifier) ? app.id : nil
+        })
+    }
     var applicationUninstallPlans: [UninstallPlan] {
         if let cachedApplicationUninstallPlans { return cachedApplicationUninstallPlans }
-        let plans = (systemReport?.applicationUninstallInventory.plans ?? []).map { plan in
+        let plans = (systemReport?.applicationUninstallInventory.plans ?? []).filter {
+            runningApplicationIDs?.contains($0.application.bundleIdentifier) != true
+        }.map { plan in
             UninstallPlan(id: plan.id, application: plan.application, items: plan.items.map {
                 UninstallItem(candidate: protectionPolicy.applying(to: $0.candidate), containsUserData: $0.containsUserData, isShared: $0.isShared)
             })
@@ -800,7 +818,13 @@ private struct ModuleScanSession: Sendable {
 
     func uninstallAnalysis(for application: InstalledApplication) -> ApplicationUninstallAnalysis? {
         guard let analysis = systemReport?.applicationUninstallInventory.analysis(for: application.id) else { return nil }
-        return ApplicationUninstallAnalysis(application: analysis.application,
+        if application.isRunning && !application.isSystem {
+            return ApplicationUninstallAnalysis(application: application, plan: nil, state: .protected,
+                message: L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。"),
+                ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
+        }
+        if analysis.application.isRunning && !application.isSystem { return nil }
+        return ApplicationUninstallAnalysis(application: application,
             plan: applicationUninstallPlans.first { $0.application.id == application.id }, state: analysis.state,
             message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
     }
@@ -884,7 +908,8 @@ private struct ModuleScanSession: Sendable {
 
     func bootstrap() {
         helper.refresh()
-        maintenanceTask?.cancel()
+        // Reopening a window must not restart initialization or maintenance.
+        guard maintenanceTask == nil else { return }
         maintenanceTask = Task { [weak self] in
             guard let self else { return }
             await bootstrapPersistentState()
@@ -1052,6 +1077,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     func applicationDidBecomeActive() {
+        if selection == .applications { refreshRunningApplications() }
         Task { [weak self] in
             guard let self else { return }
             if selection == .settings { await loadPermissions() }
@@ -1705,7 +1731,7 @@ private struct ModuleScanSession: Sendable {
                     try? await Task.sleep(nanoseconds: 250_000_000)
                 }
                 if !launched.isTerminated {
-                    deepScanMessages[application.id] = L10n.text("观察已结束，应用尚未退出；请手动退出后刷新，才能卸载。")
+                    deepScanMessages[application.id] = L10n.text("观察已结束，应用尚未退出。请手动退出，列表会自动更新。")
                 }
             }
             // Rebuild running state and ownership after launch/quit, even on cancel.
@@ -1720,6 +1746,61 @@ private struct ModuleScanSession: Sendable {
         guard !updateInProgress, deepScanningApplicationID == nil, !isLoadingApplications, !isScanRunning, phase != .executing else { return }
         guard systemReport != nil else { selection = .cleanupCenter; return }
         Task { [weak self] in await self?.reloadApplicationModule() }
+    }
+
+    private func updateRunningApplicationIDs(_ identifiers: Set<String>) {
+        guard runningApplicationIDs != identifiers else { return }
+        runningApplicationIDs = identifiers
+        cachedApplicationUninstallPlans = nil
+        var selection = uninstallSelectionState
+        selection.reconcile(plans: applicationUninstallPlans)
+        uninstallSelectedIDs = selection.selectedItemIDs
+        reconcileApplicationSelection()
+    }
+
+    func refreshRunningApplications() {
+        guard hasScanResult(for: .applications), let report = systemReport else { return }
+        updateRunningApplicationIDs(currentRunningApplicationIDs())
+        guard !isPreparingStoppedAppPlans, !isLoadingApplications, deepScanningApplicationID == nil,
+              moduleScanTasks[.applications] == nil, !updateInProgress, !isDeletionInProgress else { return }
+        let previous = report.applicationUninstallInventory
+        let generationID = report.generationID
+        let needsPlan = applicationIDsAwaitingQuitAnalysis
+        guard !needsPlan.isEmpty else { return }
+
+        isPreparingStoppedAppPlans = true
+        let liveApplications = applications
+        let context = ScanContext(homeDirectory: home, fileSystem: fileSystem, protectionPolicy: protectionPolicy)
+        Task { [weak self] in
+            let refreshed = await ApplicationUninstallAnalyzer().analyzeStoppedApplications(needsPlan, in: liveApplications, context: context)
+            guard let self else { return }
+            defer { isPreparingStoppedAppPlans = false }
+            guard !refreshed.isEmpty, !isDeletionInProgress, !updateInProgress, !isLoadingApplications,
+                  deepScanningApplicationID == nil, moduleScanTasks[.applications] == nil,
+                  hasScanResult(for: .applications), let current = systemReport,
+                  current.generationID == generationID, current.applicationUninstallInventory == previous else { return }
+
+            let running = currentRunningApplicationIDs()
+            updateRunningApplicationIDs(running)
+            let byID = Dictionary(uniqueKeysWithValues: refreshed.filter {
+                !running.contains($0.application.bundleIdentifier)
+            }.map { ($0.id, $0) })
+            guard !byID.isEmpty else { return }
+            let scanned = previous.applicationInventory
+            let inventory = ApplicationInventory(applications: scanned.applications.map { byID[$0.id]?.application ?? $0 },
+                coverage: scanned.coverage, scannedAt: scanned.scannedAt)
+            let updated = ApplicationUninstallInventory(applicationInventory: inventory,
+                analyses: previous.analyses.map { byID[$0.id] ?? $0 },
+                associationCoverage: previous.associationCoverage, ownershipGraph: previous.ownershipGraph)
+                .observing(Dictionary(uniqueKeysWithValues: previous.analyses.compactMap { analysis in
+                    analysis.runtimeObservation.map { (analysis.id, $0) }
+                }))
+            install(current.replacing(module: .applications, payload: .applications(updated), completedAt: Date()))
+        }
+    }
+
+    private func currentRunningApplicationIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }.compactMap(\.bundleIdentifier))
     }
 
     private func reconcileApplicationSelection() {
@@ -1748,6 +1829,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     func executeUninstallBatch() {
+        updateRunningApplicationIDs(currentRunningApplicationIDs())
         guard canExecuteUninstallBatch else { return }
         let selection = uninstallSelectionState
         let selectedItems = selection.selectedItems(in: applicationUninstallPlans)
@@ -2574,9 +2656,39 @@ extension AppModel {
         model.scanProgressByModule = statuses
         model.install(report)
         model.selection = .applications
+        try check(model.uninstallSelectedIDs.isEmpty && !model.canExecuteUninstallBatch,
+            "a newly scanned uninstall plan must require manual selection")
+        let initiallyRunning = app.withRunningState(true)
+        let runningInventory = ApplicationUninstallInventory(
+            applicationInventory: .init(applications: [initiallyRunning], coverage: apps.coverage, scannedAt: apps.scannedAt),
+            analyses: [.init(application: initiallyRunning, plan: nil, state: .protected)])
+        model.install(report.replacing(module: .applications, payload: .applications(runningInventory), completedAt: Date()))
+        model.updateRunningApplicationIDs([])
+        try check(model.visibleApplications.isEmpty && model.applicationFilterSummary.visibleCount == 0 && model.applicationFilterSummary.totalCount == 1,
+            "a recently stopped app must stay out of Uninstallable until its analysis completes")
+        model.applicationScope = .all
+        try check(model.visibleApplications == [app] && model.uninstallAnalysis(for: app) == nil,
+            "All must show the app without an actionable plan while it is being analyzed")
+        model.applicationScope = .uninstallable
+        model.install(report)
+        try check(model.visibleApplications == [app] && model.uninstallSelectedIDs.isEmpty && !model.canExecuteUninstallBatch,
+            "a newly analyzed app must move to Uninstallable with all items unchecked")
         model.uninstallSelectedIDs = [item.id]
         try check(!model.hasCompletedScan && model.hasScanResult(for: .applications), "fixture must have app results before the full scan finishes")
         try check(model.canExecuteUninstallBatch, "completed app module must allow deletion while other modules scan")
+        model.updateRunningApplicationIDs([app.bundleIdentifier])
+        try check(model.visibleApplications.isEmpty && !model.canExecuteUninstallBatch && model.uninstallSelectedIDs.isEmpty,
+            "a relaunched app must immediately leave Uninstallable and drop its selected items")
+        model.applicationScope = .running
+        try check(model.visibleApplications.map(\.id) == [app.id] && model.uninstallAnalysis(for: model.visibleApplications[0])?.state == .protected,
+            "a relaunched app must appear as protected in Running")
+        model.updateRunningApplicationIDs([])
+        try check(model.visibleApplications.isEmpty, "a stopped app must leave Running")
+        model.applicationScope = .uninstallable
+        try check(model.visibleApplications == [app] && model.applicationUninstallPlans.first?.items.map(\.id) == [item.id]
+            && model.uninstallSelectedIDs.isEmpty && !model.canExecuteUninstallBatch,
+            "a stopped app must reappear in Uninstallable with its existing plan unchecked")
+        model.uninstallSelectedIDs = [item.id]
         model.selection = .systemCleanup
         model.selectedIDs = [log.id]
         try check(model.canExecuteSelection && model.canRunOneClickCleanup, "completed system module must allow selected and default cleanup during unrelated scans")

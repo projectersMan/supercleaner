@@ -139,9 +139,14 @@ func runChangingLogExecutionContracts() async throws {
     require(linked.results.first?.status != .succeeded && manager.fileExists(atPath: target.path),
             "a symlink substituted for a log cannot gain deletion eligibility")
 
-    let (ordinaryURL, logCandidate, _) = try await fixture("ordinary")
-    let ordinary = CleanupCandidate(url: ordinaryURL, displayName: "ordinary", category: .largeFile, bytes: logCandidate.bytes,
-        risk: .review, evidence: [], identity: logCandidate.identity, source: .diskAnalysis, lastAccessDate: nil, isActive: false)
+    // Keep this identity regression inside the allowed personal-file scope so
+    // runtime-directory protection does not reject it before the identity check.
+    let ordinaryURL = home.appendingPathComponent("Downloads/ordinary.txt")
+    try manager.createDirectory(at: ordinaryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("scanned\n".utf8).write(to: ordinaryURL)
+    let ordinaryIdentity = try await local.identity(at: ordinaryURL)
+    let ordinary = CleanupCandidate(url: ordinaryURL, displayName: "ordinary", category: .largeFile, bytes: ordinaryIdentity.size,
+        risk: .review, evidence: [], identity: ordinaryIdentity, source: .diskAnalysis, lastAccessDate: nil, isActive: false)
     let ordinaryPlan = try PlanBuilder(ruleVersion: pack.version, protectionPolicy: .init(homeDirectory: home))
         .build(candidates: [ordinary], selectedIDs: [ordinary.id])
     try Data("changed ordinary file\n".utf8).write(to: ordinaryURL)

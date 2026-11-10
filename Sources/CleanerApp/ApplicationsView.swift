@@ -21,6 +21,12 @@ struct ApplicationsView: View {
                 applicationContent
             }
         }
+        .task {
+            while !Task.isCancelled {
+                model.refreshRunningApplications()
+                try? await Task.sleep(for: .milliseconds(1500))
+            }
+        }
     }
 
     @ViewBuilder private var applicationContent: some View {
@@ -92,7 +98,8 @@ struct ApplicationsView: View {
     }
 
     private var applicationCount: some View {
-        Text(L10n.text("{0} / {1} 个应用", String(describing: model.applicationFilterSummary.visibleCount), String(describing: model.applicationFilterSummary.totalCount)))
+        let summary = model.applicationFilterSummary
+        return Text(L10n.text("{0} / {1} 个应用", String(describing: summary.visibleCount), String(describing: summary.totalCount)))
             .monospacedDigit().foregroundColor(.secondary)
             .frame(width: 140, alignment: .trailing)
             .lineLimit(1)
@@ -154,7 +161,7 @@ private struct ApplicationUninstallRow: View {
                         .font(.callout.weight(.medium))
                         .frame(minWidth: 150, alignment: .trailing)
                 }
-                if analysis?.state != .complete && !hasOnlyAccessSkips {
+                if let analysis, analysis.state != .complete && !hasOnlyAccessSkips {
                     AnalysisStateBadge(analysis: analysis)
                 }
             }
@@ -304,9 +311,11 @@ private struct ApplicationUninstallRow: View {
             .buttonStyle(.plain)
             .disabled(model.isDeletionInProgress)
             .help(state == .all ? L10n.text("取消选择此应用的可卸载项目") : L10n.text("手动选择此应用的全部可卸载项目"))
-        } else {
+        } else if analysis != nil {
             Image(systemName: "lock.square").font(.title3).foregroundColor(.secondary).frame(width: 18)
                 .help(analysis?.message ?? L10n.text("当前应用没有可选择的卸载项目"))
+        } else {
+            Color.clear.frame(width: 18, height: 1)
         }
     }
 
@@ -353,13 +362,16 @@ private struct ApplicationUninstallRow: View {
 
     private var protectedContent: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: application.isRunning ? "pause.circle.fill" : "lock.shield.fill")
-                .foregroundColor(application.isRunning ? .orange : .secondary)
+            if analysis != nil {
+                Image(systemName: application.isRunning ? "pause.circle.fill" : "lock.shield.fill")
+                    .foregroundColor(application.isRunning ? .orange : .secondary)
+            }
             VStack(alignment: .leading, spacing: 5) {
-                Text(analysis?.statusTitle ?? L10n.text("当前不可卸载")).font(.callout.weight(.semibold))
-                Text(analysis?.message ?? L10n.text("当前扫描没有生成可执行的卸载项目。"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let analysis {
+                    Text(analysis.statusTitle).font(.callout.weight(.semibold))
+                    Text(analysis.message ?? L10n.text("当前扫描没有生成可执行的卸载项目。"))
+                        .font(.caption).foregroundColor(.secondary)
+                }
                 Text(application.bundleURL.path)
                     .font(.caption2.monospaced())
                     .foregroundColor(.secondary)
@@ -420,23 +432,21 @@ private struct UninstallItemRow: View {
 }
 
 private struct AnalysisStateBadge: View {
-    let analysis: ApplicationUninstallAnalysis?
+    let analysis: ApplicationUninstallAnalysis
     var body: some View {
         let value = presentation
-        Label(analysis?.statusTitle ?? value.title, systemImage: value.icon)
+        Label(analysis.statusTitle, systemImage: value.icon)
             .font(.caption.weight(.semibold)).foregroundColor(value.color)
             .padding(.horizontal, 9).padding(.vertical, 5)
             .background(value.color.opacity(0.12), in: Capsule()).frame(minWidth: 104)
     }
-    private var presentation: (title: String, icon: String, color: Color) {
-        switch analysis?.state {
-        case .complete: return (L10n.text("分析完整"), "checkmark.shield", .green)
-        case .limited: return (L10n.text("分析受限"), "exclamationmark.triangle", .orange)
-        case .protected where analysis?.application.isRunning == true:
-            return (L10n.text("运行中 · 暂不可卸载"), "pause.circle.fill", .orange)
-        case .protected: return (L10n.text("系统保护"), "lock.fill", .secondary)
-        case .unavailable: return (L10n.text("无法分析"), "xmark.octagon", .red)
-        case nil: return (L10n.text("等待分析"), "clock", .secondary)
+    private var presentation: (icon: String, color: Color) {
+        switch analysis.state {
+        case .complete: return ("checkmark.shield", .green)
+        case .limited: return ("exclamationmark.triangle", .orange)
+        case .protected where analysis.application.isRunning: return ("pause.circle.fill", .orange)
+        case .protected: return ("lock.fill", .secondary)
+        case .unavailable: return ("xmark.octagon", .red)
         }
     }
 }

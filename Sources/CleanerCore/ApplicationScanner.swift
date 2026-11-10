@@ -24,6 +24,13 @@ public struct InstalledApplication: Identifiable, Codable, Hashable, Sendable {
         self.teamIdentifier = teamIdentifier
         self.applicationGroups = applicationGroups
     }
+
+    public func withRunningState(_ isRunning: Bool) -> Self {
+        guard self.isRunning != isRunning else { return self }
+        return Self(bundleURL: bundleURL, bundleIdentifier: bundleIdentifier, name: name, version: version,
+            isRunning: isRunning, isSystem: isSystem, teamIdentifier: teamIdentifier,
+            applicationGroups: applicationGroups, associatedBundleIdentifiers: associatedBundleIdentifiers)
+    }
 }
 
 public struct ApplicationBundleMetadata: Codable, Hashable, Sendable {

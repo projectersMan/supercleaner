@@ -39,6 +39,14 @@ func runApplicationDiscoveryContracts() async throws {
     let item = plan.items.first { $0.candidate.url.path == data.path }!
     require(item.containsUserData && item.candidate.risk == .review, "declared user data is selectable but never safe/default")
     require(UninstallBatchSelectionState().selectedItems(in: [plan]).isEmpty, "new data must not be auto-selected")
+    let analyzer = ApplicationUninstallAnalyzer(scanner: scanner)
+    let runningApp = app.withRunningState(true)
+    let whileRunning = await analyzer.analyzeStoppedApplications([app.id], in: [runningApp], context: context)
+    require(whileRunning.isEmpty, "a running app must not receive a refreshed uninstall plan")
+    let afterQuit = await analyzer.analyzeStoppedApplications([app.id], in: [runningApp.withRunningState(false)], context: context)
+    require(afterQuit.first?.plan?.items.contains {
+        $0.candidate.url.path == data.path && $0.containsUserData && $0.candidate.risk == .review
+    } == true, "quitting an app must refresh its plan with opt-in associated data")
     try await ApplicationExecutionValidator(scanner: scanner).validate(item.candidate, context: context)
     let ordered = try PlanBuilder(protectionPolicy: .init(homeDirectory: home)).build(candidates: plan.items.map(\.candidate), selectedIDs: plan.selectableItemIDs)
     require(ordered.selectedItems.last?.candidate.category == .application, "revalidate declared data before removing its source app")

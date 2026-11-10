@@ -202,7 +202,27 @@ public struct ApplicationUninstallAnalyzer: Sendable {
     ) async -> ApplicationUninstallInventory {
         let applications = inventory.applications
         let associationIndex = await scanner.associationIndex(for: applications, context: context)
+        return ApplicationUninstallInventory(
+            applicationInventory: inventory,
+            analyses: await analyze(applications, using: associationIndex, context: context),
+            associationCoverage: associationIndex.coverage,
+            ownershipGraph: associationIndex.ownershipGraph
+        )
+    }
 
+    public func analyzeStoppedApplications(
+        _ ids: Set<URL>, in applications: [InstalledApplication], context: ScanContext
+    ) async -> [ApplicationUninstallAnalysis] {
+        let targets = applications.filter { ids.contains($0.id) && !$0.isRunning && !$0.isSystem }
+        guard !targets.isEmpty else { return [] }
+        // Keep all installed copies in the ownership check, even when only a few plans need rebuilding.
+        let associationIndex = await scanner.associationIndex(for: applications, context: context)
+        return await analyze(targets, using: associationIndex, context: context)
+    }
+
+    private func analyze(
+        _ applications: [InstalledApplication], using associationIndex: ApplicationAssociationIndex, context: ScanContext
+    ) async -> [ApplicationUninstallAnalysis] {
         var analyses: [ApplicationUninstallAnalysis] = []
         for batchStart in stride(from: 0, to: applications.count, by: maximumConcurrentApplications) {
             let batchEnd = min(applications.count, batchStart + maximumConcurrentApplications)
@@ -228,12 +248,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
 
         let order = Dictionary(uniqueKeysWithValues: applications.enumerated().map { ($0.element.id, $0.offset) })
         analyses.sort { order[$0.id, default: .max] < order[$1.id, default: .max] }
-        return ApplicationUninstallInventory(
-            applicationInventory: inventory,
-            analyses: analyses,
-            associationCoverage: associationIndex.coverage,
-            ownershipGraph: associationIndex.ownershipGraph
-        )
+        return analyses
     }
 
     private func analyze(

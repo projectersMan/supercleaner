@@ -134,7 +134,8 @@ struct LargeFileContentAnalyzer {
         let home = context.homeDirectory.resolvingSymlinksInPath().standardizedFileURL
         let literal = url.standardizedFileURL
         let path = literal.path
-        guard path.hasPrefix(home.path + "/"),
+        guard LargeFileCleanupScope(homeDirectory: context.homeDirectory).allows(url),
+              path.hasPrefix(home.path + "/"),
               !excluded.contains(where: { path.hasPrefix(home.appendingPathComponent($0).path + "/") }),
               !DeletedContentScanExclusion(homeDirectory: home).contains(literal), !context.isActive(literal),
               (try? context.pathPolicy.validateCandidate(literal)) != nil,

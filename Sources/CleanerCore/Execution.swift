@@ -194,6 +194,10 @@ public actor CleanupExecutor {
                 if candidate.category == .application, candidate.source == .application {
                     _ = try pathPolicy.validateApplicationBundle(candidate.url)
                 } else {
+                    if candidate.category == .largeFile,
+                       !LargeFileCleanupScope(homeDirectory: pathPolicy.homeDirectory).allows(candidate.url) {
+                        throw PathPolicyError.protectedPath(candidate.url.path)
+                    }
                     _ = try pathPolicy.validateCandidate(candidate.url)
                 }
             } catch {

@@ -85,8 +85,8 @@ import XCTest
         let extracted = try makeZIP("extracted.zip", inputs: ["Extracted"], in: root)
         let ordinary = try write(Data(repeating: 57, count: 8_192), to: "ordinary.txt", in: root)
         let archive = try makeZIP("ordinary.zip", inputs: ["ordinary.txt"], in: root)
-        let context = ScanContext(homeDirectory: root, activePaths: [active],
-            protectionPolicy: ProtectionPolicy(entries: [ProtectedPath(url: protected)], homeDirectory: root))
+        let context = ScanContext(homeDirectory: root.deletingLastPathComponent(), activePaths: [active],
+            protectionPolicy: ProtectionPolicy(entries: [ProtectedPath(url: protected)], homeDirectory: root.deletingLastPathComponent()))
         let recursive = try await scan(context)
         let indexed = try await scan(context, index: DuplicateFixtureIndex(urls: recursive.diskUsageTree.largeFiles.map(\.url)))
         XCTAssertEqual(indexed.diskUsageTree.analysisState, .indexedResults)
@@ -118,7 +118,7 @@ import XCTest
         let plan = try builder.build(candidates: [candidate], selectedIDs: [candidate.id])
         let decoded = try JSONDecoder().decode(CleanupPlan.self, from: JSONEncoder().encode(plan))
         XCTAssertEqual(decoded.selectedItems.first?.candidate.largeFileProof, candidate.largeFileProof)
-        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: root),
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: root.deletingLastPathComponent()),
             quarantineRoot: root.appendingPathComponent("Quarantine"), currentRuleVersion: builder.ruleVersion)
         let receipt = await executor.execute(plan: decoded)
         XCTAssertEqual(receipt.results.first?.status, .succeeded)
@@ -141,15 +141,80 @@ import XCTest
         XCTAssertThrowsError(try builder.build(candidates: [selected, retained], selectedIDs: [selected.id, retained.id]))
         let plan = try builder.build(candidates: [selected], selectedIDs: [selected.id])
         try Data(repeating: 43, count: 8_192).write(to: a)
-        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: root),
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: root.deletingLastPathComponent()),
             quarantineRoot: root.appendingPathComponent("Quarantine"), currentRuleVersion: builder.ruleVersion)
         let receipt = await executor.execute(plan: plan)
         XCTAssertEqual(receipt.results.first?.status, .skippedIdentityChanged)
         XCTAssertTrue(FileManager.default.fileExists(atPath: b.path))
     }
 
+    func testRuntimeCopiesAreBlockedInBothScanPaths() async throws {
+        let root = try makeFixtureDirectory()
+        defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        let paths = [
+            "miniconda3/envs/py312/lib/python3.12/site-packages/torch/libtorch_cpu.dylib",
+            "miniconda3/envs/py310/lib/python3.10/site-packages/torch/libtorch_cpu.dylib",
+            "Library/Android/sdk/ndk/bin/clang++",
+            "Downloads/project/.venv/lib/runtime.dat",
+            "Documents/custom-env/weights.dat",
+            "Downloads/tool.app/Contents/Resources/data.dat",
+        ]
+        let files = try paths.map { try write(Data(repeating: 71, count: 8192), to: $0, in: home) }
+        _ = try write(Data(), to: "Documents/custom-env/pyvenv.cfg", in: home)
+        for index: any LargeFileMetadataIndexing in [UnavailableDuplicateFixtureIndex(), DuplicateFixtureIndex(urls: files)] {
+            let report = try await scan(ScanContext(homeDirectory: home), index: index)
+            let candidates = report.largeFileCandidates.filter { files.contains($0.url) }
+            XCTAssertFalse(candidates.isEmpty)
+            XCTAssertTrue(candidates.allSatisfy { !$0.risk.isSelectable && $0.largeFileProof == nil })
+            XCTAssertTrue(DefaultCleanupPolicy().selection(for: report).largeFiles.isEmpty)
+            for candidate in candidates {
+                XCTAssertThrowsError(try PlanBuilder().build(candidates: candidates, selectedIDs: [candidate.id]))
+            }
+        }
+    }
+
+    func testExecutionRejectsPreviouslySelectableRuntimeFile() async throws {
+        let root = try makeFixtureDirectory()
+        defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        let file = try write(Data(repeating: 1, count: 8192), to: "miniconda3/lib/runtime.dat", in: home)
+        let identity = try await LocalFileSystem().identity(at: file)
+        // Simulate a plan created before the personal-content restriction existed.
+        let candidate = CleanupCandidate(url: file, displayName: "runtime.dat", category: .largeFile,
+            bytes: identity.size, risk: .review, evidence: [], identity: identity, source: .diskAnalysis,
+            lastAccessDate: nil, isActive: false)
+        let builder = PlanBuilder()
+        let plan = try builder.build(candidates: [candidate], selectedIDs: [candidate.id])
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: home),
+            quarantineRoot: home.appendingPathComponent("Quarantine"), currentRuleVersion: builder.ruleVersion)
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.first?.status, .skippedProtected)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables() throws {
+        let root = try makeFixtureDirectory()
+        defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        let scope = LargeFileCleanupScope(homeDirectory: home)
+        for folder in ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music"] {
+            let file = try write(Data([1]), to: "\(folder)/personal/archive.zip", in: home)
+            XCTAssertTrue(scope.allows(file), file.path)
+        }
+        let runtime = try write(Data([1]), to: "miniconda3/runtime.dat", in: home)
+        let link = root.appendingPathComponent("linked.zip")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: runtime)
+        XCTAssertFalse(scope.allows(link))
+        let executable = try write(Data([1]), to: "Downloads/compiler", in: home)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        XCTAssertFalse(scope.allows(executable))
+        XCTAssertFalse(scope.allows(home.appendingPathComponent("Downloads-old/archive.zip")))
+        XCTAssertFalse(scope.allows(home.appendingPathComponent("archive.zip")))
+    }
+
     private func scan(_ root: URL, index: any LargeFileMetadataIndexing = UnavailableDuplicateFixtureIndex()) async throws -> SystemScanReport {
-        try await scan(ScanContext(homeDirectory: root), index: index)
+        try await scan(ScanContext(homeDirectory: root.deletingLastPathComponent()), index: index)
     }
 
     private func scan(_ context: ScanContext, index: any LargeFileMetadataIndexing = UnavailableDuplicateFixtureIndex(),
@@ -163,13 +228,13 @@ import XCTest
 
     private func makeFixtureDirectory() throws -> URL {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent(".duplicate-fixture-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+            .appendingPathComponent(".duplicate-fixture-\(UUID().uuidString)/Downloads", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
 
     private func removeFixtureDirectory(_ root: URL) {
-        XCTAssertNoThrow(try FileManager.default.removeItem(at: root))
+        XCTAssertNoThrow(try FileManager.default.removeItem(at: root.deletingLastPathComponent()))
     }
 
     private func write(_ data: Data, to path: String, in root: URL) throws -> URL {

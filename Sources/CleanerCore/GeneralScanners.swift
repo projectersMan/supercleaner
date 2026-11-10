@@ -435,6 +435,10 @@ public struct LargeFileScanner: Scanner {
                 code: "large-file",
                 summary: L10n.text("大文件仅因体积被发现，不会自动清理")
             )]
+            if !LargeFileCleanupScope(homeDirectory: context.homeDirectory).allows(node.url) {
+                risk = .blocked
+                evidence.append(Evidence(code: "large-file-protected-scope", summary: L10n.text("仅允许清理个人文件目录中的文件，应用和开发环境受到保护")))
+            }
             do { _ = try context.pathPolicy.validateCandidate(node.url) }
             catch { risk = .blocked; evidence.append(Evidence(code: "protected-path", summary: L10n.text("路径受到安全策略保护"))) }
             output.append(context.protectionPolicy.applying(to: CleanupCandidate(

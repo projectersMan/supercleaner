@@ -27,6 +27,9 @@ CORE_BUNDLE=${APP}/Contents/Resources/SuperCleaner_CleanerCore.bundle
 [[ -f ${APP}/Contents/Resources/Sparkle-LICENSE.txt && -f ${APP}/Contents/Frameworks/Sparkle.framework/Sparkle ]] || { print -u2 "FAIL: embedded updater missing"; exit 1; }
 
 MODEL_ASSET=${APP}/Contents/Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/embeddinggemma-2-Q8_0.gguf
+if [[ ! -f ${MODEL_ASSET} ]]; then
+  MODEL_ASSET=${APP}/Contents/Resources/SuperCleaner_AgentOverlapAI.bundle/Models/embeddinggemma-2-Q8_0.gguf
+fi
 [[ -f ${MODEL_ASSET} && ! -L ${MODEL_ASSET} ]] || { print -u2 "FAIL: bundled Agent model missing"; exit 1; }
 [[ $(/usr/bin/stat -f %z ${MODEL_ASSET}) == 309855456 ]] || { print -u2 "FAIL: bundled Agent model size mismatch"; exit 1; }
 [[ $(/usr/bin/shasum -a 256 ${MODEL_ASSET} | /usr/bin/awk '{print $1}') == 2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135 ]] || { print -u2 "FAIL: bundled Agent model checksum mismatch"; exit 1; }

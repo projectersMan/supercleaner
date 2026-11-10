@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var model = AppModel()
+    @ObservedObject var model: AppModel
     private let navigationPolicy = AppNavigationPolicy()
 
     var body: some View {

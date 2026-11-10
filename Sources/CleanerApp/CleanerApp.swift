@@ -47,9 +47,11 @@ import SwiftUI
 
 struct CleanerGUI: App {
     @NSApplicationDelegateAdaptor(CleanerApplicationDelegate.self) private var delegate
+    // Keep the scan session alive independently of the main window.
+    @StateObject private var model = AppModel()
     var body: some Scene {
         WindowGroup(id: "main") {
-            MainWindowContent(delegate: delegate)
+            MainWindowContent(delegate: delegate, model: model)
         }
         .windowToolbarStyle(.unified)
         .defaultSize(width: 1280, height: 820)
@@ -59,9 +61,10 @@ struct CleanerGUI: App {
 struct MainWindowContent: View {
     @Environment(\.openWindow) private var openWindow
     let delegate: CleanerApplicationDelegate
+    let model: AppModel
 
     var body: some View {
-        ContentView()
+        ContentView(model: model)
             .environment(\.locale, L10n.language.locale)
             .onAppear {
                 delegate.reopenMainWindow = { openWindow(id: "main") }
@@ -71,6 +74,11 @@ struct MainWindowContent: View {
 
 @MainActor final class CleanerApplicationDelegate: NSObject, NSApplicationDelegate {
     var reopenMainWindow: (() -> Void)?
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // Closing the interface leaves the app running until an explicit quit.
+        false
+    }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         let miniaturizedWindows = sender.windows.filter(\.isMiniaturized)
