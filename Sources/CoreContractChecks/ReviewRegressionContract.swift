@@ -138,6 +138,11 @@ struct ReviewScanFileSystem: FileSystemAccess {
     func fileExists(_ url: URL) async -> Bool { contains(url) && FileManager.default.fileExists(atPath: url.path) }
     func isReadable(_ url: URL) async -> Bool { contains(url) && url.resolvingSymlinksInPath().path != unreadableDirectory?.resolvingSymlinksInPath().path }
     func isWritable(_ url: URL) -> Bool { false }
+    // Observation of real permissions is independent of this fixture's ban on writes.
+    func isDeletable(_ url: URL) async -> Bool {
+        guard contains(url) else { return false }
+        return await local.isDeletable(url)
+    }
     func readData(at url: URL, maximumBytes: Int) async throws -> Data {
         guard contains(url) else { throw FileSystemError.unreadableContent(url) }
         return try await local.readData(at: url, maximumBytes: maximumBytes)
@@ -163,24 +168,24 @@ func runReviewCompletenessRegressionContracts() async throws {
     let request = try ReadOnlyRequest(arguments: ["scan", "--module", "agentEnvironment", "--home", home.path])
     let fs = ReviewScanFileSystem(home: home)
     let partial = try await ReadOnlyInterface.run(request, runtime: CleanupRuntime(home: home, fileSystem: fs))
-    require(partial.scan?.scanStatus == "partial" && partial.scan?.modules.first?.state == .limited,
-            "depth-truncated Agent scan must not claim complete JSON results")
-    require(partial.scan?.coverage.budgetLimitedModules.contains(.agentEnvironment) == true
-            && partial.scan?.modules.first?.limitations.contains { $0.path?.resolvingSymlinksInPath().path == boundary.resolvingSymlinksInPath().path } == true,
-            "JSON must identify the module and path limited by discovery depth")
+    require(partial.scan?.scanStatus == "complete" && partial.scan?.modules.first?.state == .completed,
+            "deep Agent scans must finish without depth truncation")
+    require(partial.scan?.coverage.budgetLimitedModules.isEmpty == true,
+            "complete deep scans must not report a synthetic depth budget")
     let object = try JSONSerialization.jsonObject(with: partial.json()) as! [String: Any]
     let scanObject = object["scan"] as! [String: Any]
     let providerCoverage = scanObject["agent_provider_coverage"] as? [[String: Any]]
-    require(providerCoverage?.contains { $0["provider"] as? String == "codex" && $0["state"] as? String == "limited" } == true,
+    require(providerCoverage?.contains { $0["provider"] as? String == "codex" && $0["state"] as? String == "complete" } == true,
             "JSON must preserve provider-level completeness evidence")
     let context = ScanContext(homeDirectory: home, fileSystem: fs)
     guard let full = await SystemScanCoordinator().scan(context: context) else { throw ReadOnlyInterfaceError.scanUnavailable }
-    require(full.modules[.agentEnvironment]?.state == .limited && full.coverage.budgetLimitedModules.contains(.agentEnvironment),
+    require(full.modules[.agentEnvironment]?.state == .completed && !full.coverage.budgetLimitedModules.contains(.agentEnvironment),
             "full GUI/system scan must retain Agent completeness and coverage")
     let inventory = try await AgentWorkspaceScanner(adapters: [CodexProviderAdapter()], maximumDepth: 8).scanAssetInventory(context: context)
     let refreshed = full.replacing(module: .agentEnvironment, payload: .agentEnvironment(inventory), completedAt: Date())
-    require(refreshed.modules[.agentEnvironment]?.state == .limited && !refreshed.modules[.agentEnvironment]!.limitations.isEmpty
-            && refreshed.coverage.budgetLimitedModules.contains(.agentEnvironment), "single-module refresh must not discard Agent limitations")
+    require(refreshed.modules[.agentEnvironment]?.state == .completed && !refreshed.coverage.budgetLimitedModules.contains(.agentEnvironment),
+            "single-module refresh must preserve complete deep Agent coverage")
+    require(inventory.assets.contains { $0.candidate.url.path == omitted.path }, "legacy depth parameter must not hide deep assets")
     let payload = try Data(contentsOf: omitted)
     require(payload == Data("must remain untouched".utf8), "completeness reporting must remain read-only")
     try manager.removeItem(at: omitted.deletingLastPathComponent())

@@ -75,6 +75,12 @@ private struct DiskUsageTreeRow: View {
                 if node.kind == .directory {
                     Label(L10n.text("目录只用于展开和理解占用，不会作为一个整体加入清理计划。"), systemImage: "folder.badge.questionmark")
                         .font(.caption).foregroundColor(.secondary)
+                } else if candidate?.risk.isSelectable != true || !node.isReadable {
+                    Label(candidate?.evidence.last?.summary ?? L10n.text("无法验证文件，请刷新扫描"), systemImage: "lock.fill")
+                        .font(.caption).foregroundColor(.secondary)
+                } else if candidate?.requiresExplicitSelection == true {
+                    Text(L10n.text("仅支持手动选择：请确认文件用途，删除可能影响相关应用或项目"))
+                        .font(.caption).foregroundColor(.secondary)
                 } else if let recommendation = candidate?.largeFileRecommendation {
                     let description = recommendation.details.map { L10n.text("{0} · 保留：{1}", recommendation.summary, $0) }
                     Text(description ?? recommendation.summary).font(.caption).foregroundColor(.secondary)

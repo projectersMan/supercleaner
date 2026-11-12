@@ -6,16 +6,19 @@ private struct PreparedValidationRefusal: Error, Sendable, CustomStringConvertib
 }
 
 public struct ExecutionProgress: Sendable, Equatable {
+    public enum Phase: Sendable, Equatable { case processing, savingResults, movingToTrash }
     public let completed: Int
     public let total: Int
     public let currentURL: URL?
     public let result: OperationResult?
+    public let phase: Phase
 
-    public init(completed: Int, total: Int, currentURL: URL?, result: OperationResult? = nil) {
+    public init(completed: Int, total: Int, currentURL: URL?, result: OperationResult? = nil, phase: Phase = .processing) {
         self.completed = completed
         self.total = total
         self.currentURL = currentURL
         self.result = result
+        self.phase = phase
     }
 }
 
@@ -58,6 +61,7 @@ public actor CleanupExecutor {
     private let loadProtection: @Sendable () async throws -> ProtectionPolicy
     private let loadRuleVersion: (@Sendable () async throws -> String)?
     private let validateCandidate: @Sendable (CleanupCandidate) async throws -> Void
+    private let finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)?
     private let prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)?
     private let privilegedApplications: (any PrivilegedApplicationOperations)?
 
@@ -73,6 +77,7 @@ public actor CleanupExecutor {
         validateCandidate: @escaping @Sendable (CleanupCandidate) async throws -> Void = { _ in },
         prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)? = nil,
         privilegedApplications: (any PrivilegedApplicationOperations)? = nil,
+        finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)? = nil,
         permanentRemove: @escaping @Sendable (URL) async throws -> Void = { url in
             try FileManager.default.removeItem(at: url)
         }
@@ -87,6 +92,7 @@ public actor CleanupExecutor {
         self.loadProtection = loadProtection
         self.loadRuleVersion = loadRuleVersion
         self.validateCandidate = validateCandidate
+        self.finalCandidateCheck = finalCandidateCheck
         self.prepareValidationBatch = prepareValidationBatch
         self.privilegedApplications = privilegedApplications
     }
@@ -115,6 +121,10 @@ public actor CleanupExecutor {
             )
         }
         let selected = plan.selectedItems
+        guard !selected.contains(where: { $0.candidate.hasIncompleteScan }) else {
+            return rejected(plan: plan, receiptID: receiptID, startedAt: startedAt,
+                reason: L10n.text("未完成目录验证，不可删除"))
+        }
         if LargeFileCleanupProof.conflictingCandidate(in: selected.map(\.candidate)) != nil {
             return rejected(plan: plan, receiptID: receiptID, startedAt: startedAt,
                 reason: L10n.text("清理计划包含必须保留的文件或目录"))
@@ -170,7 +180,11 @@ public actor CleanupExecutor {
             progress(ExecutionProgress(completed: index, total: selected.count, currentURL: candidate.url))
 
             do {
-                _ = try await fileSystem.identity(at: candidate.url)
+                let initialIdentity = try await fileSystem.identity(at: candidate.url)
+                guard matchesExecutionIdentity(initialIdentity, candidate: candidate) else {
+                    results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("文件身份已变化")))
+                    continue
+                }
             } catch FileSystemError.missing {
                 results.append(result(for: candidate, disposition: .skipped, status: .sourceMissing, message: L10n.text("文件已不存在")))
                 continue
@@ -195,7 +209,7 @@ public actor CleanupExecutor {
                     _ = try pathPolicy.validateApplicationBundle(candidate.url)
                 } else {
                     if candidate.category == .largeFile,
-                       !LargeFileCleanupScope(homeDirectory: pathPolicy.homeDirectory).allows(candidate.url) {
+                       !LargeFileCleanupScope(homeDirectory: pathPolicy.homeDirectory).allows(candidate.url, forManualSelection: true) {
                         throw PathPolicyError.protectedPath(candidate.url.path)
                     }
                     _ = try pathPolicy.validateCandidate(candidate.url)
@@ -263,7 +277,22 @@ public actor CleanupExecutor {
                         results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在权限操作回退前已过期，请重新扫描")))
                         continue
                     }
-                    if allowsLogWrites(candidate) {
+                    if allowsContentChanges(candidate) {
+                        if candidate.identity.kind == .directory {
+                            do {
+                                if let finalCandidateCheck { try await finalCandidateCheck(candidate) }
+                                else { try await validateCandidate(candidate) }
+                                if let validationBatch { try await validationBatch.verifyCurrentRuleState() }
+                                else if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
+                                    throw RuleScanError.executionRefused(candidate.ruleID ?? "changed-rules")
+                                }
+                            }
+                            catch {
+                                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                                    message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
+                                continue
+                            }
+                        }
                         // Preparation/fallback can suspend. Recheck immediately
                         // before moving; rotation is not a content-only change.
                         guard let current = try? await fileSystem.identity(at: candidate.url),
@@ -286,7 +315,7 @@ public actor CleanupExecutor {
                     try await fileSystem.move(candidate.url, to: destination)
                 }
                 if let movedIdentity = await verifiedQuarantinedIdentity(candidate: candidate, destination: destination) {
-                    results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .quarantined, status: .succeeded, bytes: allowsLogWrites(candidate) ? movedIdentity.size : candidate.bytes))
+                    results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .quarantined, status: .succeeded, bytes: allowsContentChanges(candidate) && movedIdentity.kind == .file ? movedIdentity.size : candidate.bytes))
                 } else {
                     results.append(OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination, disposition: .failed, status: .failed, bytes: candidate.bytes, message: L10n.text("移动后身份验证失败，日志保留"), verificationNotBefore: now().addingTimeInterval(150)))
                 }
@@ -347,7 +376,7 @@ public actor CleanupExecutor {
                     destinationURL: destination,
                     disposition: .quarantined,
                     status: .succeeded,
-                    bytes: allowsLogWrites(candidate) ? movedIdentity.size : candidate.bytes,
+                    bytes: allowsContentChanges(candidate) && movedIdentity.kind == .file ? movedIdentity.size : candidate.bytes,
                     message: L10n.text("启动时恢复了已完成的隔离操作")
                 ))
             } else if sourceExists, !destinationExists {
@@ -435,12 +464,12 @@ public actor CleanupExecutor {
         )
     }
 
-    public func resolve(_ entry: ResolutionJournalEntry) async -> [OperationResult] {
+    public func resolve(_ entry: ResolutionJournalEntry, progress: ProgressHandler = { _ in }) async -> [OperationResult] {
         switch entry.action {
         case .restore:
             return await restore(entry: entry)
         case .trash:
-            return await moveToTrash(entry: entry)
+            return await moveToTrash(entry: entry, progress: progress)
         case .purge:
             return await purge(entry: entry)
         }
@@ -504,11 +533,9 @@ public actor CleanupExecutor {
                 let handled = try await privilegedApplications?.restore(source: source, destination: destination, planID: entry.receipt.planID) ?? false
                 if !handled { try await fileSystem.move(source, to: destination) }
                 let restoredIdentity = try? await fileSystem.identity(at: destination)
-                // A still-open log can be written through its descriptor even
-                // during restore. Verify that the same regular file was moved.
-                let matches = expectedIdentity.kind == .file
-                    ? restoredIdentity.map { sameObject($0, expectedIdentity) } == true
-                    : restoredIdentity == expectedIdentity
+                // Contents may change during restore. Verify that the same
+                // file or directory object was moved.
+                let matches = restoredIdentity.map { sameObject($0, expectedIdentity) } == true
                 guard !(await fileSystem.fileExists(source)), matches else {
                     throw HelperMutationUncertain()
                 }
@@ -538,10 +565,13 @@ public actor CleanupExecutor {
         )
     }
 
-    private func moveToTrash(entry: ResolutionJournalEntry) async -> [OperationResult] {
+    private func moveToTrash(entry: ResolutionJournalEntry, progress: ProgressHandler) async -> [OperationResult] {
         var trashed: [OperationResult] = []
         let items = Dictionary(uniqueKeysWithValues: entry.items.map { ($0.candidateID, $0) })
+        let total = entry.receipt.results.filter { $0.disposition == .quarantined }.count
         for result in entry.receipt.results where result.disposition == .quarantined {
+            progress(.init(completed: trashed.count, total: total, currentURL: result.originalURL, phase: .movingToTrash))
+            defer { progress(.init(completed: trashed.count, total: total, currentURL: nil, phase: .movingToTrash)) }
             guard let item = items[result.candidateID],
                   isOwnedQuarantineURL(item.sourceURL, receipt: entry.receipt, result: result)
             else {
@@ -690,20 +720,16 @@ public actor CleanupExecutor {
         )
     }
 
-    /// Only the bundled general-log rule admits mutable file contents. Never
-    /// weaken FileIdentity equality globally: app data, caches, large files and
-    /// links still require their complete scan identity.
-    private func allowsLogWrites(_ candidate: CleanupCandidate) -> Bool {
-        candidate.source == .general && candidate.category == .log
-            && candidate.ruleID == "general.logs" && candidate.identity.kind == .file
+    private func allowsContentChanges(_ candidate: CleanupCandidate) -> Bool {
+        candidate.allowsExecutionContentChanges
     }
 
     private func sameObject(_ left: FileIdentity, _ right: FileIdentity) -> Bool {
-        left.device == right.device && left.inode == right.inode && left.kind == right.kind
+        left.isSameObject(as: right)
     }
 
     private func matchesExecutionIdentity(_ current: FileIdentity, candidate: CleanupCandidate) -> Bool {
-        allowsLogWrites(candidate) ? sameObject(current, candidate.identity) : current == candidate.identity
+        candidate.matchesExecutionIdentity(current)
     }
 
     private func verifiedQuarantinedIdentity(candidate: CleanupCandidate, destination: URL) async -> FileIdentity? {
@@ -713,8 +739,8 @@ public actor CleanupExecutor {
         guard await fileSystem.fileExists(candidate.url) else { return moved }
         // A writer may recreate the original pathname after rename. Success
         // concerns the selected inode; preserve the newly created regular file.
-        guard allowsLogWrites(candidate), let replacement = try? await fileSystem.identity(at: candidate.url),
-              replacement.kind == .file, !sameObject(replacement, candidate.identity) else { return nil }
+        guard allowsContentChanges(candidate), let replacement = try? await fileSystem.identity(at: candidate.url),
+              replacement.kind == candidate.identity.kind, !sameObject(replacement, candidate.identity) else { return nil }
         return moved
     }
 

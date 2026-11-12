@@ -10,7 +10,7 @@ struct GuidedCleanupView: View {
     private var cleanupCandidates: [CleanupCandidate] {
         (breakdown.recommended + breakdown.deepClean).filter { $0.risk.isSelectable }
     }
-    private var retainedCandidates: [CleanupCandidate] { breakdown.retained + breakdown.protected }
+    private var retainedCandidates: [CleanupCandidate] { breakdown.retained + breakdown.protected.filter { !$0.hasIncompleteScan } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,9 +24,10 @@ struct GuidedCleanupView: View {
                         DispositionCandidatesDisclosure(
                             model: model,
                             title: L10n.text("建议清理"),
-                            subtitle: cleanupCandidates.isEmpty ? L10n.text("本次扫描没有符合安全规则的可清理项目") : L10n.text("低风险项目和深度清理候选"),
+                            subtitle: cleanupCandidates.isEmpty ? L10n.text("本次扫描没有符合安全规则的可清理项目") : L10n.text("已按清理规则筛选，可直接批量清理"),
                             icon: "checkmark.shield",
                             candidates: cleanupCandidates,
+                            showsRecommendationBadges: false,
                             isExpanded: $cleanupExpanded,
                             onSelectCandidate: focusCandidate
                         )
@@ -41,6 +42,7 @@ struct GuidedCleanupView: View {
                             isExpanded: $retainedExpanded,
                             onSelectCandidate: focusCandidate
                         )
+
                     }
                     .padding(.horizontal, 24).padding(.bottom, 24)
                 }
@@ -61,6 +63,7 @@ private struct DispositionCandidatesDisclosure: View {
     let subtitle: String
     let icon: String
     let candidates: [CleanupCandidate]
+    var showsRecommendationBadges = true
     @Binding var isExpanded: Bool
     let onSelectCandidate: (CleanupCandidate) -> Void
 
@@ -94,7 +97,7 @@ private struct DispositionCandidatesDisclosure: View {
                             Text(subtitle).font(.caption).foregroundColor(.secondary)
                         }
                         Spacer(minLength: 12)
-                        Text(ByteCountFormatter.cleanerString(bytes: totalBytes)).foregroundColor(.secondary)
+                        Text(candidates.contains(where: \.hasIncompleteScan) ? L10n.text("容量未确认") : ByteCountFormatter.cleanerString(bytes: totalBytes)).foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
                     .contentShape(Rectangle())
@@ -111,7 +114,7 @@ private struct DispositionCandidatesDisclosure: View {
                                     Text(kind).font(.subheadline.weight(.medium)).foregroundColor(.secondary)
                                     LazyVStack(spacing: 8) {
                                         ForEach(group.candidates.filter { SystemCleanupApplicationGroup.kind(for: $0) == kind }) { candidate in
-                                            CleanupCandidateCard(model: model, candidate: candidate)
+                                            CleanupCandidateCard(model: model, candidate: candidate, showsRecommendationBadge: showsRecommendationBadges)
                                                 .contentShape(Rectangle())
                                                 .onTapGesture { onSelectCandidate(candidate) }
                                         }
@@ -171,7 +174,7 @@ private struct ApplicationCleanupGroupRow<Content: View>: View {
                         }
                         Text(group.title).fontWeight(.medium).lineLimit(1)
                         Spacer(minLength: 12)
-                        Text(ByteCountFormatter.cleanerString(bytes: group.bytes)).foregroundColor(.secondary)
+                        Text(group.candidates.contains(where: \.hasIncompleteScan) ? L10n.text("容量未确认") : ByteCountFormatter.cleanerString(bytes: group.bytes)).foregroundColor(.secondary)
                     }
                     .contentShape(Rectangle())
                 }

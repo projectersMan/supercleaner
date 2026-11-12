@@ -145,16 +145,21 @@ private struct LargeFileFilterBar: View {
                 search
                 scope
                 sort
+                Spacer(minLength: 0)
                 count
             }
+            .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) { search; Spacer(minLength: 0); count }
                 HStack(spacing: 12) { scope; sort; Spacer(minLength: 0) }
             }
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .font(.caption)
-        .padding(.horizontal, 18).padding(.vertical, 10).background(.bar)
+        .padding(.leading, 18)
+        .padding(.trailing, 20)
+        .padding(.vertical, 10).background(.bar)
     }
 
     private var search: some View {

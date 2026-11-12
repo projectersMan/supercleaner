@@ -59,9 +59,9 @@ func runSystemCleanupContracts() async throws {
     require(limited.candidates.count == 3, "large sibling must not erase successful candidates before or after it")
     require(candidate("budget/A", in: limited.candidates)?.risk == .review && candidate("budget/C", in: limited.candidates)?.risk == .review,
             "both complete siblings must stay selectable")
-    require(candidate("budget/B", in: limited.candidates)?.risk == .blocked && limited.failures.contains { $0.reason == .budget },
-            "incomplete large sibling stays blocked and reports budget")
-    require(limited.coverage.budgetLimitedModules.contains(.general), "general coverage records budget")
+    require(candidate("budget/B", in: limited.candidates)?.risk == .review && limited.failures.isEmpty,
+            "large siblings must be inspected completely regardless of legacy rule limits")
+    require(limited.coverage.budgetLimitedModules.isEmpty, "complete general coverage is not budget limited")
     let deniedContext = ScanContext(homeDirectory: home, fileSystem: DeniedCleanupFS(denied: home.appendingPathComponent("budget/B")))
     let denied = await ScanCoordinator().scan(using: [CleanupRuleEngine(pack: budgetPack)], context: deniedContext)
     require(denied.candidates.contains { $0.url == smallA.deletingLastPathComponent() } && denied.failures.contains { $0.reason == .access },
@@ -70,7 +70,7 @@ func runSystemCleanupContracts() async throws {
         defaultRisk: .review, granularity: .children, maximumEntries: 1)
     let discoveryLimited = try await CleanupRuleEngine(pack: RulePack(version: "fixture", issuedAt: .distantPast,
         rules: [discoveryRule], revokedRuleIDs: [])).scanResult(context: context)
-    require(discoveryLimited.candidates.count == 1 && discoveryLimited.failures.contains { $0.reason == .budget }, "discovery limit keeps partial results")
+    require(discoveryLimited.candidates.count == 3 && discoveryLimited.failures.isEmpty, "legacy rule entry limits cannot truncate discovery")
 
     let appRoot = home.appendingPathComponent("Applications")
     func app(_ name: String, _ id: String, _ version: String = "1.0") throws -> InstalledApplication {
@@ -101,7 +101,10 @@ func runSystemCleanupContracts() async throws {
     _ = try file(wx + "Library/Caches/com.tencent.xinWeChat/old-account/log/old.xlog")
     _ = try file(wx + "Documents/xwechat_files/accountA/cache/a")
     _ = try file(wx + "Documents/xwechat_files/accountB/cache/b")
+    _ = try file(wx + "Documents/xwechat_files/accountB/cache/2026-11/Message/thread/Thumb/preview.jpg")
     let wxLog = try file(wx + "Documents/app_data/log/app.xlog")
+    try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-2 * 86_400)], ofItemAtPath: wxLog.path)
+    let currentWxLog = try file(wx + "Documents/app_data/log/current.xlog")
     let canaries = try [
         "Library/Application Support/Google/Chrome/Default/Cookies",
         "Library/Application Support/Google/Chrome/Default/Login Data",
@@ -126,8 +129,24 @@ func runSystemCleanupContracts() async throws {
         "exact application cache becomes a safe default after complete validation, independent of age")
     require(candidate("Library/Caches/Google/Chrome/Profile 1/Cache", in: result.candidates) != nil, "Chrome nondefault profiles supported")
     require(candidate("Library/Application Support/Trae CN/Code Cache", in: result.candidates) != nil, "Electron cache leaves supported without deleting user data")
-    require(candidate(wx + "Documents/xwechat_files/accountB/cache", in: result.candidates) != nil, "WeChat account caches enumerated")
+    let weChatAccountCache = candidate(wx + "Documents/xwechat_files/accountB/cache", in: result.candidates)
+    require(weChatAccountCache?.risk == .safe
+        && CleanupRecommendationPolicy().disposition(for: weChatAccountCache!) == .recommended,
+        "typed WeChat Message/Thumb derivatives inside the exact account cache remain recommended cleanup")
     require(result.candidates.contains { $0.url == wxLog && $0.category == .log }, "WeChat 4 xlog supported")
+    let activeWeChatContext = ScanContext(homeDirectory: home, runningBundleIdentifiers: [wechat.bundleIdentifier])
+    let activeWeChatDiscovery = await scanner.discover(applications: apps, context: activeWeChatContext)
+    let activeWeChatScan = try await scanner.scan(discovery: activeWeChatDiscovery, context: activeWeChatContext)
+    let activeWeChatLog = activeWeChatScan.candidates.first { $0.url == wxLog }!
+    let activeCurrentWeChatLog = activeWeChatScan.candidates.first { $0.url == currentWxLog }!
+    require(!activeWeChatLog.isActive
+        && CleanupRecommendationPolicy().disposition(for: activeWeChatLog) == .deepClean,
+        "historical typed WeChat logs remain cleanup candidates while WeChat is running")
+    require(!activeCurrentWeChatLog.isActive
+        && CleanupRecommendationPolicy().disposition(for: activeCurrentWeChatLog) == .deepClean,
+        "recently modified typed WeChat logs remain cleanup candidates while WeChat is running")
+    try await scanner.validateForExecution(activeWeChatLog, context: activeWeChatContext, applications: apps)
+    try await scanner.validateForExecution(activeCurrentWeChatLog, context: activeWeChatContext, applications: apps)
     require(result.candidates.contains { $0.cleanupApplication?.bundleIdentifier == lark.bundleIdentifier }, "sandbox cache and log supported")
     require(canaries.allSatisfy { canary in !result.candidates.contains { canary.path == $0.url.path || canary.path.hasPrefix($0.url.path + "/") } }, "chat records, browser state and user files never covered by a removal root")
     let offline = result.candidates.first { offlinePayload.path.hasPrefix($0.url.path + "/") }!
@@ -192,8 +211,8 @@ func runSystemCleanupContracts() async throws {
     require(!activeCache.isActive && activeCache.evidence.contains { $0.code == "active-cleanup" },
             "exact app cache remains eligible while its app runs and carries a regeneration warning")
     try await scanner.validateForExecution(activeCache, context: activeContext, applications: [activeChat])
-    let refreshed = systemReport.replacing(module: .general, payload: .general(limited), completedAt: Date())
-    require(refreshed.modules[.general]?.state == .limited && refreshed.coverage.budgetLimitedModules.contains(.general),
+    let refreshed = systemReport.replacing(module: .general, payload: .general(denied), completedAt: Date())
+    require(refreshed.modules[.general]?.state == .limited && !refreshed.coverage.unavailableRoots.isEmpty,
             "partial-refresh reports retain coverage limitations")
 
     let preciseRule = CleanupRule(ruleID: "fixture.precise", category: .cache,

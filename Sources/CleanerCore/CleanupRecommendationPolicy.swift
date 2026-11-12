@@ -46,8 +46,10 @@ public struct CleanupRecommendationPolicy: Sendable {
     public init() {}
 
     public func disposition(for candidate: CleanupCandidate) -> CleanupDisposition {
-        if candidate.risk == .blocked { return .protected }
-        if candidate.isActive || candidate.requiresExplicitSelection == true { return .retain }
+        if candidate.risk == .blocked || candidate.hasIncompleteScan { return .protected }
+        if candidate.requiresExplicitSelection == true { return .retain }
+        if candidate.isActive && !candidate.isDisposableRuntimeCache { return .retain }
+        if candidate.isDisposableRuntimeCache { return .recommended }
         if candidate.risk == .safe { return .recommended }
         if candidate.defaultSelection == false && !Self.deepCleanCategories.contains(candidate.category) {
             return .retain

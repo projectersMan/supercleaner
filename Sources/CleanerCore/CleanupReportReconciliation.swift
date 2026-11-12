@@ -11,7 +11,7 @@ public struct ScanCleanupReconciliation: Sendable {
 
     public mutating func record(_ results: [OperationResult]) {
         for result in results where result.removesSourceFromScan {
-            let path = result.originalURL.standardizedFileURL.path
+            let path = CleanupPathIndex.path(result.originalURL)
             if removals.updateValue(result, forKey: path) == nil { revision += 1 }
         }
     }
@@ -37,12 +37,18 @@ extension SystemScanReport {
     }
 
     public func reconcilingCleanup(_ results: [OperationResult]) -> SystemScanReport {
-        let removed = Set(results.filter(\.removesSourceFromScan).map { $0.originalURL.standardizedFileURL.path })
+        let removed = Set(results.filter(\.removesSourceFromScan).map { CleanupPathIndex.path($0.originalURL) })
         let changed = Set(results.filter { $0.status == .skippedIdentityChanged }.map(\.candidateID))
         guard !removed.isEmpty || largeFileCandidates.contains(where: { $0.largeFileProof != nil && changed.contains($0.id) })
         else { return self }
+        let removedPaths = CleanupPathIndex(paths: removed)
+        var removalCache = [String: Bool]()
         func isRemoved(_ url: URL) -> Bool {
-            removed.contains { ApplicationOwnershipGraphBuilder.isWithin(url.standardizedFileURL.path, $0) }
+            let path = url.path
+            if let cached = removalCache[path] { return cached }
+            let result = removedPaths.contains(url)
+            removalCache[path] = result
+            return result
         }
         func remainingNode(_ node: DiskUsageNode) -> DiskUsageNode? {
             guard !isRemoved(node.url) else { return nil }
@@ -67,14 +73,22 @@ extension SystemScanReport {
                 let plan = analysis.plan.map {
                     UninstallPlan(id: $0.id, application: $0.application, items: $0.items.filter { !isRemoved($0.candidate.url) })
                 }
+                let preparedPlan = analysis.preparedPlan.map {
+                    UninstallPlan(id: $0.id, application: $0.application, items: $0.items.filter { !isRemoved($0.candidate.url) })
+                }
                 let observation = analysis.runtimeObservation.map {
                     ApplicationRuntimeObservation(directories: $0.directories.filter { !isRemoved($0) },
                         sampleCount: $0.sampleCount, state: $0.state, observedAt: $0.observedAt)
                 }
                 return ApplicationUninstallAnalysis(application: analysis.application, plan: plan, state: analysis.state,
-                    message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership, runtimeObservation: observation)
+                    message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership, runtimeObservation: observation,
+                    preparedPlan: preparedPlan, preparedState: analysis.preparedState, preparedMessage: analysis.preparedMessage)
             }, associationCoverage: applicationUninstallInventory.associationCoverage,
-            ownershipGraph: applicationUninstallInventory.ownershipGraph)
+            ownershipGraph: applicationUninstallInventory.ownershipGraph,
+            associationIndex: applicationUninstallInventory.associationIndex.map { index in
+                ApplicationAssociationIndex(associations: index.associations.filter { !isRemoved($0.key) }
+                    .mapValues { $0.filter { !isRemoved($0.url) } }, coverage: index.coverage, ownershipGraph: index.ownershipGraph)
+            })
         return SystemScanReport(metadata: metadata, modules: modules,
             generalCandidates: generalCandidates.filter { !isRemoved($0.url) },
             applicationInventory: apps, applicationUninstallInventory: uninstall, diskUsageTree: disk,
@@ -88,5 +102,27 @@ extension SystemScanReport {
             agentSkills: agentSkills.filter { !isRemoved($0.skillRootURL) },
             agentMCPConfigurations: agentMCPConfigurations, agentProviderCoverage: agentProviderCoverage,
             agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount, agentScanCoverage: agentScanCoverage)
+    }
+}
+
+/// Snapshot reconciliation is lexical: it must never query paths that have just been removed.
+struct CleanupPathIndex {
+    let paths: Set<String>
+    static func path(_ url: URL) -> String {
+        var components: [Substring] = []
+        for part in url.path.split(separator: "/") {
+            if part == "." { continue }
+            if part == ".." { if !components.isEmpty { components.removeLast() } }
+            else { components.append(part) }
+        }
+        return "/" + components.joined(separator: "/")
+    }
+    func contains(_ url: URL) -> Bool {
+        var path = Self.path(url)
+        while true {
+            if paths.contains(path) { return true }
+            guard path != "/", let slash = path.lastIndex(of: "/") else { return false }
+            path = slash == path.startIndex ? "/" : String(path[..<slash])
+        }
     }
 }

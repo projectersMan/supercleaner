@@ -80,7 +80,7 @@ final class AgentScannerTests: XCTestCase {
         let context = ScanContext(homeDirectory: home, fileSystem: fileSystem)
         let scanner = AgentWorkspaceScanner(adapters: [
             OverlappingProviderAdapter(provider: .codex, root: root),
-        ])
+        ], maximumDepth: 1)
 
         let inventory = try await scanner.scanAssetInventory(context: context)
 

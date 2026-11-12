@@ -22,8 +22,18 @@ public struct CleanupRule: Codable, Hashable, Sendable {
     public let protectedRelativePaths: [String]?
     public let activeBundleIdentifiers: Set<String>?
     public let activeProcessNames: Set<String>?
+    /// Decoded for compatibility with older signed packs; traversal ignores these limits.
     public let maximumDepth: Int?
     public let maximumEntries: Int?
+    /// Capabilities are rule data; the engine never branches on a product name.
+    public let regenerable: Bool?
+    public let allowsInternalLinks: Bool?
+    /// Directory names that are normally sensitive but are proven derived data
+    /// within this rule's exact cache root. Nested sensitive names still block.
+    public let allowedSensitiveDirectoryNames: Set<String>?
+    public let requiresExplicitSelection: Bool?
+    public let manualExplanation: String?
+    public let referenceInventory: CacheReferenceDescriptor?
 
     public init(
         ruleID: String, category: CleanupCategory, relativePaths: [String], minimumAgeDays: Int, defaultRisk: RiskLevel,
@@ -32,7 +42,10 @@ public struct CleanupRule: Codable, Hashable, Sendable {
         sourceReference: String? = nil, validatedAt: Date? = nil, testFixture: String? = nil,
         granularity: Granularity? = nil, fileExtensions: Set<String>? = nil,
         protectedRelativePaths: [String]? = nil, activeBundleIdentifiers: Set<String>? = nil,
-        activeProcessNames: Set<String>? = nil, maximumDepth: Int? = nil, maximumEntries: Int? = nil
+        activeProcessNames: Set<String>? = nil, maximumDepth: Int? = nil, maximumEntries: Int? = nil,
+        regenerable: Bool? = nil, allowsInternalLinks: Bool? = nil,
+        allowedSensitiveDirectoryNames: Set<String>? = nil, requiresExplicitSelection: Bool? = nil,
+        manualExplanation: String? = nil, referenceInventory: CacheReferenceDescriptor? = nil
     ) {
         self.ruleID = ruleID
         self.category = category
@@ -55,6 +68,12 @@ public struct CleanupRule: Codable, Hashable, Sendable {
         self.activeProcessNames = activeProcessNames
         self.maximumDepth = maximumDepth
         self.maximumEntries = maximumEntries
+        self.regenerable = regenerable
+        self.allowsInternalLinks = allowsInternalLinks
+        self.allowedSensitiveDirectoryNames = allowedSensitiveDirectoryNames
+        self.requiresExplicitSelection = requiresExplicitSelection
+        self.manualExplanation = manualExplanation
+        self.referenceInventory = referenceInventory
     }
 }
 
@@ -389,6 +408,18 @@ public actor RuleStore {
                   !rule.ruleID.isEmpty && rule.minimumAgeDays >= 0 && !rule.relativePaths.isEmpty
                       && rule.relativePaths.allSatisfy(validRelativePath)
                       && (rule.protectedRelativePaths ?? []).allSatisfy(validRelativePath)
+                      && (rule.allowedSensitiveDirectoryNames ?? []).count <= 16
+                      && (rule.allowedSensitiveDirectoryNames ?? []).allSatisfy {
+                          !$0.isEmpty && $0.count <= 100 && $0 == $0.lowercased()
+                              && !$0.contains("/") && !$0.contains("\\")
+                              && !$0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+                      }
+                      && (rule.referenceInventory.map { descriptor in
+                          validRelativePath(descriptor.registryDirectory) && validRelativePath(descriptor.manifestFile)
+                              && !descriptor.entriesKey.isEmpty && !descriptor.nameKey.isEmpty
+                              && !descriptor.revisionKey.isEmpty
+                              && (try? NSRegularExpression(pattern: descriptor.artifactPattern)) != nil
+                      } ?? true)
                       && (rule.maximumDepth.map { (1...32).contains($0) } ?? true)
                       && (rule.maximumEntries.map { (1...100_000).contains($0) } ?? true)
                       && (rule.defaultRisk != .safe || (rule.regenerationEvidence?.isEmpty == false

@@ -35,6 +35,7 @@ import AgentOverlapAI
                 }
             }
         }
+        let privilegedOperations = helper.authorizedApplicationOperations(fileSystem: fileSystem)
         let executor = CleanupExecutor(
             fileSystem: fileSystem,
             pathPolicy: PathPolicy(homeDirectory: home),
@@ -45,7 +46,8 @@ import AgentOverlapAI
             loadRuleVersion: { try await runtime.rules.currentExecutionVersion() },
             validateCandidate: { try await runtime.validateForExecution($0) },
             prepareValidationBatch: { try await runtime.prepareExecutionValidationBatch(candidates: $0) },
-            privilegedApplications: helper.authorizedApplicationOperations(fileSystem: fileSystem)
+            privilegedApplications: privilegedOperations,
+            finalCandidateCheck: { try await runtime.validateImmediatelyBeforeMove($0) }
         )
         let history = HistoryStore(url: support.appendingPathComponent("history.json"))
         let schedules = QuarantineScheduleStore(url: support.appendingPathComponent("quarantine-schedules.json"))
@@ -63,7 +65,12 @@ import AgentOverlapAI
             resolutionJournalStore: resolutions,
             scheduleStore: schedules,
             maintenanceCoordinator: maintenance,
-            now: Date.init
+            now: Date.init,
+            refreshPlan: { try await runtime.refreshMutableCleanupPlan($0) },
+            dockService: ApplicationDockService(directory: support.appendingPathComponent("DockRecovery", isDirectory: true)),
+            packageReceipts: PackageReceiptCleanupService(forget: { proof, planID in
+                try await privilegedOperations.forgetInstallationReceipt(proof, planID: planID)
+            })
         )
         return AppInfrastructure(
             fileSystem: fileSystem,

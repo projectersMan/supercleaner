@@ -26,24 +26,25 @@ struct DeletionOperationSheet: View {
         return VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 14) {
                 ProgressView().controlSize(.large)
-                Text(model.activeCleanupModules == [.applications]
-                    ? L10n.text("正在删除应用内容")
-                    : L10n.text("正在检查并删除所选项目"))
+                Text(progressTitle)
                     .font(.title2.bold())
             }
             VStack(alignment: .leading, spacing: 9) {
-                Text(L10n.text("已处理 {0}/{1} 项", String(model.executionProgress.completed), String(model.executionProgress.total)))
+                Text(L10n.text(model.executionProgress.phase == .movingToTrash ? "已移入废纸篓 {0}/{1} 项" : "已处理 {0}/{1} 项",
+                    String(model.executionProgress.completed), String(model.executionProgress.total)))
                     .font(.headline).monospacedDigit()
                 ProgressView(value: Double(completed), total: Double(total))
-                    .progressViewStyle(.linear)
+                    .progressViewStyle(ImmediateLinearProgressStyle())
             }
             VStack(alignment: .leading, spacing: 5) {
                 if model.isStoppingDeletion {
                     Text(L10n.text("正在停止…")).fontWeight(.medium)
-                    Text(L10n.text("当前项目处理结束后停止，已经删除的项目可从恢复记录找回。"))
+                    Text(L10n.text("当前项目处理结束后停止，已经完成的操作不会自动撤销。"))
                         .foregroundColor(.secondary)
+                } else if model.executionProgress.phase == .savingResults {
+                    Text(L10n.text("正在保存清理和恢复记录…")).foregroundColor(.secondary)
                 } else if model.executionProgress.total > 0 && completed == total {
-                    Text(L10n.text("正在整理删除结果…")).foregroundColor(.secondary)
+                    Text(L10n.text("正在保存清理和恢复记录…")).foregroundColor(.secondary)
                 } else if let url = model.executionProgress.currentURL {
                     Text(url.lastPathComponent).fontWeight(.medium).lineLimit(2)
                     Text(url.path).font(.caption.monospaced()).foregroundColor(.secondary)
@@ -53,7 +54,7 @@ struct DeletionOperationSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
-            Text(L10n.text("处理完成后会显示结果；已删除项目可从恢复记录找回。"))
+            Text(L10n.text("处理完成后会显示实际结果和各项目的恢复方式。"))
                 .font(.callout).foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
@@ -61,11 +62,20 @@ struct DeletionOperationSheet: View {
                 Button(model.isStoppingDeletion ? L10n.text("正在停止…") : L10n.text("停止后续项目")) {
                     model.cancelExecution()
                 }
-                .disabled(model.isStoppingDeletion)
+                .disabled(model.isStoppingDeletion || model.executionProgress.phase != .processing)
             }
         }
         .padding(28)
         .frame(width: 680)
+    }
+
+    private var progressTitle: String {
+        switch model.executionProgress.phase {
+        case .movingToTrash: L10n.text("正在移入系统废纸篓")
+        case .savingResults: L10n.text("正在保存清理和恢复记录…")
+        case .processing: model.activeCleanupModules == [.applications]
+            ? L10n.text("正在删除应用内容") : L10n.text("正在检查并删除所选项目")
+        }
     }
 
     private var failure: some View {

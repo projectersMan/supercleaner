@@ -148,7 +148,7 @@ private struct HelperSettingsSection: View {
                     .disabled(helper.status != .enabled && helper.status != .requiresApproval)
             }.disabled(helper.isChanging || operationsBusy)
             if helper.authorizationActive {
-                Label(L10n.text("本次会话已授权（最多 5 分钟）"), systemImage: "lock.open")
+                Label(L10n.text("本次使用期间已授权"), systemImage: "lock.open")
                 Button(L10n.text("立即关闭授权")) { helper.revokeSession() }.disabled(operationsBusy)
             } else {
                 Button(L10n.text("验证连接并授权本次会话…")) { helper.authorizeSession() }
@@ -246,7 +246,7 @@ extension PermissionsView {
 
 }
 
-private struct PermissionAccessSection: View {
+struct PermissionAccessSection: View {
     @ObservedObject var model: AppModel
 
     var body: some View {

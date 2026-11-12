@@ -30,7 +30,7 @@ final class DiskUsageScannerTests: XCTestCase {
         XCTAssertFalse(tree.coverage.budgetLimitedModules.contains(.largeFiles))
     }
 
-    func testExplicitFiniteCapsRemainAvailableAndReportLimitedCoverage() async throws {
+    func testExplicitEntryCapRemainsAvailableAndReportsLimitedCoverage() async throws {
         let fixture = UnlimitedDiskUsageFixture(legacyEntryLimit: 10, legacyDepthLimit: 3)
 
         let tree = try await DiskUsageScanner(
@@ -42,6 +42,13 @@ final class DiskUsageScannerTests: XCTestCase {
         XCTAssertLessThan(tree.concreteFiles.count, 12)
         XCTAssertNil(tree.node(at: fixture.deepFile))
         XCTAssertTrue(tree.coverage.budgetLimitedModules.contains(.largeFiles))
+    }
+
+    func testLegacyDepthArgumentDoesNotHideDeepFiles() async throws {
+        let fixture = UnlimitedDiskUsageFixture(legacyEntryLimit: 1, legacyDepthLimit: 80)
+        let tree = try await DiskUsageScanner(minimumFileBytes: 1, maximumDepth: 1).scan(context: fixture.context)
+        XCTAssertNotNil(tree.node(at: fixture.deepFile))
+        XCTAssertTrue(tree.coverage.budgetLimitedModules.isEmpty)
     }
 
     func testDirectoriesAggregateSizeButLargeResultsContainOnlyFiles() async throws {

@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public enum FileSystemError: Error, Equatable, Sendable {
     case missing(URL)
@@ -11,8 +12,12 @@ public enum FileSystemError: Error, Equatable, Sendable {
 public protocol FileSystemAccess: Sendable {
     func identity(at url: URL) async throws -> FileIdentity
     func children(of url: URL) async throws -> [URL]
+    /// A precise directory generation; nil disables snapshot reuse for virtual filesystems.
+    func directoryGeneration(at url: URL) async throws -> String?
+    func itemGeneration(at url: URL) async throws -> String?
     func isReadable(_ url: URL) async -> Bool
     func isWritable(_ url: URL) async -> Bool
+    func isDeletable(_ url: URL) async -> Bool
     func fileExists(_ url: URL) async -> Bool
     func readText(at url: URL, maximumBytes: Int) async throws -> String
     func readData(at url: URL, maximumBytes: Int) async throws -> Data
@@ -23,6 +28,9 @@ public protocol FileSystemAccess: Sendable {
 }
 
 public extension FileSystemAccess {
+    func directoryGeneration(at url: URL) async throws -> String? { nil }
+    func itemGeneration(at url: URL) async throws -> String? { nil }
+    func isDeletable(_ url: URL) async -> Bool { await isWritable(url.deletingLastPathComponent()) }
     func readData(at url: URL, maximumBytes: Int) async throws -> Data {
         Data(try await readText(at: url, maximumBytes: maximumBytes).utf8)
     }
@@ -34,42 +42,43 @@ public extension FileSystemAccess {
 public struct LocalFileSystem: FileSystemAccess {
     public init() {}
 
+    public func itemGeneration(at url: URL) async throws -> String? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        return "\(info.st_dev)|\(info.st_ino)|\(info.st_mode)|\(info.st_size)|\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec)|\(info.st_ctimespec.tv_sec):\(info.st_ctimespec.tv_nsec)|\(info.st_uid)|\(info.st_gid)"
+    }
+
+    public func directoryGeneration(at url: URL) async throws -> String? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        guard info.st_mode & S_IFMT == S_IFDIR, FileManager.default.isReadableFile(atPath: url.path) else { return nil }
+        return "\(info.st_dev)|\(info.st_ino)|\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec)|\(info.st_ctimespec.tv_sec):\(info.st_ctimespec.tv_nsec)|\(info.st_mode)|\(info.st_uid)|\(info.st_gid)"
+    }
+
     public func identity(at url: URL) async throws -> FileIdentity {
-        let manager = FileManager.default
-        // Query the entry itself. fileExists follows the target and incorrectly
-        // rejects dangling symlinks such as Electron's SingletonCookie.
-        let attributes: [FileAttributeKey: Any]
-        do {
-            attributes = try manager.attributesOfItem(atPath: url.path)
-        } catch {
-            let failure = error as NSError
-            if failure.domain == NSCocoaErrorDomain,
-               [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(failure.code) {
-                throw FileSystemError.missing(url)
-            }
-            throw error
+        // attributesOfItem also resolves owner/group names via Directory Services.
+        // Identity needs only lstat fields; never follow dangling or live symlinks.
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else {
+            let code = errno
+            if code == ENOENT || code == ENOTDIR { throw FileSystemError.missing(url) }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [NSFilePathErrorKey: url.path])
         }
-        guard let device = (attributes[.systemNumber] as? NSNumber)?.uint64Value,
-              let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
-              let size = (attributes[.size] as? NSNumber)?.uint64Value,
-              let modificationDate = attributes[.modificationDate] as? Date
-        else {
-            throw FileSystemError.invalidAttributes(url)
-        }
+        guard info.st_size >= 0 else { throw FileSystemError.invalidAttributes(url) }
 
         let kind: FileIdentity.Kind
-        switch attributes[.type] as? FileAttributeType {
-        case .typeRegular: kind = .file
-        case .typeDirectory: kind = .directory
-        case .typeSymbolicLink: kind = .symbolicLink
+        switch info.st_mode & S_IFMT {
+        case S_IFREG: kind = .file
+        case S_IFDIR: kind = .directory
+        case S_IFLNK: kind = .symbolicLink
         default: kind = .other
         }
 
         return FileIdentity(
-            device: device,
-            inode: inode,
-            size: size,
-            modificationTime: Int64(modificationDate.timeIntervalSince1970),
+            device: UInt64(bitPattern: Int64(info.st_dev)),
+            inode: UInt64(info.st_ino),
+            size: UInt64(info.st_size),
+            modificationTime: Int64(Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1_000_000_000),
             kind: kind
         )
     }
@@ -84,6 +93,7 @@ public struct LocalFileSystem: FileSystemAccess {
 
     public func isReadable(_ url: URL) async -> Bool { FileManager.default.isReadableFile(atPath: url.path) }
     public func isWritable(_ url: URL) async -> Bool { FileManager.default.isWritableFile(atPath: url.path) }
+    public func isDeletable(_ url: URL) async -> Bool { FileManager.default.isDeletableFile(atPath: url.path) }
     public func fileExists(_ url: URL) async -> Bool { FileManager.default.fileExists(atPath: url.path) }
 
     public func readText(at url: URL, maximumBytes: Int) async throws -> String {

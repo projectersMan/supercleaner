@@ -133,6 +133,25 @@ public protocol AgentProviderAdapter: Sendable {
     func classify(url: URL, root: AgentRoot, context: ScanContext) async -> AgentClassification
 }
 
+/// Built-in adapters classify from the identity already verified by traversal.
+protocol AgentIdentityClassifyingAdapter: AgentProviderAdapter {}
+
+extension AgentIdentityClassifyingAdapter {
+    func classify(url: URL, root: AgentRoot, identity: FileIdentity, rule: AgentResourcePathRule?, context: ScanContext) -> AgentClassification {
+        AgentSemanticClassifier.classify(url: url, root: root, identity: identity, rule: rule, context: context)
+    }
+}
+
+extension CodexProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension ClaudeProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension CursorProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension TraeProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension GenericMCPProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension GitWorktreeProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension SharedAgentProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension CodexProjectProviderAdapter: AgentIdentityClassifyingAdapter {}
+extension ClaudeProjectProviderAdapter: AgentIdentityClassifyingAdapter {}
+
 public extension AgentProviderAdapter {
     func discoverRoots(context: ScanContext) async -> [AgentRoot] {
         var roots: [AgentRoot] = []
@@ -229,10 +248,15 @@ private enum AgentSemanticClassifier {
     ]
 
     static func classify(url: URL, root: AgentRoot, context: ScanContext) async -> AgentClassification {
+        let identity = try? await context.fileSystem.identity(at: url)
+        return classify(url: url, root: root, identity: identity,
+            rule: AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: context.homeDirectory), context: context)
+    }
+
+    static func classify(url: URL, root: AgentRoot, identity: FileIdentity?, rule: AgentResourcePathRule?, context: ScanContext) -> AgentClassification {
         let lowerName = url.lastPathComponent.lowercased()
         let lowerComponents = url.pathComponents.map { $0.lowercased() }
         let isActive = context.isActive(url)
-        let identity = try? await context.fileSystem.identity(at: url)
         let age = identity.map { context.now.timeIntervalSince1970 - Double($0.modificationTime) } ?? 0
         let isOld = age >= 30 * 86_400
         let hasCompletionEvidence = lowerComponents.contains { component in
@@ -244,7 +268,7 @@ private enum AgentSemanticClassifier {
         let baselineRisk: RiskLevel
         let reason: String
 
-        if AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: context.homeDirectory)?.kind == .mcpConfiguration
+        if rule?.kind == .mcpConfiguration
             || MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url) {
             (kind, category, baselineRisk, reason) = (.mcpConfiguration, .agentMCP, .review, L10n.text("MCP 配置可能包含凭证，默认保留；仅在明确选择后加入可恢复的删除计划"))
         } else if url.standardizedFileURL.path == root.url.standardizedFileURL.path {
@@ -319,6 +343,7 @@ public struct AgentProviderCoverage: Codable, Hashable, Sendable {
 }
 
 public struct AgentAssetInventory: Sendable {
+    public let capabilitiesOnly: Bool
     public let assets: [AgentAssetRecord]
     public let skills: [SkillCatalogEntry]
     public let mcpConfigurations: [MCPConfigurationRecord]
@@ -328,7 +353,7 @@ public struct AgentAssetInventory: Sendable {
     public let coverage: CoverageSummary
     public let limitations: [ScanLimitation]
     public var isComplete: Bool {
-        !reachedBudget && coverage.unavailableRoots.isEmpty && limitations.isEmpty
+        !capabilitiesOnly && !reachedBudget && coverage.unavailableRoots.isEmpty && limitations.isEmpty
             && !providerCoverage.values.contains { $0.state == .limited || $0.state == .unavailable }
     }
 
@@ -340,7 +365,8 @@ public struct AgentAssetInventory: Sendable {
         providerCoverage: [AgentProvider: AgentProviderCoverage] = [:],
         skillDuplicatesCollapsedCount: Int = 0,
         coverage: CoverageSummary = CoverageSummary(),
-        limitations: [ScanLimitation] = []
+        limitations: [ScanLimitation] = [],
+        capabilitiesOnly: Bool = false
     ) {
         self.assets = assets
         self.skills = skills
@@ -350,6 +376,7 @@ public struct AgentAssetInventory: Sendable {
         self.skillDuplicatesCollapsedCount = skillDuplicatesCollapsedCount
         self.coverage = coverage
         self.limitations = limitations
+        self.capabilitiesOnly = capabilitiesOnly
     }
 }
 
@@ -357,8 +384,11 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
     public let id = "agent.workspace"
     public let category = CleanupCategory.agentSandbox
     public let adapters: [any AgentProviderAdapter]
+    /// Legacy compatibility only; directory traversal has no depth cutoff.
     public let maximumDepth: Int?
     public let maximumAssets: Int?
+    public let maximumConcurrentReads: Int
+    public let directorySnapshot: AgentDirectorySnapshot
 
     public init(
         adapters: [any AgentProviderAdapter] = [
@@ -367,11 +397,15 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
             TraeProviderAdapter(), GenericMCPProviderAdapter(), GitWorktreeProviderAdapter(), SharedAgentProviderAdapter(),
         ],
         maximumDepth: Int? = nil,
-        maximumAssets: Int? = nil
+        maximumAssets: Int? = nil,
+        maximumConcurrentReads: Int = 12,
+        directorySnapshot: AgentDirectorySnapshot = .shared
     ) {
         self.adapters = adapters
         self.maximumDepth = maximumDepth.map { max(1, $0) }
         self.maximumAssets = maximumAssets.map { max(1, $0) }
+        self.maximumConcurrentReads = max(1, min(32, maximumConcurrentReads))
+        self.directorySnapshot = directorySnapshot
     }
 
     public func scan(context: ScanContext) async throws -> [CleanupCandidate] {
@@ -382,10 +416,13 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         try await scanAssetInventory(context: context).assets
     }
 
-    public func scanAssetInventory(context: ScanContext) async throws -> AgentAssetInventory {
+    public func scanAssetInventory(context: ScanContext,
+        capabilityResult: (@Sendable (AgentAssetInventory) async -> Void)? = nil
+    ) async throws -> AgentAssetInventory {
         try Task.checkCancellation()
         var assets: [AgentAssetRecord] = []
         var skillsByRootPath: [String: SkillCatalogEntry] = [:]
+        var skillSamples: [String: [String: SkillCatalogEntry]] = [:]
         var mcpConfigurationsByPath: [String: MCPConfigurationRecord] = [:]
         var skillDuplicatesCollapsedCount = 0
         var globallyOwnedPaths = Set<String>()
@@ -393,12 +430,28 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         var scannedRoots = Set<URL>()
         var unavailableRoots = Set<URL>()
         var limitations: [ScanLimitation] = []
+        let resolver = AgentResourcePathRegistry.Resolver(homeDirectory: context.homeDirectory)
+        let projectProviders = Set(adapters.compactMap { adapter -> AgentProvider? in
+            if adapter is CodexProjectProviderAdapter || adapter is ClaudeProjectProviderAdapter { return adapter.provider }
+            return nil
+        })
+        let projectRoots = await AgentProjectResourceDiscovery.discover(providers: projectProviders, context: context)
         for adapter in adapters {
-            let roots = await adapter.discoverRoots(context: context)
+            let roots: [AgentRoot]
+            if adapter is CodexProjectProviderAdapter || adapter is ClaudeProjectProviderAdapter {
+                roots = projectRoots.filter { $0.provider == adapter.provider }
+            } else { roots = await adapter.discoverRoots(context: context) }
             traversals.append(ProviderTraversal(adapter: adapter, roots: roots))
         }
 
+        if let capabilityResult {
+            let catalog = try await scanCapabilityInventory(roots: traversals.flatMap(\.roots), context: context)
+            await capabilityResult(catalog)
+            try Task.checkCancellation()
+        }
+
         let assetLimit = context.enforcesEntryBudgets ? maximumAssets : nil
+        var prefetched: [String: PrefetchedEntry] = [:]
         while assetLimit.map({ assets.count < $0 }) ?? true {
             try Task.checkCancellation()
             var madeProgress = false
@@ -413,7 +466,42 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     let path = url.standardizedFileURL.path
                     guard traversals[index].seenPaths.insert(path).inserted else { continue }
                     guard globallyOwnedPaths.insert(path).inserted else { continue }
-                    guard let identity = try? await context.fileSystem.identity(at: url) else {
+                    if prefetched[path] == nil {
+                        var batch = [entry]
+                        var queued = Set([path])
+                        for traversal in traversals {
+                            for pending in traversal.queue.dropFirst(traversal.cursor) {
+                                if batch.count >= maximumConcurrentReads { break }
+                                if queued.insert(pending.url.path).inserted, prefetched[pending.url.path] == nil {
+                                    batch.append(pending)
+                                }
+                            }
+                            if batch.count >= maximumConcurrentReads { break }
+                        }
+                        let values = await withTaskGroup(of: (String, PrefetchedEntry).self) { group in
+                            for item in batch {
+                                group.addTask {
+                                    let identity = try? await context.fileSystem.identity(at: item.url)
+                                    var children: Result<[URL], Error>?
+                                    let direct: Bool
+                                    if item.depth > 0 { direct = true }
+                                    else { direct = await AgentCatalogPathPolicy.isDirectPath(item.url, fileSystem: context.fileSystem) }
+                                    if identity?.kind == .directory, direct, !Task.isCancelled {
+                                        do { children = .success(try await directorySnapshot.children(of: item.url, fileSystem: context.fileSystem)) }
+                                        catch { children = .failure(error) }
+                                    }
+                                    return (item.url.path, PrefetchedEntry(identity: identity, children: children, direct: direct))
+                                }
+                            }
+                            var result = [String: PrefetchedEntry]()
+                            for await (key, value) in group { result[key] = value }
+                            return result
+                        }
+                        prefetched.merge(values) { _, new in new }
+                    }
+                    try Task.checkCancellation()
+                    let inspection = prefetched.removeValue(forKey: path)!
+                    guard let identity = inspection.identity else {
                         globallyOwnedPaths.remove(path)
                         traversals[index].identityFailures += 1
                         unavailableRoots.insert(url)
@@ -421,15 +509,16 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         continue
                     }
                     guard identity.kind != .symbolicLink else { continue }
-                    if entry.depth == 0,
-                       !(await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: context.fileSystem)) { continue }
+                    guard inspection.direct else { continue }
                     scannedRoots.insert(entry.root.url)
 
-                    var classification = await traversals[index].adapter.classify(
-                        url: url,
-                        root: entry.root,
-                        context: context
-                    )
+                    var classification: AgentClassification
+                    let resourceRule = resolver.matchingRule(for: url)
+                    if let adapter = traversals[index].adapter as? any AgentIdentityClassifyingAdapter {
+                        classification = adapter.classify(url: url, root: entry.root, identity: identity, rule: resourceRule, context: context)
+                    } else {
+                        classification = await traversals[index].adapter.classify(url: url, root: entry.root, context: context)
+                    }
                     do {
                         _ = try context.pathPolicy.validateCandidate(url)
                     } catch {
@@ -455,7 +544,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     ))
                     let activity = activity(for: url, identity: identity, context: context)
                     let resourceKind = resourceKind(for: classification, candidate: candidate)
-                    let resourceScope = AgentResourcePathRegistry.matchingRule(for: url, homeDirectory: context.homeDirectory)?.scope
+                    let resourceScope = resourceRule?.scope
                         ?? entry.root.scope
                     let eligibility = eligibility(
                         for: resourceKind,
@@ -480,13 +569,23 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     ) {
                         mcpConfigurationsByPath[configuration.fileURL.path] = configuration
                     }
-                    if classification.kind == .skill,
-                       let skillEntry = await SkillCatalogSupport.makeEntry(
+                    let cachedSkill = SkillCatalogSupport.rootPath(for: url).flatMap { skillsByRootPath[$0] }
+                    let skillEntry: SkillCatalogEntry?
+                    if classification.kind == .skill, let cachedSkill,
+                       url.lastPathComponent.lowercased() != "skill.md" || cachedSkill.manifestURL == url {
+                        skillEntry = SkillCatalogSupport.rediscovered(cachedSkill, at: url)
+                    } else if classification.kind == .skill {
+                        skillEntry = await SkillCatalogSupport.makeEntry(
                            provider: entry.root.provider,
                            scope: resourceScope,
                            discoveredURL: url,
                            fileSystem: context.fileSystem
-                       ) {
+                       )
+                        if let skillEntry {
+                            skillSamples[skillEntry.id, default: [:]][skillEntry.manifestURL?.path ?? skillEntry.id] = skillEntry
+                        }
+                    } else { skillEntry = nil }
+                    if let skillEntry {
                         let rootPath = skillEntry.skillRootURL.path
                         if let existing = skillsByRootPath[rootPath] {
                             skillsByRootPath[rootPath] = existing.merged(with: skillEntry)
@@ -499,15 +598,10 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
 
                     if identity.kind == .directory {
                         do {
-                            let children = try await context.fileSystem.children(of: url)
-                            if maximumDepth.map({ entry.depth < $0 }) ?? true {
-                                traversals[index].queue.append(contentsOf: children.map {
-                                    ProviderTraversal.Entry(url: $0, depth: entry.depth + 1, root: entry.root)
-                                })
-                            } else if !children.isEmpty {
-                                traversals[index].depthLimited = true
-                                limitations.append(Self.limitation(url, L10n.text("达到 Agent 扫描深度")))
-                            }
+                            let children = try inspection.children!.get()
+                            traversals[index].queue.append(contentsOf: children.map {
+                                ProviderTraversal.Entry(url: $0, depth: entry.depth + 1, root: entry.root)
+                            })
                         } catch is CancellationError { throw CancellationError() }
                         catch {
                             traversals[index].readFailures += 1
@@ -533,7 +627,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
             let matchingTraversals = traversals.filter { $0.adapter.provider == provider }
             let detectedRootCount = matchingTraversals.reduce(0) { $0 + $1.roots.count }
             let scannedAssetCount = matchingTraversals.reduce(0) { $0 + $1.scannedAssetCount }
-            let hasLimitedTraversal = matchingTraversals.contains { $0.cursor < $0.queue.count || $0.depthLimited }
+            let hasLimitedTraversal = matchingTraversals.contains { $0.cursor < $0.queue.count }
             let identityFailures = matchingTraversals.reduce(0) { $0 + $1.identityFailures }
             let readFailures = matchingTraversals.reduce(0) { $0 + $1.readFailures }
             let state: AgentProviderCoverageState
@@ -553,12 +647,15 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                 scannedAssetCount: scannedAssetCount
             )
         }
-        let reachedBudget = traversals.contains { $0.cursor < $0.queue.count || $0.depthLimited }
+        let reachedBudget = traversals.contains { $0.cursor < $0.queue.count }
         for traversal in traversals where traversal.cursor < traversal.queue.count {
             limitations.append(Self.limitation(traversal.queue[traversal.cursor].url, L10n.text("达到 Agent 条目预算")))
         }
         let sortedAssets = assets.sorted { $0.candidate.url.path.localizedStandardCompare($1.candidate.url.path) == .orderedAscending }
-        let sortedSkills = skillsByRootPath.values.sorted {
+        let canonicalSkills = skillsByRootPath.map { id, value in
+            SkillCatalogSupport.canonicalMerge(Array(skillSamples[id, default: [:]].values), sourceURLs: value.sourceAssetURLs)
+        }
+        let sortedSkills = canonicalSkills.sorted {
             let lhsProvider = $0.provider.rawValue
             let rhsProvider = $1.provider.rawValue
             if lhsProvider != rhsProvider {
@@ -586,6 +683,93 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         ScanLimitation(title: title, path: url, impact: L10n.text("此位置或后代未完整检查，不能声明扫描完整"), recovery: L10n.text("检查权限或缩小扫描范围后重试"))
     }
 
+    /// Capability discovery does not construct candidates or classify runtime files.
+    /// It visits the same roots without pruning so unusual plugin layouts remain visible.
+    func scanCapabilityInventory(roots: [AgentRoot], context: ScanContext) async throws -> AgentAssetInventory {
+        let resolver = AgentResourcePathRegistry.Resolver(homeDirectory: context.homeDirectory)
+        var queue = roots.map { ($0.url, $0) }
+        var cursor = 0
+        var seen = Set<String>()
+        var skills = [String: SkillCatalogEntry]()
+        var samples: [String: [String: SkillCatalogEntry]] = [:]
+        var configurations = [String: MCPConfigurationRecord]()
+        var failures = Set<URL>()
+        let rootPaths = Set(roots.map { $0.url.path })
+        // Parse each canonical Skill once rather than once per descendant file.
+        while cursor < queue.count {
+            try Task.checkCancellation()
+            let end = min(queue.count, cursor + maximumConcurrentReads)
+            let batch = Array(queue[cursor..<end]); cursor = end
+            let rows = await withTaskGroup(of: CapabilityDirectory.self) { group in
+                for (url, root) in batch {
+                    group.addTask {
+                        if rootPaths.contains(url.path), !(await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: context.fileSystem)) {
+                            return CapabilityDirectory(url: url, root: root, identity: nil, catalog: nil)
+                        }
+                        guard let identity = try? await context.fileSystem.identity(at: url) else {
+                            return CapabilityDirectory(url: url, root: root, identity: nil, catalog: nil)
+                        }
+                        var catalog: AgentDirectorySnapshot.CapabilityDirectory?
+                        if identity.kind == .directory {
+                            catalog = try? await directorySnapshot.capabilities(in: url, root: root, resolver: resolver, context: context)
+                        }
+                        return CapabilityDirectory(url: url, root: root, identity: identity, catalog: catalog)
+                    }
+                }
+                var rows = [CapabilityDirectory]()
+                for await row in group { rows.append(row) }
+                return rows.sorted { $0.url.path < $1.url.path }
+            }
+            for row in rows {
+                let url = row.url, root = row.root
+                guard seen.insert(url.path).inserted else { continue }
+                guard let identity = row.identity else { failures.insert(url); continue }
+                if identity.kind == .symbolicLink { continue }
+                if identity.kind == .directory {
+                    guard let catalog = row.catalog else { failures.insert(url); continue }
+                    queue.append(contentsOf: catalog.directories.map { ($0, root) })
+                    for skill in catalog.skills {
+                        skills[skill.id] = skills[skill.id].map { $0.merged(with: skill) } ?? skill
+                        samples[skill.id, default: [:]][skill.manifestURL?.path ?? skill.id] = skill
+                    }
+                    for configuration in catalog.configurations { configurations[configuration.id] = configuration }
+                    continue
+                }
+                let isSkillRoot = identity.kind == .directory && SkillCatalogSupport.rootPath(for: url) == url.path
+                if (isSkillRoot || url.lastPathComponent.lowercased() == "skill.md"),
+                   skills[SkillCatalogSupport.rootPath(for: url) ?? ""] == nil,
+                   let skill = await SkillCatalogSupport.makeEntry(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope,
+                        discoveredURL: url, fileSystem: context.fileSystem) {
+                    skills[skill.id] = skills[skill.id].map { $0.merged(with: skill) } ?? skill
+                    samples[skill.id, default: [:]][skill.manifestURL?.path ?? skill.id] = skill
+                }
+                if MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url),
+                   let configuration = await MCPConfigurationCatalogSupport.makeRecord(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope,
+                        url: url, homeDirectory: context.homeDirectory, fileSystem: context.fileSystem) {
+                    configurations[configuration.id] = configuration
+                }
+            }
+        }
+        let canonicalSkills = samples.values.map { SkillCatalogSupport.canonicalMerge(Array($0.values)) }
+        return AgentAssetInventory(assets: [], skills: canonicalSkills.sorted { $0.id < $1.id },
+            mcpConfigurations: configurations.values.sorted { $0.id < $1.id }, reachedBudget: false,
+            coverage: CoverageSummary(scannedRoots: roots.map(\.url), unavailableRoots: Array(failures)),
+            capabilitiesOnly: true)
+    }
+
+    private struct CapabilityDirectory: Sendable {
+        let url: URL
+        let root: AgentRoot
+        let identity: FileIdentity?
+        let catalog: AgentDirectorySnapshot.CapabilityDirectory?
+    }
+
+    private struct PrefetchedEntry: Sendable {
+        let identity: FileIdentity?
+        let children: Result<[URL], Error>?
+        let direct: Bool
+    }
+
     private struct ProviderTraversal {
         struct Entry {
             let url: URL
@@ -601,7 +785,6 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         var scannedAssetCount = 0
         var identityFailures = 0
         var readFailures = 0
-        var depthLimited = false
 
         init(adapter: any AgentProviderAdapter, roots: [AgentRoot]) {
             self.adapter = adapter

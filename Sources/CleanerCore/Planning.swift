@@ -41,7 +41,7 @@ public struct PlanBuilder: Sendable {
         if let unknown = selectedIDs.first(where: { !knownIDs.contains($0) }) {
             throw PlanBuilderError.unknownSelection(unknown)
         }
-        if let blocked = candidates.first(where: { selectedIDs.contains($0.id) && !$0.risk.isSelectable }) {
+        if let blocked = candidates.first(where: { selectedIDs.contains($0.id) && (!$0.risk.isSelectable || $0.hasIncompleteScan) }) {
             throw PlanBuilderError.blockedSelection(blocked.id)
         }
         if let conflict = LargeFileCleanupProof.conflictingCandidate(in: candidates.filter { selectedIDs.contains($0.id) }) {

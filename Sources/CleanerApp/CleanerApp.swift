@@ -5,6 +5,28 @@ import SwiftUI
 
 @main enum CleanerMain {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--activation-self-check") {
+            Task { @MainActor in
+                do { try await HelperSettingsModel.checkActivationRefresh(); exit(0) }
+                catch { FileHandle.standardError.write(Data("FAIL: activation refresh \(error)\n".utf8)); exit(1) }
+            }
+            dispatchMain()
+        }
+        if CommandLine.arguments.contains("--agent-presentation-self-check") {
+            Task { @MainActor in
+                do { try await AppModel.checkAgentPresentationPerformance(); exit(0) }
+                catch { FileHandle.standardError.write(Data("FAIL: \(error)\n".utf8)); exit(1) }
+            }
+            dispatchMain()
+        }
+        if CommandLine.arguments.contains("--scan-permission-presentation-self-check") {
+            do { try AppModel.checkScanPermissionPresentation(); exit(0) }
+            catch { FileHandle.standardError.write(Data("FAIL: scan permission presentation \(error)\n".utf8)); exit(1) }
+        }
+        if CommandLine.arguments.contains("--navigation-presentation-self-check") {
+            do { try AppModel.checkNavigationPresentation(); exit(0) }
+            catch { FileHandle.standardError.write(Data("FAIL: navigation presentation \(error)\n".utf8)); exit(1) }
+        }
         if CommandLine.arguments.contains("--scan-cleanup-self-check") {
             Task { @MainActor in
                 do {

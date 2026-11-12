@@ -216,8 +216,8 @@ func runScannerContracts() async throws {
     require(diskTree.node(at: beyondLegacyDepth) != nil, "default disk scanning must continue past the legacy depth cap")
     require(!diskTree.coverage.budgetLimitedModules.contains(.largeFiles), "complete default disk scans must not report a synthetic budget limit")
     let depthLimitedTree = try await DiskUsageScanner(minimumFileBytes: 100, maximumDepth: 3).scan(context: context)
-    require(depthLimitedTree.node(at: beyondLegacyDepth) == nil, "an explicit diagnostic depth cap must still stop traversal")
-    require(depthLimitedTree.coverage.budgetLimitedModules.contains(.largeFiles), "an explicit diagnostic depth cap must report limited coverage")
+    require(depthLimitedTree.node(at: beyondLegacyDepth) != nil, "legacy depth parameters must not truncate disk traversal")
+    require(depthLimitedTree.coverage.budgetLimitedModules.isEmpty, "complete depth traversal must not claim limited coverage")
     let entryLimitedTree = try await DiskUsageScanner(minimumFileBytes: 100, maximumEntries: 1).scan(context: context)
     require(entryLimitedTree.coverage.budgetLimitedModules.contains(.largeFiles), "an explicit diagnostic entry cap must report limited coverage")
     let childRequests = await fileSystem.requestedChildren()
@@ -313,12 +313,18 @@ func runScannerContracts() async throws {
     require(!progressEvents.isEmpty, "full-system coordinator must publish module progress")
     require(Set(progressEvents.map(\.generationID)) == [systemReportValue.generationID], "all module progress must belong to one generation")
     let moduleResults = await moduleResultRecorder.results()
-    require(moduleResults.count == ScanModuleID.allCases.count, "each module must publish exactly one completed result")
+    require(moduleResults.count == ScanModuleID.allCases.count + 1, "Agent publishes an early capability catalog and a final result; other modules publish once")
+    for module in ScanModuleID.allCases {
+        let results = moduleResults.filter { $0.module == module }
+        require(results.count == (module == .agentEnvironment ? 2 : 1), "only Agent may publish an intermediate catalog")
+        require(results.last?.status == systemReportValue.modules[module], "the last module payload must match its committed final status")
+        require(progressEvents.filter { $0.module == module && $0.state.isTerminal }.count == 1, "each module must publish exactly one terminal progress event")
+    }
     require(Set(moduleResults.map(\.generationID)) == [systemReportValue.generationID], "progressive module results must use the final report generation")
     require(Set(moduleResults.map(\.module)) == Set(ScanModuleID.allCases), "progressive publication must cover every scan module")
     let publicationEvents = await publicationRecorder.events()
     for module in ScanModuleID.allCases {
-        let resultIndex = publicationEvents.firstIndex(of: .result(module))
+        let resultIndex = publicationEvents.lastIndex(of: .result(module))
         let terminalIndex = publicationEvents.firstIndex(of: .terminalProgress(module))
         require(resultIndex != nil && terminalIndex != nil && resultIndex! < terminalIndex!, "a module payload must be installed before its completed progress becomes navigable")
     }

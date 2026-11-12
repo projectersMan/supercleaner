@@ -140,6 +140,33 @@ public struct SkillCatalogEntry: Identifiable, Codable, Hashable, Sendable {
 }
 
 public enum SkillCatalogSupport {
+    static func rootPath(for url: URL) -> String? {
+        rootURL(from: url.standardizedFileURL, lowerComponents: url.pathComponents.map { $0.lowercased() })?.path
+    }
+
+    static func rediscovered(_ entry: SkillCatalogEntry, at url: URL) -> SkillCatalogEntry {
+        replacingSources(entry, with: [url])
+    }
+
+    static func canonicalMerge(_ samples: [SkillCatalogEntry], sourceURLs: [URL]? = nil) -> SkillCatalogEntry {
+        let ordered = samples.sorted {
+            let left = $0.manifestURL?.path ?? $0.id
+            let right = $1.manifestURL?.path ?? $1.id
+            return left < right
+        }
+        var result = ordered[0]
+        for sample in ordered.dropFirst() { result = result.merged(with: sample) }
+        return replacingSources(result, with: sourceURLs ?? samples.flatMap(\.sourceAssetURLs))
+    }
+
+    private static func replacingSources(_ entry: SkillCatalogEntry, with sources: [URL]) -> SkillCatalogEntry {
+        SkillCatalogEntry(id: entry.id, logicalID: entry.logicalID, provider: entry.provider, scope: entry.scope,
+            source: entry.source, kind: entry.kind, skillRootURL: entry.skillRootURL, manifestURL: entry.manifestURL,
+            displayName: entry.displayName, summary: entry.summary, tags: entry.tags, triggers: entry.triggers,
+            tools: entry.tools, functionalSections: entry.functionalSections, pluginName: entry.pluginName,
+            registryName: entry.registryName, pluginVersion: entry.pluginVersion, parseStatus: entry.parseStatus,
+            sourceAssetURLs: sources)
+    }
     static let maximumManifestBytes = 64 * 1_024
     private static let manifestNames = ["SKILL.md", "skill.md"]
 

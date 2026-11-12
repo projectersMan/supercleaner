@@ -78,3 +78,25 @@
 - 扩充现有运行观察契约：真实打开一个临时、未被静态卸载计划认领的 `RuntimeChosenStore/state.db`，确认运行采样可发现目录，同时它不因此进入可删除清单。测试不启动、退出或卸载用户的真实应用。
 
 本批次完整 release CoreContractChecks、App 自检及挂载 DMG 的版本/签名/散列核对均通过；App、Helper、中英文设置一致为 `0.1.6 (21)`，DMG 已更新。
+
+
+## 系统缓存扫描后的变化（2026-11-11）
+
+- 通用用户缓存规则允许同一设备、inode 和类型的内容变化；目录移动前再次完整检查，文件替换、符号链接和新增敏感内容仍拒绝执行。普通大文件和应用数据继续使用严格快照。
+- 执行阶段与 GUI 完整扫描一致，不使用条目数量上限；仍保留目录深度、权限、保护规则和取消检查，避免已扫描的 2 万项以上缓存目录因执行阶段预算不同而被拒绝。
+- 执行规则检查读取当前文件身份；安全策略拒绝项在首页显示“已跳过”，不再统一提示重新扫描。删除仍使用现有隔离与恢复流程，缓存目录字节数沿用扫描估算。
+- `--check-changing-logs` 增加真实临时缓存文件、目录、20,001 个子项、新增敏感文件、替换目录及恢复场景，使用生产运行时的批量与逐项校验；不删除用户真实缓存。
+
+### 运行状态切换与清单复用
+
+首次扫描也为运行中的非系统应用准备卸载清单及关联索引，但不提供可执行卸载项目。确认退出后，界面立即将应用显示在“可卸载”，复用原清单、大小统计和项目 ID，不重新遍历文件；重新启动会撤回可执行清单并清除卸载选择。缺失清单的应用先显示在列表中，再使用缓存关联索引补齐该应用；首次分析失败且仍无清单时，退出后允许补齐一次。清理结果同步移除缓存清单中的已删除项目，防止状态切换恢复旧项目。真正执行删除时仍检查当前运行状态、路径和归属。
+
+旧报告如果连关联索引也缺失，会明确提示刷新应用列表，不会因为退出动作偷偷重扫所有应用。
+
+“可卸载”筛选下统一展示卸载清单和归属说明，不展示运行观察区域（深度关联扫描入口、采样提示、观察路径及“在访达中查看”按钮）。观察记录仍保留，在其他筛选视图中按原逻辑展示；切换列表不会把观察路径转成可删除项目。
+
+### Dock icons after uninstall and restore
+
+The GUI captures only Dock tiles whose exact application path is selected for uninstall. After confirmed removal of the application bundle, it removes those tiles from `persistent-apps` and `recent-apps` and refreshes the current user's Dock once per batch. Failed, unverified and associated-files-only operations do not remove icons; other installed copies are matched by path, not name or bundle ID.
+
+Affected tiles and positions are saved under `Library/Application Support/SuperCleaner/DockRecovery` before editing Dock preferences. Recovery merges the saved tiles into the current layout, skips already present tiles and redirects conflict restores to their actual destination without reusing stale bookmarks. Interrupted changes retry from persisted receipts on launch. Dock failures appear separately in deletion results and recovery history; they do not change a successful file operation into a failure. The Dock briefly restarts when an actual preference change needs to be displayed. Existing icons from uninstalls before this feature have no saved receipt-to-tile mapping and are not removed retroactively.

@@ -19,7 +19,9 @@ private struct ModuleScanSession: Sendable {
 @MainActor final class AppModel: ObservableObject {
     enum Phase: Equatable { case idle, scanning, reviewing, executing, completed, cancelled, failed(String) }
     enum RecoveryActionKind: Equatable { case restore, purge }
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet { if oldValue == .executing && phase != .executing { resumeDeferredAgentAnalysis() } }
+    }
     @Published private(set) var isScanRunning = false
     @Published private(set) var fullScanStartedAt: Date?
     @Published private(set) var fullScanStoppedAt: Date?
@@ -27,9 +29,10 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var systemReport: SystemScanReport? {
         didSet {
             invalidateCandidatePresentationCaches()
-            invalidateAgentEnvironmentCaches()
             cachedScanDiscoverySummary = nil
             if systemReport != nil && (systemReport?.generationID != oldValue?.generationID || systemReport?.agentSkills != oldValue?.agentSkills || systemReport?.agentMCPConfigurations != oldValue?.agentMCPConfigurations || systemReport?.agentAssets != oldValue?.agentAssets) {
+                invalidateAgentEnvironmentCaches()
+                prepareAgentSkillPresentation()
                 refreshAgentOverlapPresentation()
                 if isScanRunning { agentOverlapNeedsScanAnalysis = true }
                 else { scheduleAgentOverlapAnalysis() }
@@ -37,7 +40,9 @@ private struct ModuleScanSession: Sendable {
         }
     }
     @Published private(set) var agentOverlapMatches: [AgentOverlapMatch] = []
-    @Published private(set) var agentOverlapMatchBySourceID: [String: AgentOverlapMatch] = [:]
+    @Published private(set) var agentOverlapMatchBySourceID: [String: AgentOverlapMatch] = [:] {
+        didSet { invalidateAgentVisibleLists() }
+    }
     @Published private(set) var agentOverlapStatus = AgentEmbeddingModelManager.isSupportedPlatform
         ? L10n.text("尚未分析") : L10n.text("Agent 能力分析需要 macOS 14 或更高版本及 Apple Silicon；其他功能可正常使用。")
     @Published private(set) var agentOverlapModelDownloadInProgress = false
@@ -47,6 +52,7 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var agentOverlapModelCanRemove = false
     @Published private(set) var agentOverlapThreshold: Double
     @Published private(set) var agentOverlapAnalysisIsRunning = false
+    @Published private(set) var preparingAgentSkillPresentation = false
     @Published private(set) var scanProgressByModule: [ScanModuleID: ScanModuleStatus] = [:]
     @Published private(set) var receipts: [OperationReceipt] = []
     @Published private(set) var quarantineSchedules: [UUID: QuarantineSchedule] = [:]
@@ -54,12 +60,19 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var largeFileThreshold: LargeFileThreshold
     @Published private(set) var preselectLargeFileInstallers: Bool
     @Published private(set) var permissionSnapshot: PermissionSnapshot?
-    @Published var showsPermissionIntroduction = false
+    @Published var showsScanPermissionPreparation = false
+    @Published private(set) var packageReceiptSelection = PackageReceiptCleanupSelection()
+    @Published private(set) var checkingScanPermissions = false
+    @Published private(set) var preparingScanPermissions = false
     @Published private(set) var scanDeniedPaths: [ScanModuleID: Set<URL>] = [:]
     private var scanPresentedStatuses: [ScanModuleID: ScanModuleStatus] = [:]
     @Published private(set) var executionProgress = ExecutionProgress(completed: 0, total: 0, currentURL: nil)
     @Published var selectedIDs = Set<UUID>() {
-        didSet { invalidateAgentSkillPresentationCache() }
+        didSet {
+            cachedSelectedCandidates.removeAll()
+            cachedHiddenSelectedCounts.removeAll()
+            invalidateAgentVisibleLists()
+        }
     }
     @Published private(set) var excludedBaseIDs = Set<UUID>()
     @Published var selection: SidebarDestination = .cleanupCenter {
@@ -69,9 +82,9 @@ private struct ModuleScanSession: Sendable {
             }
         }
     }
-    @Published var reviewQuery = "" { didSet { reconcileFocus() } }
-    @Published var reviewDispositionFilter: ReviewDispositionFilter = .all { didSet { reconcileFocus() } }
-    @Published var showsSelectedOnly = false { didSet { reconcileFocus() } }
+    @Published var reviewQuery = "" { didSet { cachedHiddenSelectedCounts.removeAll(); reconcileFocus() } }
+    @Published var reviewDispositionFilter: ReviewDispositionFilter = .all { didSet { cachedHiddenSelectedCounts.removeAll(); reconcileFocus() } }
+    @Published var showsSelectedOnly = false { didSet { cachedHiddenSelectedCounts.removeAll(); reconcileFocus() } }
     @Published private(set) var cleanupMode: CleanupMode = .defaultMode
     @Published private(set) var focusState = ReviewFocusState()
     @Published var deletionResult: OperationReceipt?
@@ -80,7 +93,9 @@ private struct ModuleScanSession: Sendable {
     @Published var selectedApplicationID: URL?
     @Published var selectedDiskNodeURL: URL?
     @Published var largeFileSortOrder: LargeFileSortOrder = .selection
-    @Published var showsDuplicateLargeFilesOnly = false
+    @Published var showsDuplicateLargeFilesOnly = false {
+        didSet { cachedSelectedCandidates.removeValue(forKey: .largeFiles); cachedHiddenSelectedCounts.removeValue(forKey: .largeFiles) }
+    }
     @Published var applicationSortOrder: ApplicationSortOrder = .name {
         didSet { reconcileApplicationSelection() }
     }
@@ -92,11 +107,20 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var deepScanningApplicationID: URL?
     @Published private(set) var deepScanMessages: [URL: String] = [:]
     private var deepScanTask: Task<Void, Never>?
+    @Published private(set) var quittingApplicationIDs = Set<URL>()
+    @Published private(set) var quitSelectedApplicationIDs = Set<URL>()
+    @Published private(set) var applicationQuitMessages: [URL: String] = [:]
 
-    @Published var agentCleanupPresentation: AgentCleanupPresentation?
+    @Published var agentCleanupPresentation: AgentCleanupPresentation? {
+        didSet { cachedHiddenSelectedCounts.removeValue(forKey: .agentEnvironment) }
+    }
     var agentCleanupGenerationID: UUID?
-    @Published var agentProviderFilter: AgentProvider?
-    @Published var agentItemsSelectionFilter: AgentItemsSelectionFilter = .selected
+    @Published var agentProviderFilter: AgentProvider? {
+        didSet { invalidateAgentVisibleLists() }
+    }
+    @Published var agentItemsSelectionFilter: AgentItemsSelectionFilter = .selected {
+        didSet { invalidateAgentVisibleLists() }
+    }
     @Published var uninstallSelectedIDs = Set<UUID>()
     @Published var statusMessage: String?
     @Published private(set) var recoveryActionReceiptID: UUID?
@@ -105,13 +129,15 @@ private struct ModuleScanSession: Sendable {
     @Published private(set) var recoveryMessageIsError = false
     @Published var restoreConfirmationReceipt: OperationReceipt?
     @Published var purgeConfirmationReceipt: OperationReceipt?
-    @Published private(set) var oneClickCleanupIsRunning = false
+    @Published private(set) var oneClickCleanupIsRunning = false { didSet { if !oneClickCleanupIsRunning { resumeDeferredAgentAnalysis() } } }
     @Published private(set) var oneClickActiveModules = Set<ScanModuleID>()
     @Published private(set) var activeCleanupModules = Set<ScanModuleID>()
     @Published private(set) var cleanedModules = Set<ScanModuleID>()
     @Published private(set) var oneClickCompletedByModule: [ScanModuleID: OneClickCleanupResult] = [:]
     @Published private(set) var sessionCleanupSummary = CleanupSessionSummary()
-    @Published private(set) var cleanupFailures: [DefaultCleanupFailure] = []
+    @Published private(set) var cleanupFailures: [DefaultCleanupFailure] = [] {
+        didSet { cachedDefaultCleanupSelection = nil }
+    }
     @Published private(set) var protectionPolicy: ProtectionPolicy {
         didSet { invalidateCandidatePresentationCaches() }
     }
@@ -127,6 +153,18 @@ private struct ModuleScanSession: Sendable {
     private var overlapAnalysisToken: UUID?
     private var modelDownloadTask: Task<Void, Error>?
     private var overlapIndex = AgentOverlapIndex()
+    private var overlapPresentationRevision: String?
+    private var overlapPresentationIDs = Set<String>()
+    private struct AgentPreselectionKey: Equatable {
+        let revision: String?
+        let hasMatches: Bool
+        let active, eligible, cache, manual, retained: Set<String>
+        let threshold: Double
+    }
+    private var agentPreselectionKey: AgentPreselectionKey?
+    private var agentPreselectedObjectIDs = Set<String>()
+    private var agentPreselectionCalculationTask: Task<Set<String>?, Never>?
+    private var agentPreselectionToken: UUID?
     private var agentOverlapFullRecalculationRequested = false
     private var autoSelectedAgentCandidateIDs = Set<UUID>()
     private var agentOverlapNeedsScanAnalysis = false
@@ -180,19 +218,32 @@ private struct ModuleScanSession: Sendable {
     private var maintenanceTask: Task<Void, Never>?
     private var oneClickCleanedCandidateIDs = Set<UUID>() {
         didSet {
-            invalidateCandidatePresentationCaches()
-            invalidateAgentEnvironmentCaches()
+            let agentChanged = (systemReport?.agentAssets ?? []).contains {
+                oldValue.contains($0.id) != oneClickCleanedCandidateIDs.contains($0.id)
+            }
+            invalidateCandidatePresentationCaches(includingAgent: agentChanged)
+            if agentChanged {
+                invalidateAgentEnvironmentCaches()
+                prepareAgentSkillPresentation()
+            }
         }
     }
     private var cachedAllCandidates: [CleanupCandidate]?
     private var cachedCandidatesByDestination: [SidebarDestination: [CleanupCandidate]] = [:]
+    private var cachedAgentAssets: [AgentAssetRecord]?
+    private var cachedSelectedCandidates: [SidebarDestination: [CleanupCandidate]] = [:]
+    private var cachedHiddenSelectedCounts: [SidebarDestination: Int] = [:]
+    private var cachedDefaultCleanupSelection: DefaultCleanupSelection?
+    private var cachedRecommendationBreakdowns: [SidebarDestination: CleanupRecommendationBreakdown] = [:]
     private var cachedApplicationUninstallPlans: [UninstallPlan]?
     private var cachedAgentSkillPresentation: AgentSkillCatalogPresentation?
+    private var agentSkillPresentationTask: Task<Void, Never>?
+    private var agentSkillPresentationToken: UUID?
     private var cachedScanDiscoverySummary: ScanDiscoverySummary?
-    private var cachedAgentSkillPresentationGenerationID: UUID?
-    private var cachedAgentSkillPresentationCompletedAt: Date?
     private var cachedAgentSkillPresentationSelectedIDs = Set<UUID>()
     private var cachedAgentCandidateByPath: [String: CleanupCandidate]?
+    private var cachedVisibleAgentSkills: [AgentSkillCatalogSection]?
+    private var cachedVisibleAgentMCPs: [MCPConfigurationRecord]?
 
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser, largeFilePreferences: UserDefaults = .standard) {
         self.home = home
@@ -230,8 +281,7 @@ private struct ModuleScanSession: Sendable {
     private static let largeFileThresholdDefaultsKey = "largeFiles.minimumBytes"
     private static let largeFileInstallerPreselectionDefaultsKey = "largeFiles.preselectInstallers"
     private static let appManagementObservationDefaultsKey = "permissions.appManagementObservation"
-    private static let permissionIntroductionDefaultsKey = "permissions.introductionShown"
-    private static let scanAccessRequestedDefaultsKey = "permissions.scanAccessRequested"
+    private static let pendingPermissionScanDefaultsKey = "permissions.pendingFullScan"
     private static let agentOverlapThresholdDefaultsKey = "agentOverlap.coverageThreshold"
     private static let agentOverlapRetainedDefaultsKey = "agentOverlap.retainedObjects.v3"
 
@@ -306,7 +356,16 @@ private struct ModuleScanSession: Sendable {
         }
     }
 
+    private var agentAnalysisDeferredForCleanup = false
+
+    private func resumeDeferredAgentAnalysis() {
+        guard agentAnalysisDeferredForCleanup, !isDeletionInProgress else { return }
+        agentAnalysisDeferredForCleanup = false
+        scheduleAgentOverlapAnalysis()
+    }
+
     private func scheduleAgentOverlapAnalysis() {
+        guard !isDeletionInProgress else { agentAnalysisDeferredForCleanup = true; return }
         overlapAnalysisTask?.cancel()
         let token = UUID()
         overlapAnalysisToken = token
@@ -318,6 +377,7 @@ private struct ModuleScanSession: Sendable {
 
     private func analyzeAgentOverlapsDuringScan() async {
         guard isScanRunning else { return }
+        guard !isDeletionInProgress else { agentAnalysisDeferredForCleanup = true; return }
         agentOverlapNeedsScanAnalysis = false
         overlapAnalysisTask?.cancel()
         let token = UUID()
@@ -369,61 +429,94 @@ private struct ModuleScanSession: Sendable {
                 throw AgentOverlapError.requiresFullRecalculation
             }
         }
-        overlapIndex = loaded
-        refreshAgentOverlapPresentation()
-        if AgentOverlapAnalyzer.hasCompleteRelationships(in: overlapIndex, activeIDs: currentAgentOverlapObjectIDs) {
-            if reset {
-                overlapIndex.modelVersion = GemmaTextEmbedder.modelVersion
-                overlapIndex.analysisVersion = policy.fingerprint
-                try await overlapStore.save(overlapIndex)
-            }
-            agentOverlapStatus = L10n.text("复用 {0} 项已知数据；没有新增对象，未重新分析", String(currentAgentOverlapObjectIDs.count))
-            applyAgentAutoPreselection(from: agentOverlapMatches)
-            return
-        }
-        guard await overlapModelManager.state() == .ready else {
-            agentOverlapStatus = L10n.text("尚未安装模型；扫描仍可正常使用")
-            return
-        }
-        let provider = try await overlapModelManager.loadProvider()
-        let analyzer = AgentOverlapAnalyzer(provider: provider, modelVersion: GemmaTextEmbedder.modelVersion, policy: policy)
+        guard systemReport?.generationID == generationID else { throw CancellationError() }
+        var workingIndex = loaded
         var inputs = [AgentOverlapInput]()
         for skill in agentSkills {
             inputs.append(AgentOverlapInput(
                 id: "skill|\(skill.id)", kind: .skill, title: skill.displayName,
-                description: skill.summary ?? "", features: skill.functionalSections
+                description: skill.summary ?? "", features: skill.functionalSections,
+                contentVersion: String(data: try JSONEncoder().encode([skill.tags, skill.triggers, skill.tools,
+                    [skill.pluginVersion ?? "", skill.parseStatus.rawValue]]), encoding: .utf8)
             ))
         }
         for configuration in agentMCPConfigurations {
             var features = [String]()
             for server in configuration.servers {
-                let description = overlapIndex.localMetadata["mcp|\(configuration.fileURL.path)|\(server.id)"]?.description ?? ""
+                let description = workingIndex.localMetadata["mcp|\(configuration.fileURL.path)|\(server.id)"]?.description ?? ""
                 features.append(description.isEmpty ? server.name : description)
             }
             inputs.append(AgentOverlapInput(
                 id: "mcp|\(configuration.id)", kind: .mcp,
                 title: configuration.sourceLabel + " · " + configuration.fileURL.lastPathComponent,
-                description: features.joined(separator: "; "), features: features
+                description: features.joined(separator: "; "), features: features, contentVersion: configuration.contentFingerprint
             ))
         }
-        agentOverlapStatus = L10n.text("正在分析新增对象的能力包含关系…")
-        let result = try await analyzer.analyze(inputs: inputs, index: overlapIndex)
+        var metadataChanged = AgentOverlapAnalyzer.refreshMetadata(inputs: inputs, index: &workingIndex, policy: policy)
+        if AgentOverlapAnalyzer.canReuse(inputs: inputs, index: workingIndex) {
+            if workingIndex.completeIDs == nil || reset {
+                workingIndex.completeIDs = Set(inputs.map(\.id))
+                workingIndex.modelVersion = GemmaTextEmbedder.modelVersion
+                workingIndex.analysisVersion = policy.fingerprint
+                metadataChanged = true
+            }
+            if metadataChanged {
+                try Task.checkCancellation()
+                guard systemReport?.generationID == generationID else { throw CancellationError() }
+                try await overlapStore.save(workingIndex)
+                workingIndex = try await overlapStore.load(resetAnalysis: false)
+            }
+            try Task.checkCancellation()
+            guard systemReport?.generationID == generationID else { throw CancellationError() }
+            overlapIndex = workingIndex
+            refreshAgentOverlapPresentation()
+            agentOverlapStatus = L10n.text("复用 {0} 项已知数据；内容未变化，未重新分析", String(inputs.count))
+            applyAgentAutoPreselection(from: agentOverlapMatches)
+            return
+        }
+        guard await overlapModelManager.state() == .ready else {
+            try Task.checkCancellation()
+            // Never present stale coverage as current after a content change.
+            agentOverlapMatches = []; agentOverlapMatchBySourceID = [:]; overlapPresentationRevision = nil
+            agentOverlapStatus = L10n.text("尚未安装模型；扫描仍可正常使用")
+            return
+        }
+        let provider = try await overlapModelManager.loadProvider()
+        try Task.checkCancellation()
+        let analyzer = AgentOverlapAnalyzer(provider: provider, modelVersion: GemmaTextEmbedder.modelVersion, policy: policy)
+        let dirtyKinds = Set(inputs.filter { workingIndex.entries[$0.id]?.inputFingerprint != $0.fingerprint }.map { $0.kind.rawValue })
+        let unchangedIDs = Set(inputs.filter { workingIndex.entries[$0.id]?.inputFingerprint == $0.fingerprint }.map(\.id))
+        let needsRepair = !AgentOverlapAnalyzer.hasCompleteRelationships(in: workingIndex, activeIDs: unchangedIDs)
+        let vectorIDs = Set(inputs.filter {
+            unchangedIDs.contains($0.id) && (needsRepair || dirtyKinds.contains($0.kind.rawValue))
+        }.map(\.id))
+        let hydrated = try await overlapStore.hydrating(workingIndex, ids: vectorIDs)
+        agentOverlapStatus = L10n.text("正在分析新增或已修改对象的能力包含关系…")
+        let result = try await analyzer.analyze(inputs: inputs, index: hydrated)
         try Task.checkCancellation()
         guard systemReport?.generationID == generationID else { throw CancellationError() }
         try await overlapStore.save(result.index)
         try Task.checkCancellation()
-        overlapIndex = result.index
+        workingIndex = try await overlapStore.load(resetAnalysis: false)
+        try Task.checkCancellation()
+        guard systemReport?.generationID == generationID else { throw CancellationError() }
+        overlapIndex = workingIndex
         refreshAgentOverlapPresentation()
         let qualified = agentOverlapMatches.filter { $0.coverage >= agentOverlapThreshold }.count
         agentOverlapStatus = L10n.text(
-            "新增分析 {0} 项，复用 {1} 项；计算 {2} 对新关系，{3} 项联合包含达到阈值",
-            String(result.addedIDs.count), String(inputs.count - result.addedIDs.count),
+            "新增或更新 {0} 项，复用 {1} 项；计算 {2} 对关系，{3} 项联合包含达到阈值",
+            String(result.addedIDs.count + result.changedIDs.count), String(inputs.count - result.addedIDs.count - result.changedIDs.count),
             String(result.calculatedPairCount), String(qualified)
         )
         applyAgentAutoPreselection(from: agentOverlapMatches)
     }
 
     private func refreshAgentOverlapPresentation() {
+        let ids = currentAgentOverlapObjectIDs
+        if let revision = overlapIndex.revision, revision == overlapPresentationRevision,
+           ids == overlapPresentationIDs { return }
+        overlapPresentationRevision = overlapIndex.revision
+        overlapPresentationIDs = ids
         agentOverlapMatches = AgentOverlapAnalyzer.recommendations(in: overlapIndex, activeIDs: currentAgentOverlapObjectIDs)
         agentOverlapMatchBySourceID = Dictionary(uniqueKeysWithValues: agentOverlapMatches.map { ($0.sourceID, $0) })
     }
@@ -446,7 +539,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     private func applyAgentAutoPreselection(from matches: [AgentOverlapMatch]) {
-        guard !isScanRunning, phase != .executing else { return }
+        guard !isScanRunning, phase != .executing, !preparingAgentSkillPresentation else { return }
         let retained = Set(UserDefaults.standard.stringArray(forKey: Self.agentOverlapRetainedDefaultsKey) ?? [])
             .union(agentObjectIDs(under: ".agents"))
         let units = agentContainmentCandidateIDs
@@ -456,11 +549,41 @@ private struct ModuleScanSession: Sendable {
         }
         let manual = selectedIDs.subtracting(autoSelectedAgentCandidateIDs)
         let manuallySelectedObjects = Set(units.filter { !$0.value.isDisjoint(with: manual) }.map(\.key))
-        let sources = AgentOverlapAnalyzer.preselectedSourceIDs(
-            index: matches.isEmpty ? AgentOverlapIndex() : overlapIndex, activeIDs: Set(units.keys), eligibleIDs: eligible,
-            cacheIDs: agentObjectIDs(under: ".cache"),
-            manuallySelectedIDs: manuallySelectedObjects, retainedIDs: retained, threshold: agentOverlapThreshold
-        )
+        let active = Set(units.keys)
+        let cacheIDs = agentObjectIDs(under: ".cache")
+        let key = AgentPreselectionKey(revision: overlapIndex.revision, hasMatches: !matches.isEmpty,
+            active: active, eligible: eligible, cache: cacheIDs, manual: manuallySelectedObjects,
+            retained: retained, threshold: agentOverlapThreshold)
+        if agentPreselectionKey == key, overlapIndex.revision != nil {
+            installAgentPreselection(agentPreselectedObjectIDs, units: units)
+            return
+        }
+        agentPreselectionCalculationTask?.cancel()
+        let token = UUID()
+        agentPreselectionToken = token
+        let index = matches.isEmpty ? AgentOverlapIndex() : overlapIndex
+        let cachedRecommendations = active == currentAgentOverlapObjectIDs ? matches : nil
+        let calculation = Task.detached(priority: .userInitiated) { () -> Set<String>? in
+            guard !Task.isCancelled else { return nil }
+            let sources = AgentOverlapAnalyzer.preselectedSourceIDs(
+                index: index, activeIDs: active, eligibleIDs: eligible,
+                cacheIDs: cacheIDs, manuallySelectedIDs: manuallySelectedObjects, retainedIDs: retained,
+                threshold: key.threshold, cachedRecommendations: cachedRecommendations)
+            return Task.isCancelled ? nil : sources
+        }
+        agentPreselectionCalculationTask = calculation
+        Task { [weak self] in
+            guard let sources = await calculation.value, !Task.isCancelled,
+                  let self, agentPreselectionToken == token else { return }
+            agentPreselectionCalculationTask = nil
+            agentPreselectionKey = key
+            agentPreselectedObjectIDs = sources
+            installAgentPreselection(sources, units: units)
+            finishFullScanTimingIfIdle()
+        }
+    }
+
+    private func installAgentPreselection(_ sources: Set<String>, units: [String: Set<UUID>]) {
         let desired = Set(sources.flatMap { units[$0] ?? [] })
         selectedIDs.subtract(autoSelectedAgentCandidateIDs)
         selectedIDs.formUnion(desired)
@@ -477,7 +600,7 @@ private struct ModuleScanSession: Sendable {
     var hasCompletedScan: Bool { systemReport?.isCommitEligible == true }
 
     var isDeletionInProgress: Bool { phase == .executing || oneClickCleanupIsRunning }
-    var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult != nil || deletionResultWarning != nil }
+    var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult?.results.contains(where: { DeletionResultPresentation.outcome(for: $0) == .deleted }) == true }
 
     func dismissDeletionSheet() {
         guard !isDeletionInProgress else { return }
@@ -541,8 +664,11 @@ private struct ModuleScanSession: Sendable {
         return diskUsageTree.minimumFileBytes != largeFileThreshold.bytes
     }
     var agentAssets: [AgentAssetRecord] {
+        if let cachedAgentAssets { return cachedAgentAssets }
         let cleanedIDs = oneClickCleanedCandidateIDs
-        return (systemReport?.agentAssets ?? []).filter { !cleanedIDs.contains($0.id) }
+        let assets = (systemReport?.agentAssets ?? []).filter { !cleanedIDs.contains($0.id) }
+        cachedAgentAssets = assets
+        return assets
     }
     var detectedAgentProviders: [AgentProvider] {
         guard let report = systemReport else { return [] }
@@ -559,12 +685,26 @@ private struct ModuleScanSession: Sendable {
     var agentSkillDuplicatesCollapsedCount: Int {
         systemReport?.agentSkillDuplicatesCollapsedCount ?? 0
     }
+    var agentEnvironmentProgressMessage: String? {
+        if isScanRunning {
+            switch scanProgressByModule[.agentEnvironment]?.state {
+            case .waiting: return L10n.text("正在等待扫描 Agent 环境…")
+            case .scanning: return L10n.text("正在扫描 Agent 环境，发现 Skill 与 MCP 配置…")
+            default: break
+            }
+        }
+        if preparingAgentSkillPresentation { return L10n.text("正在准备 Agent 列表…") }
+        if agentOverlapAnalysisIsRunning { return L10n.text("正在分析 Skill 与 MCP 的能力覆盖关系…") }
+        if agentPreselectionCalculationTask != nil { return L10n.text("正在生成 Agent 预选建议…") }
+        return nil
+    }
     var agentSkillCatalogPresentation: AgentSkillCatalogPresentation {
-        if let cachedAgentSkillPresentation,
-           cachedAgentSkillPresentationGenerationID == systemReport?.generationID,
-           cachedAgentSkillPresentationCompletedAt == systemReport?.completedAt,
-           cachedAgentSkillPresentationSelectedIDs == selectedIDs {
-            return cachedAgentSkillPresentation
+        if let cachedAgentSkillPresentation {
+            guard cachedAgentSkillPresentationSelectedIDs != selectedIDs else { return cachedAgentSkillPresentation }
+            let updated = cachedAgentSkillPresentation.selecting(selectedIDs)
+            self.cachedAgentSkillPresentation = updated
+            cachedAgentSkillPresentationSelectedIDs = selectedIDs
+            return updated
         }
         let presentation = AgentSkillCatalogPresentation(
             skills: agentSkills,
@@ -572,13 +712,12 @@ private struct ModuleScanSession: Sendable {
             selectedIDs: selectedIDs
         )
         cachedAgentSkillPresentation = presentation
-        cachedAgentSkillPresentationGenerationID = systemReport?.generationID
-        cachedAgentSkillPresentationCompletedAt = systemReport?.completedAt
         cachedAgentSkillPresentationSelectedIDs = selectedIDs
         return presentation
     }
     var visibleAgentSkillSections: [AgentSkillCatalogSection] {
-        agentSkillCatalogPresentation.filteredSections(
+        if let cachedVisibleAgentSkills { return cachedVisibleAgentSkills }
+        let sections = agentSkillCatalogPresentation.filteredSections(
             query: "",
             scope: nil,
             provider: agentProviderFilter,
@@ -590,18 +729,23 @@ private struct ModuleScanSession: Sendable {
             guard !skills.isEmpty else { return nil }
             return AgentSkillCatalogSection(group: section.group, skills: skills)
         }.sorted(by: compareSkillSections)
+        cachedVisibleAgentSkills = sections
+        return sections
     }
     var visibleAgentSkillBindings: [AgentSkillCleanupBinding] {
         visibleAgentSkillSections.flatMap(\.skills)
     }
     var visibleAgentMCPConfigurations: [MCPConfigurationRecord] {
-        agentMCPConfigurations.filter { configuration in
+        if let cachedVisibleAgentMCPs { return cachedVisibleAgentMCPs }
+        let configurations = agentMCPConfigurations.filter { configuration in
             let providerMatches = agentProviderFilter == nil || configuration.provider == agentProviderFilter
             guard providerMatches else { return false }
             guard agentItemsSelectionFilter == .selected else { return true }
             guard let candidate = agentMCPCandidate(for: configuration) else { return false }
             return selectedIDs.contains(candidate.id)
         }.sorted(by: compareMCPContainment)
+        cachedVisibleAgentMCPs = configurations
+        return configurations
     }
 
     private func compareSkillContainment(_ lhs: AgentSkillCleanupBinding, _ rhs: AgentSkillCleanupBinding) -> Bool {
@@ -659,9 +803,12 @@ private struct ModuleScanSession: Sendable {
     }
 
     var selectedCandidates: [CleanupCandidate] {
+        if let cached = cachedSelectedCandidates[selection] { return cached }
         let scoped = selection == .largeFiles && showsDuplicateLargeFilesOnly
             ? duplicateLargeFiles : candidates(for: selection)
-        return scoped.filter { selectedIDs.contains($0.id) }
+        let selected = scoped.filter { selectedIDs.contains($0.id) }
+        cachedSelectedCandidates[selection] = selected
+        return selected
     }
 
     var duplicateLargeFiles: [CleanupCandidate] {
@@ -674,8 +821,11 @@ private struct ModuleScanSession: Sendable {
         return visibleCandidates(for: selection).first { $0.id == focusedCandidateID }
     }
     var hiddenSelectedCount: Int {
+        if let cached = cachedHiddenSelectedCounts[selection] { return cached }
         let visible = Set(visibleCandidates(for: selection).map(\.id))
-        return Set(selectedCandidates.map(\.id)).subtracting(visible).count
+        let count = Set(selectedCandidates.map(\.id)).subtracting(visible).count
+        cachedHiddenSelectedCounts[selection] = count
+        return count
     }
     var isCleanupStrategyAdjusted: Bool { !excludedBaseIDs.isEmpty }
 
@@ -688,16 +838,23 @@ private struct ModuleScanSession: Sendable {
     }
     var defaultCleanupSelection: DefaultCleanupSelection? {
         guard let report = systemReport else { return nil }
-        let defaults = defaultCleanupPolicy.selection(for: report)
-        let excludedIDs = oneClickCleanedCandidateIDs.union(cleanupFailures.map(\.candidate.id))
+        let defaults: DefaultCleanupSelection
+        if let cachedDefaultCleanupSelection {
+            defaults = cachedDefaultCleanupSelection
+        } else {
+            let proposed = defaultCleanupPolicy.selection(for: report)
+            let excludedIDs = oneClickCleanedCandidateIDs.union(cleanupFailures.map(\.candidate.id))
+            defaults = DefaultCleanupSelection(
+                systemCleanup: proposed.systemCleanup.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil },
+                applicationUninstall: [],
+                largeFiles: proposed.largeFiles.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil },
+                agentEnvironment: [])
+            cachedDefaultCleanupSelection = defaults
+        }
         return DefaultCleanupSelection(
-            systemCleanup: hasScanResult(for: .general)
-                ? defaults.systemCleanup.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil }
-                : [],
+            systemCleanup: hasScanResult(for: .general) ? defaults.systemCleanup : [],
             applicationUninstall: [],
-            largeFiles: hasScanResult(for: .largeFiles)
-                ? defaults.largeFiles.filter { !excludedIDs.contains($0.id) && (try? protectionPolicy.validate($0.url)) != nil }
-                : [],
+            largeFiles: hasScanResult(for: .largeFiles) ? defaults.largeFiles : [],
             agentEnvironment: []
         )
     }
@@ -707,13 +864,6 @@ private struct ModuleScanSession: Sendable {
 
     func oneClickStatus(for module: ScanModuleID) -> String? {
         if oneClickActiveModules.contains(module) { return L10n.text("正在清理默认项…") }
-        let failures = failedCleanupResult(for: module)
-        if failures.itemCount > 0 {
-            if let result = oneClickCompletedByModule[module], result.itemCount > 0 {
-                return L10n.text("已清理 {0} 项 · {1}　未处理 {2} 项 · {3}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)), String(describing: failures.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: failures.bytes)))
-            }
-            return L10n.text("未处理 {0} 项 · {1}", String(describing: failures.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: failures.bytes)))
-        }
         if let result = oneClickCompletedByModule[module] {
             return result.itemCount > 0
                 ? L10n.text("已清理 {0} 项 · {1}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)))
@@ -756,15 +906,14 @@ private struct ModuleScanSession: Sendable {
         }
     }
     var visibleApplications: [InstalledApplication] {
-        let pending = applicationScope == .uninstallable ? applicationIDsAwaitingQuitAnalysis : []
         let filtered = ApplicationListFilter(query: applicationQuery, scope: applicationScope)
-            .apply(to: accessibleApplications).filter { !pending.contains($0.id) }
+            .apply(to: accessibleApplications)
         let selectedApplicationURLs = applicationSortOrder == .selection
             ? Set(applicationUninstallPlans.compactMap { plan in
                 plan.items.contains(where: { uninstallSelectedIDs.contains($0.id) })
                     ? plan.application.bundleURL.standardizedFileURL
                     : nil
-            })
+            }).union(quitSelectedApplicationIDs)
             : []
         return applicationSortOrder.sorted(filtered, selectedApplicationURLs: selectedApplicationURLs)
     }
@@ -782,12 +931,17 @@ private struct ModuleScanSession: Sendable {
         guard let runningApplicationIDs, let inventory = systemReport?.applicationUninstallInventory else { return [] }
         return Set(inventory.analyses.compactMap { analysis in
             let app = analysis.application
-            return app.isRunning && !app.isSystem && !runningApplicationIDs.contains(app.bundleIdentifier) ? app.id : nil
+            return app.isRunning && !app.isSystem && analysis.preparedPlan == nil
+                && !runningApplicationIDs.contains(app.bundleIdentifier) ? app.id : nil
         })
     }
     var applicationUninstallPlans: [UninstallPlan] {
         if let cachedApplicationUninstallPlans { return cachedApplicationUninstallPlans }
-        let plans = (systemReport?.applicationUninstallInventory.plans ?? []).filter {
+        let available = systemReport?.applicationUninstallInventory.analyses.compactMap { analysis in
+            analysis.withRunningState(runningApplicationIDs?.contains(analysis.application.bundleIdentifier)
+                ?? analysis.application.isRunning).plan
+        } ?? []
+        let plans = available.filter {
             runningApplicationIDs?.contains($0.application.bundleIdentifier) != true
         }.map { plan in
             UninstallPlan(id: plan.id, application: plan.application, items: plan.items.map {
@@ -823,10 +977,11 @@ private struct ModuleScanSession: Sendable {
                 message: L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。"),
                 ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
         }
-        if analysis.application.isRunning && !application.isSystem { return nil }
+        if analysis.application.isRunning && analysis.preparedState == nil && !application.isSystem { return nil }
+        let available = analysis.withRunningState(application.isRunning)
         return ApplicationUninstallAnalysis(application: application,
-            plan: applicationUninstallPlans.first { $0.application.id == application.id }, state: analysis.state,
-            message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
+            plan: applicationUninstallPlans.first { $0.application.id == application.id }, state: available.state,
+            message: available.message, limitations: available.limitations, ownership: available.ownership, runtimeObservation: available.runtimeObservation)
     }
 
     func openOfficialUninstaller(for application: InstalledApplication, expectedURL: URL) {
@@ -863,18 +1018,24 @@ private struct ModuleScanSession: Sendable {
     }
 
     func recommendationBreakdown(for destination: SidebarDestination) -> CleanupRecommendationBreakdown {
-        recommendationPolicy.breakdown(for: candidates(for: destination))
+        if let cached = cachedRecommendationBreakdowns[destination] { return cached }
+        let result = recommendationPolicy.breakdown(for: candidates(for: destination))
+        cachedRecommendationBreakdowns[destination] = result
+        return result
     }
 
     func candidates(for destination: SidebarDestination) -> [CleanupCandidate] {
-        if destination == .agentEnvironment {
-            return agentAssets.map(\.candidate)
-        }
         if let cached = cachedCandidatesByDestination[destination] { return cached }
+        if destination == .agentEnvironment {
+            let result = agentAssets.map(\.candidate)
+            cachedCandidatesByDestination[destination] = result
+            return result
+        }
         let scoped = destination == .largeFiles ? (systemReport?.largeFileCandidates ?? [])
             : scopePolicy.candidates(for: destination, from: systemReport?.candidates ?? [])
+        let access = ScanAccessPresentation(deniedPaths: Set(scanDeniedPaths.values.flatMap { $0 }))
         let result = CleanupCandidateVisibility.remaining(
-            candidates: scoped,
+            candidates: scoped.filter { !access.cannotInspectWholeItem($0.url) },
             cleanedCandidateIDs: oneClickCleanedCandidateIDs
         ).map(protectionPolicy.applying)
         cachedCandidatesByDestination[destination] = result
@@ -913,8 +1074,8 @@ private struct ModuleScanSession: Sendable {
         maintenanceTask = Task { [weak self] in
             guard let self else { return }
             await bootstrapPersistentState()
-            await introducePermissionsIfNeeded()
             bootstrapInProgress = false
+            await resumePendingPermissionScanIfPossible()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
@@ -1035,14 +1196,65 @@ private struct ModuleScanSession: Sendable {
 
     func startFullScan() {
         guard !bootstrapInProgress, !updateInProgress, deepScanningApplicationID == nil else { return }
-        guard !isScanRunning, phase != .executing, !oneClickCleanupIsRunning else { return }
-        guard PermissionScanStartPolicy.shouldStartFullScan(
-            fullDiskAccess: permissionSnapshot?.fullDiskAccess.status ?? .unverified
-        ) else { return }
+        guard !isScanRunning, phase != .executing, !oneClickCleanupIsRunning,
+              !checkingScanPermissions, !preparingScanPermissions else { return }
+        checkingScanPermissions = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { checkingScanPermissions = false }
+            await loadPermissions()
+            if ScanPermissionPreparationPolicy.canProceed(
+                diskAccess: permissionSnapshot?.fullDiskAccess.status ?? .unverified) {
+                beginFullScan()
+            } else { showsScanPermissionPreparation = true }
+        }
+    }
+
+    func preparePermissionsAndScan() {
+        guard !preparingScanPermissions, !isScanRunning else { return }
+        preparingScanPermissions = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { preparingScanPermissions = false }
+            await loadPermissions()
+            if permissionSnapshot?.fullDiskAccess.status != .granted {
+                UserDefaults.standard.set(true, forKey: Self.pendingPermissionScanDefaultsKey)
+                openFullDiskAccessSettings()
+                return
+            }
+            continueScanWithCurrentPermissions()
+        }
+    }
+
+    func continueScanWithCurrentPermissions() {
+        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        showsScanPermissionPreparation = false
+        guard !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
+        beginFullScan()
+    }
+
+    func dismissScanPermissionPreparation() {
+        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        showsScanPermissionPreparation = false
+    }
+
+    private func resumePendingPermissionScanIfPossible() async {
+        guard UserDefaults.standard.bool(forKey: Self.pendingPermissionScanDefaultsKey),
+              !bootstrapInProgress, !isScanRunning, phase != .executing else { return }
+        await loadPermissions()
+        guard permissionSnapshot?.fullDiskAccess.status == .granted else {
+            showsScanPermissionPreparation = true
+            return
+        }
+        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        showsScanPermissionPreparation = false
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: \.canBecomeMain)?.makeKeyAndOrderFront(nil)
         beginFullScan()
     }
 
     private func beginFullScan() {
+        guard !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
         guard deepScanningApplicationID == nil, !isLoadingApplications else { return }
         scanTask?.cancel()
         for task in moduleScanTasks.values { task.cancel() }
@@ -1080,8 +1292,13 @@ private struct ModuleScanSession: Sendable {
         if selection == .applications { refreshRunningApplications() }
         Task { [weak self] in
             guard let self else { return }
-            if selection == .settings { await loadPermissions() }
-            await runQuarantineMaintenance()
+            if UserDefaults.standard.bool(forKey: Self.pendingPermissionScanDefaultsKey) {
+                await resumePendingPermissionScanIfPossible()
+            } else if selection == .settings || showsScanPermissionPreparation {
+                await loadPermissions()
+            }
+            // The existing maintenance timer handles due work. Focusing a window
+            // must not start another maintenance pass or invalidate every list.
         }
     }
 
@@ -1256,7 +1473,7 @@ private struct ModuleScanSession: Sendable {
 
     func diskFileCandidate(for node: DiskUsageNode) -> CleanupCandidate? {
         guard node.kind == .file else { return nil }
-        return largeFileCandidatesByPath[node.url.standardizedFileURL.path]
+        return largeFileCandidatesByPath[node.url.standardizedFileURL.path].map { protectionPolicy.applying(to: $0) }
     }
 
     func toggleDiskFile(_ node: DiskUsageNode) {
@@ -1386,14 +1603,10 @@ private struct ModuleScanSession: Sendable {
                     sessionCleanupSummary.record(receipt)
                     await reloadHistory()
                     await reloadQuarantineSchedules()
-                    statusMessage = outcome.failures.isEmpty
-                        ? L10n.text("系统清理完成")
-                        : L10n.text("系统清理完成；{0} 项未处理，可查看原因并安全重试", String(describing: outcome.failures.count))
+                    statusMessage = L10n.text("系统清理完成")
                     deletionResult = receipt
                 } catch {
-                    finishExecutionProgress()
-                    statusMessage = L10n.text("系统清理未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
-                    deletionResultWarning = statusMessage
+                    finishCleanupSilently(error)
                 }
                 oneClickActiveModules.removeAll()
                 oneClickCleanupIsRunning = false
@@ -1477,13 +1690,10 @@ private struct ModuleScanSession: Sendable {
                 excludedBaseIDs.subtract(attemptedIDs)
                 await reloadHistory()
                 await reloadQuarantineSchedules()
-                phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分项目未处理，请查看逐项原因"))
+                phase = .completed
                 deletionResult = receipt
             } catch {
-                finishExecutionProgress()
-                statusMessage = L10n.text("删除未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
-                deletionResultWarning = statusMessage
-                phase = .failed(statusMessage ?? L10n.text("删除未完成"))
+                finishCleanupSilently(error)
             }
             activeCleanupModules.removeAll()
             executionTask = nil
@@ -1497,6 +1707,13 @@ private struct ModuleScanSession: Sendable {
         activeCleanupModules = modules
         let progress = executionProgressHandler(total: plan.selectedItems.count)
         phase = .executing
+        if agentOverlapAnalysisIsRunning {
+            agentAnalysisDeferredForCleanup = true
+            overlapAnalysisTask?.cancel()
+            overlapAnalysisToken = nil
+            overlapAnalysisTask = nil
+            agentOverlapAnalysisIsRunning = false
+        }
         return progress
     }
 
@@ -1522,14 +1739,8 @@ private struct ModuleScanSession: Sendable {
                 guard let result = progress.result else { return }
                 self.recordScanCleanupEffects([result])
                 self.pendingExecutionResults.append(result)
-                guard self.executionResultsTask == nil else { return }
-                // Coalesce fast batches so a long result list is not rebuilt for
-                // each tiny file. New operations invalidate late callbacks.
-                self.executionResultsTask = Task { [weak self] in
-                    try? await Task.sleep(for: .milliseconds(150))
-                    guard !Task.isCancelled, let self, self.executionProgressToken == token else { return }
-                    self.applyPendingExecutionResults()
-                }
+                // Keep progress cheap while the operation sheet covers the lists.
+                // Reconcile the final receipt once, instead of rebuilding every module every 150 ms.
             }
         }
     }
@@ -1558,12 +1769,23 @@ private struct ModuleScanSession: Sendable {
 
     private func finishExecutionProgress(_ receipt: OperationReceipt? = nil) {
         executionResultsTask?.cancel()
-        applyPendingExecutionResults()
         executionProgressToken = nil
+        if receipt == nil { applyPendingExecutionResults() }
+        else { pendingExecutionResults.removeAll() }
         if let receipt {
             recordScanCleanupEffects(receipt.results)
-            executionProgress = .init(completed: receipt.results.count, total: executionProgress.total, currentURL: nil)
+            executionProgress = .init(completed: receipt.results.count, total: max(receipt.results.count, executionProgress.total),
+                currentURL: nil, phase: .savingResults)
         }
+    }
+
+    private func finishCleanupSilently(_ error: Error) {
+        finishExecutionProgress()
+        FileHandle.standardError.write(Data("Cleanup retained its execution journal: \(error)\n".utf8))
+        statusMessage = nil
+        deletionResult = nil
+        deletionResultWarning = nil
+        phase = .completed
     }
 
     func requestRestore(_ receipt: OperationReceipt) {
@@ -1607,6 +1829,10 @@ private struct ModuleScanSession: Sendable {
                     recoveryMessage = L10n.text("已恢复 {0} 项；{1} 项因路径冲突恢复到相邻位置，{2} 项失败", String(describing: successful.count), String(describing: conflicts), String(describing: failures))
                 }
                 recoveryMessageIsError = successful.isEmpty && failures > 0
+                if let warnings = restored.integrationWarnings, !warnings.isEmpty {
+                    recoveryMessage = (recoveryMessage ?? "") + "\n" + warnings.joined(separator: "\n")
+                    recoveryMessageIsError = true
+                }
             } catch {
                 recoveryMessage = L10n.text("文件已处理，但恢复记录更新失败：{0}", String(describing: error.localizedDescription))
                 recoveryMessageIsError = true
@@ -1662,7 +1888,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     var canStartApplicationDeepScan: Bool {
-        !updateInProgress && deepScanningApplicationID == nil && !isLoadingApplications
+        quittingApplicationIDs.isEmpty && !updateInProgress && deepScanningApplicationID == nil && !isLoadingApplications
             && !maintenanceInProgress && recoveryActionReceiptID == nil && !bootstrapInProgress
             && !isScanRunning && phase != .executing && !oneClickCleanupIsRunning
     }
@@ -1742,6 +1968,53 @@ private struct ModuleScanSession: Sendable {
         }
     }
 
+    func canQuitApplication(_ application: InstalledApplication) -> Bool {
+        application.isRunning && !application.isSystem
+            && application.bundleURL.resolvingSymlinksInPath().standardizedFileURL
+                != Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL
+            && !quittingApplicationIDs.contains(application.id)
+            && !isDeletionInProgress && !updateInProgress && deepScanningApplicationID == nil
+    }
+
+    var selectedApplicationsToQuit: [InstalledApplication] {
+        applications.filter { quitSelectedApplicationIDs.contains($0.id) && canQuitApplication($0) }
+    }
+
+    func toggleApplicationQuitSelection(_ application: InstalledApplication) {
+        guard quittingApplicationIDs.isEmpty else { return }
+        if quitSelectedApplicationIDs.remove(application.id) != nil { return }
+        guard canQuitApplication(application) else { return }
+        quitSelectedApplicationIDs.insert(application.id)
+    }
+
+    func quitSelectedApplications() {
+        guard quittingApplicationIDs.isEmpty else { return }
+        // Capture explicit checkbox choices before tasks or live status updates run.
+        let targets = selectedApplicationsToQuit
+        for application in targets { quitApplication(application) }
+    }
+
+    func quitApplication(_ application: InstalledApplication) {
+        guard canQuitApplication(application) else { return }
+        quittingApplicationIDs.insert(application.id)
+        applicationQuitMessages[application.id] = nil
+        Task { [weak self] in
+            let result = await ApplicationQuitService.quit(application)
+            guard let self else { return }
+            quittingApplicationIDs.remove(application.id)
+            switch result {
+            case .terminated, .notRunning:
+                quitSelectedApplicationIDs.remove(application.id)
+                applicationQuitMessages[application.id] = nil
+            case .refused, .stillRunning:
+                applicationQuitMessages[application.id] = L10n.text("应用尚未退出，请切换到该应用处理保存提示或手动退出。")
+            case .protectedApplication:
+                applicationQuitMessages[application.id] = L10n.text("不能在此退出系统应用或 SuperCleaner 自身。")
+            }
+            refreshRunningApplications()
+        }
+    }
+
     func refreshApplications() {
         guard !updateInProgress, deepScanningApplicationID == nil, !isLoadingApplications, !isScanRunning, phase != .executing else { return }
         guard systemReport != nil else { selection = .cleanupCenter; return }
@@ -1751,6 +2024,7 @@ private struct ModuleScanSession: Sendable {
     private func updateRunningApplicationIDs(_ identifiers: Set<String>) {
         guard runningApplicationIDs != identifiers else { return }
         runningApplicationIDs = identifiers
+        quitSelectedApplicationIDs.formIntersection(Set(applications.filter(\.isRunning).map(\.id)))
         cachedApplicationUninstallPlans = nil
         var selection = uninstallSelectionState
         selection.reconcile(plans: applicationUninstallPlans)
@@ -1772,7 +2046,7 @@ private struct ModuleScanSession: Sendable {
         let liveApplications = applications
         let context = ScanContext(homeDirectory: home, fileSystem: fileSystem, protectionPolicy: protectionPolicy)
         Task { [weak self] in
-            let refreshed = await ApplicationUninstallAnalyzer().analyzeStoppedApplications(needsPlan, in: liveApplications, context: context)
+            let refreshed = await ApplicationUninstallAnalyzer().analyzeStoppedApplications(needsPlan, in: liveApplications, context: context, cachedIndex: previous.associationIndex)
             guard let self else { return }
             defer { isPreparingStoppedAppPlans = false }
             guard !refreshed.isEmpty, !isDeletionInProgress, !updateInProgress, !isLoadingApplications,
@@ -1791,7 +2065,7 @@ private struct ModuleScanSession: Sendable {
                 coverage: scanned.coverage, scannedAt: scanned.scannedAt)
             let updated = ApplicationUninstallInventory(applicationInventory: inventory,
                 analyses: previous.analyses.map { byID[$0.id] ?? $0 },
-                associationCoverage: previous.associationCoverage, ownershipGraph: previous.ownershipGraph)
+                associationCoverage: previous.associationCoverage, ownershipGraph: previous.ownershipGraph, associationIndex: previous.associationIndex)
                 .observing(Dictionary(uniqueKeysWithValues: previous.analyses.compactMap { analysis in
                     analysis.runtimeObservation.map { (analysis.id, $0) }
                 }))
@@ -1825,7 +2099,13 @@ private struct ModuleScanSession: Sendable {
 
     func clearUninstallSelection() {
         guard !isDeletionInProgress else { return }
+        if quittingApplicationIDs.isEmpty { quitSelectedApplicationIDs.removeAll() }
         uninstallSelectedIDs.removeAll()
+    }
+
+    func setPackageReceiptSelected(_ selected: Bool, packageID: String) {
+        guard !isDeletionInProgress else { return }
+        packageReceiptSelection.setSelected(selected, packageID: packageID)
     }
 
     func executeUninstallBatch() {
@@ -1840,7 +2120,7 @@ private struct ModuleScanSession: Sendable {
         }
         do {
             let plan = try planBuilder.build(
-                candidates: selectedItems.map(\.candidate),
+                candidates: selectedItems.map { packageReceiptSelection.applying(to: $0.candidate) },
                 selectedIDs: selection.selectedItemIDs
             )
             let progress = prepareDeletion(plan: plan, modules: [.applications])
@@ -1857,16 +2137,13 @@ private struct ModuleScanSession: Sendable {
                     recordCompletedCleanup(receipt, attemptedCandidates: selectedItems.map(\.candidate))
                     await reloadHistory()
                     await reloadQuarantineSchedules()
-                    phase = receipt.overallStatus == .completed ? .completed : .failed(L10n.text("部分卸载项未处理"))
+                    phase = .completed
                     if receipt.overallStatus == .completed {
                         statusMessage = L10n.text("已删除 {0} 个应用的 {1} 项，可在恢复记录中撤销", String(describing: summary.applicationCount), String(describing: summary.itemCount))
                     }
                     deletionResult = receipt
                 } catch {
-                    finishExecutionProgress()
-                    statusMessage = L10n.text("应用卸载未完成，执行记录已保留以供启动恢复：{0}", String(describing: error.localizedDescription))
-                    deletionResultWarning = statusMessage
-                    phase = .failed(statusMessage ?? L10n.text("应用卸载未完成"))
+                    finishCleanupSilently(error)
                 }
                 activeCleanupModules.removeAll()
                 executionTask = nil
@@ -1948,24 +2225,13 @@ private struct ModuleScanSession: Sendable {
         NSWorkspace.shared.open(PermissionStatusService.appManagementSettingsURL)
     }
 
-    private func introducePermissionsIfNeeded() async {
-        guard !UserDefaults.standard.bool(forKey: Self.permissionIntroductionDefaultsKey) else { return }
-        await loadPermissions()
-        guard !Task.isCancelled, !UserDefaults.standard.bool(forKey: Self.permissionIntroductionDefaultsKey) else { return }
-        UserDefaults.standard.set(true, forKey: Self.permissionIntroductionDefaultsKey)
-        showsPermissionIntroduction = permissionSnapshot?.fullDiskAccess.status != .granted
-    }
-
     private func runScan(token: UUID) async {
         guard !Task.isCancelled, activeScanToken == token else { return }
         await loadPermissions()
-        if !UserDefaults.standard.bool(forKey: Self.scanAccessRequestedDefaultsKey) {
-            UserDefaults.standard.set(true, forKey: Self.scanAccessRequestedDefaultsKey)
-            if permissionSnapshot?.fullDiskAccess.status != .granted {
-                await ScanPermissionPreflight(fileSystem: fileSystem).requestScanAccess(
-                    homeDirectory: home, includeStandardFolders: true
-                )
-            }
+        // Check on every scan; a previous attempt is not proof of current access.
+        if permissionSnapshot?.fullDiskAccess.status != .granted {
+            await ScanPermissionPreflight(fileSystem: fileSystem).requestScanAccess(
+                homeDirectory: home, includeStandardFolders: true)
         }
         guard !Task.isCancelled, activeScanToken == token else { return }
         statusMessage = L10n.text("正在扫描可访问位置；不会修改任何文件")
@@ -1995,7 +2261,7 @@ private struct ModuleScanSession: Sendable {
         scanCleanupReconciliation = ScanCleanupReconciliation(generationID: generationID)
         let session = ModuleScanSession(
             coordinator: SystemScanCoordinator(
-                diskUsageScanner: DiskUsageScanner(minimumFileBytes: largeFileThreshold.bytes, maximumDepth: 8, maximumEntries: 50_000),
+                diskUsageScanner: DiskUsageScanner(minimumFileBytes: largeFileThreshold.bytes, maximumEntries: 50_000),
                 rulePack: configuration.pack
             ),
             context: configuration.context, runningBundleIdentifiers: Set(runningBundleIDs),
@@ -2080,6 +2346,9 @@ private struct ModuleScanSession: Sendable {
         guard accumulator.apply(presentedResult) else { return }
         readyScanModules.insert(result.module)
         installProgressive(accumulator.report, completedModule: result.module, token: scanToken)
+        if case let .agentEnvironment(inventory) = result.payload, inventory.capabilitiesOnly {
+            scheduleAgentOverlapAnalysis()
+        }
     }
 
     private func finishModuleScanSessionIfIdle() {
@@ -2099,7 +2368,9 @@ private struct ModuleScanSession: Sendable {
 
     private func finishFullScanTimingIfIdle() {
         guard fullScanStartedAt != nil, fullScanStoppedAt == nil,
-              !isScanRunning, !agentOverlapAnalysisIsRunning else { return }
+              !isScanRunning, !agentOverlapAnalysisIsRunning,
+              !preparingAgentSkillPresentation,
+              agentPreselectionCalculationTask == nil else { return }
         fullScanStoppedAt = Date()
     }
 
@@ -2258,7 +2529,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     private func runQuarantineMaintenance() async {
-        guard !updateInProgress, deepScanningApplicationID == nil else { return }
+        guard !updateInProgress, !maintenanceInProgress, !isDeletionInProgress, deepScanningApplicationID == nil else { return }
         maintenanceInProgress = true
         defer { maintenanceInProgress = false }
         do {
@@ -2359,7 +2630,7 @@ private struct ModuleScanSession: Sendable {
             guard !Task.isCancelled, activeScanToken == token else { return }
             let session = ModuleScanSession(
                 coordinator: SystemScanCoordinator(
-                    diskUsageScanner: DiskUsageScanner(minimumFileBytes: largeFileThreshold.bytes, maximumDepth: 8, maximumEntries: 50_000),
+                    diskUsageScanner: DiskUsageScanner(minimumFileBytes: largeFileThreshold.bytes, maximumEntries: 50_000),
                     rulePack: configuration.pack
                 ), context: configuration.context,
                 runningBundleIdentifiers: Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)),
@@ -2472,7 +2743,7 @@ private struct ModuleScanSession: Sendable {
         permissionSnapshot = await PermissionStatusService(
             fileSystem: fileSystem,
             homeDirectory: home,
-            appManagementObservation: storedObservation
+            appManagementObservation: storedObservation == .actionRequired ? .actionRequired : .unverified
         ).snapshot()
     }
 
@@ -2506,21 +2777,63 @@ private struct ModuleScanSession: Sendable {
         }
     }
 
+    private func invalidateAgentVisibleLists() {
+        cachedHiddenSelectedCounts.removeValue(forKey: .agentEnvironment)
+        cachedVisibleAgentSkills = nil
+        cachedVisibleAgentMCPs = nil
+    }
+
     private func invalidateAgentSkillPresentationCache() {
+        invalidateAgentVisibleLists()
         cachedAgentSkillPresentation = nil
-        cachedAgentSkillPresentationGenerationID = nil
-        cachedAgentSkillPresentationCompletedAt = nil
         cachedAgentSkillPresentationSelectedIDs.removeAll(keepingCapacity: true)
     }
 
     private func invalidateAgentEnvironmentCaches() {
+        agentPreselectionCalculationTask?.cancel()
+        agentPreselectionCalculationTask = nil
+        agentPreselectionToken = nil
         invalidateAgentSkillPresentationCache()
+        agentSkillPresentationTask?.cancel()
+        agentSkillPresentationTask = nil
+        agentSkillPresentationToken = nil
+        preparingAgentSkillPresentation = false
         cachedAgentCandidateByPath = nil
     }
 
-    private func invalidateCandidatePresentationCaches() {
+    private func prepareAgentSkillPresentation() {
+        guard !agentSkills.isEmpty else { return }
+        let skills = agentSkills
+        let assets = agentAssets
+        let selected = selectedIDs
+        let token = UUID()
+        agentSkillPresentationToken = token
+        preparingAgentSkillPresentation = true
+        let task = Task.detached(priority: .userInitiated) {
+            AgentSkillCatalogPresentation(skills: skills, assets: assets, selectedIDs: selected)
+        }
+        agentSkillPresentationTask = Task { [weak self] in
+            let presentation = await task.value
+            guard let self, agentSkillPresentationToken == token else { return }
+            cachedAgentSkillPresentation = presentation
+            cachedAgentSkillPresentationSelectedIDs = selected
+            invalidateAgentVisibleLists()
+            agentSkillPresentationTask = nil
+            agentSkillPresentationToken = nil
+            preparingAgentSkillPresentation = false
+            applyAgentAutoPreselection(from: agentOverlapMatches)
+            finishFullScanTimingIfIdle()
+        }
+    }
+
+    private func invalidateCandidatePresentationCaches(includingAgent: Bool = true) {
         cachedAllCandidates = nil
+        if includingAgent { cachedAgentAssets = nil }
+        cachedSelectedCandidates.removeAll()
+        cachedHiddenSelectedCounts.removeAll()
+        cachedDefaultCleanupSelection = nil
         cachedCandidatesByDestination.removeAll()
+        cachedRecommendationBreakdowns.removeAll()
         cachedApplicationUninstallPlans = nil
     }
 
@@ -2594,12 +2907,170 @@ extension AppModel {
         print("PASS: large-file ordering, installer preference persistence and refresh, duplicate filtering and retained-path reconciliation")
     }
 
+    static func checkAgentPresentationPerformance() async throws {
+        struct Failure: Error {}
+        let model = AppModel(home: URL(fileURLWithPath: "/tmp/AgentPresentationFixture"))
+        let skills = (0..<1_000).map { index in
+            let root = URL(fileURLWithPath: "/tmp/AgentPresentationFixture/skills/skill-\(index)")
+            return SkillCatalogEntry(id: root.path, logicalID: "skill-\(index)", provider: .codex, scope: .global, source: .userInstalled, kind: .workflow,
+                skillRootURL: root, manifestURL: root.appendingPathComponent("SKILL.md"), displayName: "Skill \(index)",
+                summary: nil, tags: [], triggers: [], tools: [], pluginName: nil, registryName: nil,
+                pluginVersion: nil, parseStatus: .manifestParsed, sourceAssetURLs: [root])
+        }
+        model.systemReport = SystemScanReport(metadata: .init(startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture"),
+            modules: [:], generalCandidates: [], applicationInventory: .init(applications: [], coverage: .init(), scannedAt: Date()),
+            diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()), largeFileCandidates: [],
+            agentAssets: [], agentSkills: skills)
+        model.agentItemsSelectionFilter = .all
+        let expected = model.visibleAgentSkillSections.flatMap(\.skills).map(\.id)
+        guard expected.count == skills.count else { throw Failure() }
+        model.oneClickCleanedCandidateIDs.insert(UUID())
+        guard model.cachedAgentSkillPresentation != nil,
+              model.visibleAgentSkillSections.flatMap(\.skills).map(\.id) == expected else { throw Failure() }
+        let start = Date()
+        var count = 0
+        for _ in 0..<100 { count += model.visibleAgentSkillSections.reduce(0) { $0 + $1.skillCount } }
+        let elapsed = Date().timeIntervalSince(start)
+        guard count == 100_000 else { throw Failure() }
+        model.agentProviderFilter = .claude
+        guard model.visibleAgentSkillSections.isEmpty else { throw Failure() }
+        model.agentProviderFilter = nil
+        guard model.visibleAgentSkillSections.flatMap(\.skills).map(\.id) == expected else { throw Failure() }
+        model.agentItemsSelectionFilter = .selected
+        guard model.visibleAgentSkillSections.isEmpty else { throw Failure() }
+
+        let assets = skills.enumerated().map { index, skill in
+            let url = skill.skillRootURL.appendingPathComponent("cache/item-\(index)")
+            let candidate = CleanupCandidate(url: url, displayName: "Item \(index)", category: .agentSandbox,
+                bytes: 100, risk: .review, evidence: [],
+                identity: FileIdentity(device: 1, inode: UInt64(index + 1), size: 100,
+                    modificationTime: 1, kind: .file), source: .agentWorkspace,
+                lastAccessDate: nil, isActive: false)
+            return AgentAssetRecord(candidate: candidate, provider: .codex, scope: .global,
+                resourceKind: .buildCache, activity: .completed, cleanupEligibility: .retained,
+                cleanupUnitURL: url)
+        }
+        model.systemReport = SystemScanReport(metadata: .init(startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture-2"),
+            modules: [:], generalCandidates: [], applicationInventory: .init(applications: [], coverage: .init(), scannedAt: Date()),
+            diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()), largeFileCandidates: [],
+            agentAssets: assets, agentSkills: skills)
+        await model.agentSkillPresentationTask?.value
+        model.overlapAnalysisTask?.cancel()
+        model.overlapAnalysisTask = nil
+        model.agentOverlapAnalysisIsRunning = false
+        var index = AgentOverlapIndex()
+        index.revision = "fixture"
+        let objectIDs = skills.map { "skill|\($0.id)" }
+        for (position, objectID) in objectIDs.enumerated() {
+            index.entries[objectID] = AgentOverlapMemoryEntry(id: objectID, cacheID: position,
+                kind: .skill, title: skills[position].displayName, featureTexts: ["feature"], featureVectors: [])
+        }
+        var recommendations = [AgentOverlapMatch]()
+        for position in objectIDs.indices {
+            let targetPosition = position.isMultiple(of: 2) ? min(position + 1, objectIDs.count - 1) : position - 1
+            let sourceID = objectIDs[position]
+            let targetID = objectIDs[targetPosition]
+            if sourceID != targetID {
+                let first = index.entries[sourceID]!
+                let second = index.entries[targetID]!
+                let key = "\(min(first.cacheID, second.cacheID)):\(max(first.cacheID, second.cacheID))"
+                index.matches[key] = AgentOverlapPair(firstID: first.cacheID < second.cacheID ? sourceID : targetID,
+                    secondID: first.cacheID < second.cacheID ? targetID : sourceID,
+                    firstCovered: Data([1]), secondCovered: Data([1]))
+                recommendations.append(AgentOverlapMatch(sourceID: sourceID,
+                    targets: [.init(targetID: targetID, title: skills[targetPosition].displayName, coverage: 1)],
+                    coveredFeatureCount: 1, totalFeatureCount: 1))
+            }
+        }
+        model.overlapIndex = index
+        model.agentOverlapMatches = recommendations
+        model.agentOverlapMatchBySourceID = Dictionary(uniqueKeysWithValues: recommendations.map { ($0.sourceID, $0) })
+        let schedulingStart = Date()
+        model.applyAgentAutoPreselection(from: recommendations)
+        let schedulingElapsed = Date().timeIntervalSince(schedulingStart)
+        guard schedulingElapsed < 0.05, model.agentPreselectionToken != nil else { throw Failure() }
+        model.agentPreselectionCalculationTask?.cancel()
+        model.agentPreselectionCalculationTask = nil
+        model.agentPreselectionToken = nil
+        print("PASS: Agent presentation 1,000 Skills x 100 reads: \(elapsed)s; preselection scheduled off-main in \(schedulingElapsed)s")
+    }
+
+    static func checkScanPermissionPresentation() throws {
+        struct PermissionSheetStillPresented: Error {}
+        let model = AppModel(home: URL(fileURLWithPath: "/tmp/ScanPermissionPresentationFixture"))
+        model.showsScanPermissionPreparation = true
+        model.isScanRunning = true
+        model.continueScanWithCurrentPermissions()
+        guard !model.showsScanPermissionPreparation else {
+            throw PermissionSheetStillPresented()
+        }
+        print("PASS: starting or continuing a running scan dismisses the permission sheet")
+    }
+
+    static func checkNavigationPresentation() throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let model = AppModel(home: NavigationPresentationFixture.home)
+        let report = NavigationPresentationFixture.report()
+        model.systemReport = report
+        model.scanProgressByModule = report.modules
+        model.selectedIDs = Set(report.agentAssets.prefix(10_000).map(\.id))
+        model.selection = .agentEnvironment
+        _ = model.selectedCandidates
+        _ = model.hiddenSelectedCount
+        _ = model.defaultCleanupSelection
+        let started = Date()
+        for _ in 0..<20 {
+            guard model.selectedCandidates.count == 10_000,
+                  model.defaultCleanupSelection?.systemCleanup.count == 5_000 else {
+                throw Failure(description: "selection or default cleanup changed")
+            }
+            _ = model.hiddenSelectedCount
+        }
+        let elapsed = Date().timeIntervalSince(started)
+        guard elapsed < 0.15 else {
+            throw Failure(description: "cached navigation reads took \(elapsed)s")
+        }
+        model.selectedIDs.removeAll()
+        guard model.selectedCandidates.isEmpty else { throw Failure(description: "stale selected candidates") }
+        let removed = report.generalCandidates[0]
+        model.oneClickCleanedCandidateIDs.insert(removed.id)
+        guard model.defaultCleanupSelection?.systemCleanup.count == 4_999 else {
+            throw Failure(description: "cleanup did not invalidate default selection")
+        }
+        model.scanProgressByModule[.general] = .init(module: .general, state: .scanning)
+        model.isScanRunning = true
+        model.activeScanGenerationID = report.generationID
+        guard model.defaultCleanupSelection?.systemCleanup.isEmpty == true else {
+            throw Failure(description: "in-progress module exposed actionable defaults")
+        }
+        model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .scanning)
+        guard model.agentEnvironmentProgressMessage == L10n.text("正在扫描 Agent 环境，发现 Skill 与 MCP 配置…") else {
+            throw Failure(description: "Agent scanning state missing")
+        }
+        model.isScanRunning = false
+        model.protectionPolicy = .init(entries: [.init(url: report.generalCandidates[1].url)],
+            homeDirectory: NavigationPresentationFixture.home)
+        guard model.defaultCleanupSelection?.systemCleanup.count == 4_998 else {
+            throw Failure(description: "new protection did not invalidate default selection")
+        }
+        print("PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: \(elapsed)s; selection, cleanup and scan-state invalidation")
+    }
+
     static func checkConcurrentScanCleanup() throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         func check(_ condition: Bool, _ message: String) throws {
             if !condition { throw Failure(description: message) }
         }
         let home = URL(fileURLWithPath: "/tmp/SuperCleaner-ScanCleanup-Fixture")
+        let deniedRoot = home.appendingPathComponent("Library/Caches/Unavailable")
+        let accessFailure = ScanFailure(scannerID: "fixture", message: "denied", path: deniedRoot, reason: .access)
+        let accessReport = ScanReport(candidates: [], failures: [accessFailure], startedAt: Date(), completedAt: Date())
+        let accessResult = SystemScanModuleResult(generationID: UUID(), status: .init(module: .general, state: .limited,
+            limitations: [accessFailure.limitation]), payload: .general(accessReport))
+        let hiddenAccess = ScanAccessPresentation(deniedPaths: [deniedRoot.appendingPathComponent("child")])
+        let visibleStatus = hiddenAccess.status(for: accessResult)
+        try check(visibleStatus.state == .completed && visibleStatus.limitations.isEmpty,
+            "access-denied locations must not appear as skipped-location notices in the overview")
         let model = AppModel(home: home)
         let generation = UUID()
         let app = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Fixture.app"),
@@ -2620,6 +3091,31 @@ extension AppModel {
         let report = SystemScanReport(metadata: .init(generationID: generation, startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture"),
             modules: statuses, generalCandidates: [log, kept], applicationInventory: apps, applicationUninstallInventory: uninstall,
             diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()), largeFileCandidates: [], agentAssets: [])
+        // Checkbox quit choices are independent of focus and uninstall items.
+        let quitModel = AppModel(home: home)
+        let runningFirst = app.withRunningState(true)
+        let runningSecond = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Second.app"),
+            bundleIdentifier: "com.contract.second", name: "Second", version: "1", isRunning: true, isSystem: false)
+        let quitApps = ApplicationInventory(applications: [runningFirst, runningSecond], coverage: .init(), scannedAt: Date())
+        quitModel.install(report.replacing(module: .applications, payload: .applications(
+            .init(applicationInventory: quitApps, analyses: [])), completedAt: Date()))
+        quitModel.selectedApplicationID = runningFirst.id
+        try check(quitModel.selectedApplicationsToQuit.isEmpty, "focusing an app must not select it for quitting")
+        quitModel.toggleApplicationQuitSelection(runningFirst)
+        quitModel.toggleApplicationQuitSelection(runningSecond)
+        try check(Set(quitModel.selectedApplicationsToQuit.map(\.id)) == [runningFirst.id, runningSecond.id],
+            "both checked running apps must be included in the quit batch")
+        try check(quitModel.uninstallSelectedIDs.isEmpty, "quit checkboxes must not select uninstall items")
+        quitModel.toggleApplicationQuitSelection(runningFirst)
+        try check(quitModel.selectedApplicationsToQuit.map(\.id) == [runningSecond.id], "unchecking removes only that quit target")
+        quitModel.quittingApplicationIDs.insert(runningSecond.id)
+        quitModel.toggleApplicationQuitSelection(runningFirst)
+        try check(!quitModel.quitSelectedApplicationIDs.contains(runningFirst.id), "quit batch selection is frozen while executing")
+        quitModel.quittingApplicationIDs.removeAll()
+        quitModel.updateRunningApplicationIDs([])
+        try check(quitModel.quitSelectedApplicationIDs.isEmpty && quitModel.uninstallSelectedIDs.isEmpty,
+            "exited apps lose quit selections without gaining uninstall selections")
+
         let offline = CleanupCandidate(url: home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Service Worker/CacheStorage"),
             displayName: "CacheStorage", category: .cache, bytes: 100, risk: .safe, evidence: [],
             identity: .init(device: 1, inode: 6, size: 100, modificationTime: 1, kind: .directory),
@@ -2658,14 +3154,26 @@ extension AppModel {
         model.selection = .applications
         try check(model.uninstallSelectedIDs.isEmpty && !model.canExecuteUninstallBatch,
             "a newly scanned uninstall plan must require manual selection")
+        let cachedRunning = uninstall.analyses[0].withRunningState(true)
+        let cachedRunningInventory = ApplicationUninstallInventory(
+            applicationInventory: .init(applications: [app.withRunningState(true)], coverage: apps.coverage, scannedAt: apps.scannedAt),
+            analyses: [cachedRunning])
+        model.install(report.replacing(module: .applications, payload: .applications(cachedRunningInventory), completedAt: Date()))
+        model.updateRunningApplicationIDs([app.bundleIdentifier])
+        try check(model.applicationUninstallPlans.isEmpty, "prepared running plans must never be actionable")
+        model.updateRunningApplicationIDs([])
+        try check(model.visibleApplications == [app] && model.applicationIDsAwaitingQuitAnalysis.isEmpty
+            && model.applicationUninstallPlans.first?.items.map(\.id) == [item.id]
+            && model.uninstallAnalysis(for: app)?.state == .complete,
+            "quit must expose the same prepared plan synchronously without scheduling filesystem work")
         let initiallyRunning = app.withRunningState(true)
         let runningInventory = ApplicationUninstallInventory(
             applicationInventory: .init(applications: [initiallyRunning], coverage: apps.coverage, scannedAt: apps.scannedAt),
             analyses: [.init(application: initiallyRunning, plan: nil, state: .protected)])
         model.install(report.replacing(module: .applications, payload: .applications(runningInventory), completedAt: Date()))
         model.updateRunningApplicationIDs([])
-        try check(model.visibleApplications.isEmpty && model.applicationFilterSummary.visibleCount == 0 && model.applicationFilterSummary.totalCount == 1,
-            "a recently stopped app must stay out of Uninstallable until its analysis completes")
+        try check(model.visibleApplications == [app] && model.applicationFilterSummary.visibleCount == 1 && model.applicationFilterSummary.totalCount == 1,
+            "a recently stopped app must appear immediately even when its legacy plan needs preparation")
         model.applicationScope = .all
         try check(model.visibleApplications == [app] && model.uninstallAnalysis(for: app) == nil,
             "All must show the app without an actionable plan while it is being analyzed")
@@ -2813,7 +3321,10 @@ extension AppModel {
         try check(model.isStoppingDeletion && model.isDeletionInProgress && model.showsDeletionSheet,
             "stop request keeps progress visible until the batch actually settles")
         let receipt = OperationReceipt(planID: deletionPlan.id, startedAt: Date(), completedAt: Date(), results: presentationEffects, overallStatus: .completed)
+        model.executionProgress = .init(completed: 1, total: 1, currentURL: nil, phase: .movingToTrash)
         model.finishExecutionProgress(receipt)
+        try check(model.executionProgress.completed == 2 && model.executionProgress.total == 2
+            && model.executionProgress.phase == .savingResults, "saving results restores the whole batch count after a smaller Trash stage")
         model.recordCompletedCleanup(receipt, attemptedCandidates: [item, support])
         model.phase = .completed
         model.deletionResult = receipt
@@ -2826,8 +3337,8 @@ extension AppModel {
             "new batches reset stop state and previous results")
         model.phase = .failed("fixture")
         model.deletionResultWarning = "fixture failure"
-        try check(model.showsDeletionSheet && !model.isDeletionInProgress,
-            "execution failure retains an actionable error sheet instead of leaving a spinner")
+        try check(!model.showsDeletionSheet && !model.isDeletionInProgress,
+            "unprocessed items end silently while retaining their execution records")
         model.dismissDeletionSheet()
         try check(!model.showsDeletionSheet, "dismissing execution error clears the sheet")
         model.oneClickCleanupIsRunning = true

@@ -74,10 +74,8 @@ func runReadOnlyCommandLineContracts(binary: String) async throws {
     let scan = object["scan"] as! [String: Any]
     let modules = scan["modules"] as! [[String: Any]]
     let restrictions = modules.first?["limitations"] as? [[String: Any]] ?? []
-    require(scan["scan_status"] as? String == "partial" && modules.first?["state"] as? String == "limited"
-            && restrictions.contains { ($0["path"] as? String)?.hasSuffix("/.codex/a/b/c/d/e/f/g/h/") == true
-                || ($0["path"] as? String)?.hasSuffix("/.codex/a/b/c/d/e/f/g/h") == true },
-            "packaged CLI must identify its actual depth truncation, not claim complete")
+    require(scan["scan_status"] as? String == "complete" && modules.first?["state"] as? String == "completed"
+            && restrictions.isEmpty, "packaged CLI must complete deep Agent scans without a depth limit")
     require(!manager.fileExists(atPath: home.appendingPathComponent("Library/Application Support/SuperCleaner").path),
             "Agent completeness reporting must not persist application state")
     print("PASS: packaged CLI JSON, command errors and read-only behavior")

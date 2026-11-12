@@ -3,6 +3,20 @@ import XCTest
 @testable import CleanerCore
 
 final class ApplicationScannerTests: XCTestCase {
+    func testInstallationReceiptsAreMetadataNotProtectedDeletionRows() async throws {
+        let fixture = ApplicationFixture()
+        let receipt = URL(fileURLWithPath: "/var/db/receipts/org.example.installer.plist")
+        let ownership = ApplicationOwnershipNode(applicationURL: fixture.application.id, copies: [],
+            installation: .init(source: .packageInstaller, identifier: "org.example.installer", receipts: [receipt]),
+            configurationReferences: [], serviceReferences: [], ownershipVerified: true)
+        let association = ApplicationAssociation(url: receipt, kind: .installationReceipt,
+            ownershipEvidence: "receipt", containsUserData: false, isShared: false, risk: .blocked)
+        let result = try await UninstallPlanner().buildPlan(fixture.application, associations: [association], context: fixture.context, ownership: ownership)
+        XCTAssertFalse(result.plan.items.contains { $0.candidate.url == receipt })
+        let evidence = try XCTUnwrap(result.plan.items.first?.candidate.evidence)
+        XCTAssertTrue(evidence.contains { $0.code == "package-receipt-id" && $0.summary == "org.example.installer" })
+    }
+
     func testBundleIDAssociationDoesNotMatchPrefixCollision() async throws {
         let fixture = ApplicationFixture()
         let associations = try await ApplicationScanner().associations(for: fixture.application, context: fixture.context)
@@ -28,7 +42,7 @@ final class ApplicationScannerTests: XCTestCase {
         XCTAssertTrue(inventory.coverage.budgetLimitedModules.isEmpty)
     }
 
-    func testExplicitDepthLimitReportsLimitedCoverageWhenItTruncatesTraversal() async {
+    func testLegacyDepthParameterDoesNotTruncateTraversal() async {
         let fixture = DeepApplicationDiscoveryFixture()
 
         let inventory = await ApplicationScanner(metadataProvider: fixture.metadataProvider).installedApplications(
@@ -36,8 +50,8 @@ final class ApplicationScannerTests: XCTestCase {
             maximumDepth: 2
         )
 
-        XCTAssertTrue(inventory.applications.isEmpty)
-        XCTAssertTrue(inventory.coverage.budgetLimitedModules.contains(.applications))
+        XCTAssertEqual(inventory.applications.map(\.name), ["Deep"])
+        XCTAssertTrue(inventory.coverage.budgetLimitedModules.isEmpty)
     }
 
     func testExplicitEntryLimitReportsLimitedCoverageWhenItTruncatesTraversal() async {

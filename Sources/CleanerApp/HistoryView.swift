@@ -69,6 +69,9 @@ private struct ReceiptRow: View {
                             .foregroundColor(.secondary)
                     }
                     Text(summaryText).font(.caption).foregroundColor(.secondary)
+                    ForEach(receipt.integrationWarnings ?? [], id: \.self) { warning in
+                        Text(warning).font(.caption).foregroundColor(.orange)
+                    }
                     if let reason = receipt.rejectionReason {
                         Text(reason).font(.caption).foregroundColor(.orange).lineLimit(2)
                     }

@@ -9,6 +9,8 @@ public actor HistoryStore {
     private let url: URL
     private let manager: FileManager
     private var failNextCommit = false
+    private var cachedData: Data?
+    private var cachedReceipts: [OperationReceipt] = []
 
     public init(url: URL, manager: FileManager = .default) {
         self.url = url
@@ -32,8 +34,18 @@ public actor HistoryStore {
     }
 
     public func receipts() throws -> [OperationReceipt] {
-        guard manager.fileExists(atPath: url.path) else { return [] }
-        return try JSONDecoder().decode([OperationReceipt].self, from: Data(contentsOf: url))
+        guard manager.fileExists(atPath: url.path) else {
+            cachedData = nil; cachedReceipts = []
+            return []
+        }
+        // Read the current bytes on every lookup so another process's commit is
+        // visible. Reuse only JSON decoding, never a stale on-disk generation.
+        let data = try Data(contentsOf: url)
+        if cachedData == data { return cachedReceipts }
+        let receipts = try JSONDecoder().decode([OperationReceipt].self, from: data)
+        cachedData = data
+        cachedReceipts = receipts
+        return receipts
     }
 
     public func receipt(id: UUID) throws -> OperationReceipt? {
@@ -73,5 +85,7 @@ public actor HistoryStore {
         } else {
             try manager.moveItem(at: temporary, to: url)
         }
+        cachedData = data
+        cachedReceipts = receipts
     }
 }

@@ -41,12 +41,27 @@ func runApplicationDiscoveryContracts() async throws {
     require(UninstallBatchSelectionState().selectedItems(in: [plan]).isEmpty, "new data must not be auto-selected")
     let analyzer = ApplicationUninstallAnalyzer(scanner: scanner)
     let runningApp = app.withRunningState(true)
+    let prepared = await analyzer.analyze(inventory: .init(applications: [runningApp], coverage: .init(), scannedAt: Date()), context: context)
+    let runningDetails = prepared.analysis(for: app.id)!
+    require(runningDetails.plan == nil && runningDetails.state == .protected && prepared.plans.isEmpty,
+            "prepared running plans must not enter executable inventory")
+    let ready = runningDetails.withRunningState(false)
+    require(ready.plan?.items.contains { $0.candidate.url.path == data.path && $0.containsUserData && $0.candidate.risk == .review } == true,
+            "initial running scan must retain associated data without treating running state as permanent protection")
+    require(ready.plan?.id == runningDetails.preparedPlan?.id
+        && ready.withRunningState(true).withRunningState(false).plan == ready.plan,
+            "quit and relaunch reuse exact plans and candidate IDs without discovery")
+    let restoredPrepared = try JSONDecoder().decode(ApplicationUninstallInventory.self, from: JSONEncoder().encode(prepared))
+    require(restoredPrepared.analysis(for: app.id)?.withRunningState(false).plan == ready.plan,
+            "prepared plans survive report serialization")
     let whileRunning = await analyzer.analyzeStoppedApplications([app.id], in: [runningApp], context: context)
     require(whileRunning.isEmpty, "a running app must not receive a refreshed uninstall plan")
-    let afterQuit = await analyzer.analyzeStoppedApplications([app.id], in: [runningApp.withRunningState(false)], context: context)
+    try writeSource("// declaration temporarily absent: cached supplementation must not rediscover it")
+    let afterQuit = await analyzer.analyzeStoppedApplications([app.id], in: [runningApp.withRunningState(false)], context: context, cachedIndex: prepared.associationIndex)
     require(afterQuit.first?.plan?.items.contains {
         $0.candidate.url.path == data.path && $0.containsUserData && $0.candidate.risk == .review
     } == true, "quitting an app must refresh its plan with opt-in associated data")
+    try writeSource(declaration)
     try await ApplicationExecutionValidator(scanner: scanner).validate(item.candidate, context: context)
     let ordered = try PlanBuilder(protectionPolicy: .init(homeDirectory: home)).build(candidates: plan.items.map(\.candidate), selectedIDs: plan.selectableItemIDs)
     require(ordered.selectedItems.last?.candidate.category == .application, "revalidate declared data before removing its source app")

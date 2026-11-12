@@ -56,6 +56,7 @@ public actor ProjectScanRootsStore {
 
 public struct ProjectArtifactScanner: Sendable {
     public let roots: [URL]
+    /// Legacy compatibility only; directory traversal has no depth cutoff.
     public let maximumDepth: Int
     public let maximumEntries: Int
     public let timeLimit: TimeInterval
@@ -107,8 +108,7 @@ public struct ProjectArtifactScanner: Sendable {
                             limitations.append(limitation(child, L10n.text("产物内容未完整验证")))
                         }
                     } else if !child.lastPathComponent.hasPrefix("."), child.pathExtension.lowercased() != "app" {
-                        if entry.depth < maximumDepth { queue.append((child, entry.depth + 1, project)) }
-                        else { limitations.append(limitation(child, L10n.text("达到项目发现深度"))) }
+                        queue.append((child, entry.depth + 1, project))
                     }
                 }
             }
@@ -155,7 +155,7 @@ public struct ProjectArtifactScanner: Sendable {
         var budgetLimited = false
         while let (directory, depth) = pending.popLast() {
             try Task.checkCancellation()
-            guard remaining > 0, depth < 32, ContinuousClock.now < deadline else { blocked = true; budgetLimited = true; break }
+            guard remaining > 0, ContinuousClock.now < deadline else { blocked = true; budgetLimited = true; break }
             do {
                 try context.protectionPolicy.validate(directory)
                 _ = try context.pathPolicy.validateCandidate(directory)

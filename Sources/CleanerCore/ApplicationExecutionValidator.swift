@@ -16,10 +16,9 @@ public struct ApplicationExecutionValidator: Sendable {
             throw ApplicationExecutionRejection.missingOwnership
         }
         let ownerURL = URL(fileURLWithPath: ownerPath).standardizedFileURL
-        let inventory = await scanner.installedApplications(context: context, runningBundleIdentifiers: context.runningBundleIdentifiers, maximumDepth: 12, maximumEntries: 30_000)
-        let actual = inventory.applications.first { $0.id.standardizedFileURL.path == ownerURL.path }
         if candidate.category == .application {
-            guard let actual, actual.bundleIdentifier == identifier, !actual.isRunning, !actual.isSystem else {
+            guard candidate.url.standardizedFileURL.path == ownerURL.path,
+                  let actual = await scanner.installedApplication(at: ownerURL, context: context), actual.bundleIdentifier == identifier, !actual.isRunning, !actual.isSystem else {
                 throw ApplicationExecutionRejection.ownershipChanged
             }
             // The user selected the app bundle itself. Revalidate its identity,
@@ -27,6 +26,8 @@ public struct ApplicationExecutionValidator: Sendable {
             // it. Installation receipts and service references govern associated
             // files; they do not silently cancel this explicit uninstall action.
         } else {
+            let inventory = await scanner.installedApplications(context: context, runningBundleIdentifiers: context.runningBundleIdentifiers, maximumEntries: 30_000)
+            let actual = inventory.applications.first { $0.id.standardizedFileURL.path == ownerURL.path }
             // The body may already have been moved by this same transaction.
             // Retain its recorded identity solely as an ownership anchor; never
             // mistake an absent body for permission to delete another copy's data.

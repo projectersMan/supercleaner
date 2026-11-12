@@ -89,7 +89,7 @@ struct LargeFileContentAnalyzer {
             guard !Task.isCancelled, InstallerDiscovery.fileExtensions.contains(format),
                   groupByPath[path] == nil, !keepers.contains(path),
                   candidate.risk.isSelectable, !candidate.isActive, candidate.requiresExplicitSelection != true,
-                  snapshot(candidate) != nil else { return candidate }
+                  snapshot(candidate, installer: true) != nil else { return candidate }
             return candidate.withLargeFileInstaller(format, preselected: preselectInstallers)
         }, limited: copyBudget.limited || zipBudget.limited || skippedZIPBudget)
     }
@@ -122,19 +122,20 @@ struct LargeFileContentAnalyzer {
         return output
     }
 
-    private func snapshot(_ candidate: CleanupCandidate) -> LargeFileContentSnapshot? {
-        guard let file = Self.eligibleSnapshot(candidate.url, context: context), !file.isDirectory,
+    private func snapshot(_ candidate: CleanupCandidate, installer: Bool = false) -> LargeFileContentSnapshot? {
+        guard let file = Self.eligibleSnapshot(candidate.url, context: context, installer: installer), !file.isDirectory,
               file.bytes == candidate.bytes, file.device == candidate.identity.device,
               file.inode == candidate.identity.inode, file.modifiedSeconds == candidate.identity.modificationTime else { return nil }
         return file
     }
 
-    static func eligibleSnapshot(_ url: URL, context: ScanContext) -> LargeFileContentSnapshot? {
+    static func eligibleSnapshot(_ url: URL, context: ScanContext, installer: Bool = false) -> LargeFileContentSnapshot? {
         let excluded = ["Library/CloudStorage", "Library/Mobile Documents"]
         let home = context.homeDirectory.resolvingSymlinksInPath().standardizedFileURL
         let literal = url.standardizedFileURL
         let path = literal.path
-        guard LargeFileCleanupScope(homeDirectory: context.homeDirectory).allows(url),
+        let scope = LargeFileCleanupScope(homeDirectory: context.homeDirectory)
+        guard (installer ? scope.allowsInstaller(url) : scope.allows(url)),
               path.hasPrefix(home.path + "/"),
               !excluded.contains(where: { path.hasPrefix(home.appendingPathComponent($0).path + "/") }),
               !DeletedContentScanExclusion(homeDirectory: home).contains(literal), !context.isActive(literal),

@@ -4,13 +4,11 @@
   "revokedRuleIDs": [],
   "rules": [
     {
-      "minimumAgeDays": 30,
+      "minimumAgeDays": 0,
       "defaultRisk": "review",
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "当前用户缓存容器；目录名称不构成再生成证明",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -19,7 +17,9 @@
       "relativePaths": [
         "Library/Caches"
       ],
-      "sourceReference": "SRC-APPLE-CACHE-001"
+      "sourceReference": "SRC-APPLE-CACHE-001",
+      "regenerationEvidence": "标准用户缓存目录中的可再生数据；完整扫描排除凭证、用户数据和离线内容后推荐清理",
+      "regenerable": true
     },
     {
       "minimumAgeDays": 30,
@@ -27,8 +27,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "descendantFiles",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -47,7 +45,8 @@
         "crash",
         "json"
       ],
-      "activeProcessNames": []
+      "activeProcessNames": [],
+      "regenerable": true
     },
     {
       "minimumAgeDays": 30,
@@ -55,13 +54,14 @@
       "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "root",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
       "ruleID": "developer.npm-cache",
-      "protectedRelativePaths": [".npmrc", ".npm/credentials"],
+      "protectedRelativePaths": [
+        ".npmrc",
+        ".npm/credentials"
+      ],
       "category": "developerCache",
       "relativePaths": [
         ".npm/_cacache"
@@ -75,19 +75,21 @@
         "yarn",
         "bun"
       ],
-      "regenerationEvidence": "npm 下载与编译缓存可重新获取；不包含 npm 配置和凭证"
+      "regenerationEvidence": "npm 下载与编译缓存可重新获取；不包含 npm 配置和凭证",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 0,
-      "defaultRisk": "blocked",
+      "defaultRisk": "review",
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "root",
-      "maximumDepth": 1,
-      "maximumEntries": 100,
       "ruleID": "developer.uv-managed-cache",
       "category": "developerCache",
-      "relativePaths": [".cache/uv"],
+      "relativePaths": [
+        ".cache/uv"
+      ],
       "sourceReference": "SRC-UV-CACHE-001",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.uv-protection",
@@ -100,8 +102,6 @@
       "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -118,7 +118,9 @@
         "python",
         "python3"
       ],
-      "regenerationEvidence": "pip 下载缓存可由包管理器重新获取"
+      "regenerationEvidence": "pip 下载缓存可由包管理器重新获取",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 30,
@@ -126,8 +128,6 @@
       "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "root",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "Go 官方默认 GOCACHE 在 macOS 用户缓存目录的 go-build 子目录",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.go-build-cache",
@@ -143,7 +143,9 @@
         "compile",
         "link"
       ],
-      "regenerationEvidence": "Go 官方将其定义为构建产物缓存，并提供 go clean -cache 重新生成语义"
+      "regenerationEvidence": "Go 官方将其定义为构建产物缓存，并提供 go clean -cache 重新生成语义",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 30,
@@ -151,8 +153,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "Deno 官方文档定义的 macOS 默认 DENO_DIR",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.governance",
@@ -173,8 +173,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "Cargo 官方定义 registry/cache 为下载的 crate 归档缓存",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.governance",
@@ -196,7 +194,9 @@
         "rustc",
         "rust-analyzer"
       ],
-      "regenerationEvidence": "Cargo 可重新下载归档，但离线构建可能依赖本地缓存，因此不默认选择"
+      "regenerationEvidence": "Cargo 可重新下载依赖归档；离线时需先联网恢复缓存",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 30,
@@ -204,8 +204,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "CocoaPods 官方命令提供按 Pod 或全部清理缓存的语义",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.governance",
@@ -219,7 +217,9 @@
         "pod",
         "ruby"
       ],
-      "regenerationEvidence": "Pod 缓存可由依赖源重新获取，但私有源和离线构建需要人工确认"
+      "regenerationEvidence": "Pod 缓存可从配置的依赖源重新下载；私有源需保持访问权限",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 30,
@@ -227,8 +227,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "Playwright 官方文档定义的 macOS 浏览器二进制缓存目录",
       "sourceKind": "official-documentation",
       "testFixture": "RuleEngineContract.governance",
@@ -248,7 +246,19 @@
         "firefox",
         "webkit"
       ],
-      "regenerationEvidence": "浏览器二进制可由 Playwright CLI 重装；daemon 持久会话目录明确保护且不进入可删除候选"
+      "regenerationEvidence": "浏览器二进制可由 Playwright CLI 重装；daemon 持久会话目录明确保护且不进入可删除候选",
+      "allowsInternalLinks": true,
+      "referenceInventory": {
+        "registryDirectory": ".links",
+        "manifestFile": "browsers.json",
+        "entriesKey": "browsers",
+        "nameKey": "name",
+        "revisionKey": "revision",
+        "revisionOverridesKey": "revisionOverrides",
+        "artifactPattern": "^[a-z][a-z0-9_]*-[0-9]+$",
+        "replaceNameHyphensWithUnderscores": true
+      },
+      "manualExplanation": "这是运行依赖文件；清理后需重新安装才能运行相关任务"
     },
     {
       "minimumAgeDays": 30,
@@ -256,8 +266,6 @@
       "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -284,8 +292,6 @@
       "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -310,8 +316,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -334,7 +338,9 @@
         "bun",
         "swift"
       ],
-      "regenerationEvidence": "包下载缓存；离线依赖与当前活动必须人工检查"
+      "regenerationEvidence": "包下载缓存；离线依赖与当前活动必须人工检查",
+      "regenerable": true,
+      "allowsInternalLinks": true
     },
     {
       "minimumAgeDays": 30,
@@ -342,8 +348,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",
@@ -366,7 +370,9 @@
       "activeProcessNames": [
         "xcodebuild",
         "simctl"
-      ]
+      ],
+      "requiresExplicitSelection": true,
+      "manualExplanation": "包含归档或工具运行数据；确认不再需要后可单独勾选清理"
     },
     {
       "minimumAgeDays": 30,
@@ -374,8 +380,6 @@
       "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "descendantFiles",
-      "maximumDepth": 8,
-      "maximumEntries": 20000,
       "ownershipEvidence": "精确的当前用户工具产物目录",
       "sourceKind": "first-party-tool-convention",
       "testFixture": "RuleEngineContract",

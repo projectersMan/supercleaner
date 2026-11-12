@@ -5,6 +5,7 @@ public enum InstallerDiscoveryError: Error, Sendable {
 }
 
 public struct InstallerDiscovery: Sendable {
+    /// Legacy compatibility only; directory traversal has no depth cutoff.
     public let maximumDepth: Int
     public let maximumEntries: Int
     public let timeLimit: TimeInterval
@@ -96,7 +97,6 @@ public struct InstallerDiscovery: Sendable {
                             isActive: active, defaultSelection: false
                         )))
                     } else if identity.kind == .directory, ext != "app", ext != "download", !child.lastPathComponent.hasPrefix(".") {
-                        guard depth < maximumDepth else { throw InstallerDiscoveryError.depthBudgetExceeded(url) }
                         queue.append((url, depth + 1))
                     }
                 }
@@ -136,7 +136,6 @@ public struct InstallerDiscovery: Sendable {
         var complete = true
         while let (directory, depth) = stack.popLast() {
             try check()
-            guard depth < maximumDepth else { complete = false; continue }
             for child in try await context.fileSystem.children(of: directory) {
                 try check()
                 guard !context.enforcesEntryBudgets || remaining > 0 else { throw InstallerDiscoveryError.entryBudgetExceeded }

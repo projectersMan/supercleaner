@@ -70,6 +70,10 @@ func runHelperIntegrationContracts() async throws {
     let escape = HelperOperation.moveToQuarantine(path: source, destination: escapedDestination)
     do { _ = try operations.perform(escape, token: token(escape, identity: identity, planID: linkedPlan)); require(false, "quarantine symlink ancestor was followed") } catch { }
 
+    // App content may update after scanning without replacing the selected bundle.
+    try manager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: source)
+    let updatedIdentity = try operations.inspect(source)
+    require(updatedIdentity != identity, "fixture must change the bundle snapshot")
     let handler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), authorizationCheck: { $0 == Data("test-only-authorization".utf8) })
     let request = HelperRequest(operation: move, token: token(move, identity: identity), authorizationExternalForm: Data("test-only-authorization".utf8))
     let response = await handler.handle(try JSONEncoder().encode(request), scope: scope)

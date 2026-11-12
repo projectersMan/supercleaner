@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public enum AgentOverlapError: Error, LocalizedError, Sendable {
     case invalidThreshold
@@ -34,37 +35,55 @@ public struct AgentOverlapInput: Sendable {
     public let title: String
     public let description: String
     public let features: [String]
+    public let contentVersion: String?
 
-    public init(id: String, kind: AgentOverlapKind, title: String, description: String, features: [String]) {
-        self.id = id; self.kind = kind; self.title = title; self.description = description; self.features = features
+    public init(id: String, kind: AgentOverlapKind, title: String, description: String, features: [String], contentVersion: String? = nil) {
+        self.id = id; self.kind = kind; self.title = title; self.description = description; self.features = features; self.contentVersion = contentVersion
     }
 }
 
-public struct AgentOverlapMemoryEntry: Codable, Sendable {
+public struct AgentOverlapMemoryEntry: Codable, Sendable, Equatable {
     public let id: String
     public let cacheID: Int
     public let kind: AgentOverlapKind
     public var title: String
     public let featureTexts: [String]
-    public let featureVectors: [[Float]]
+    public var featureVectors: [[Float]]
+    public var inputFingerprint: String? = nil
+
+    public init(id: String, cacheID: Int, kind: AgentOverlapKind, title: String,
+                featureTexts: [String], featureVectors: [[Float]], inputFingerprint: String? = nil) {
+        self.id = id; self.cacheID = cacheID; self.kind = kind; self.title = title
+        self.featureTexts = featureTexts; self.featureVectors = featureVectors
+        self.inputFingerprint = inputFingerprint
+    }
 }
 
 /// Each unordered pair stores both directional coverage masks, including zero coverage.
-public struct AgentOverlapPair: Codable, Sendable {
+public struct AgentOverlapPair: Codable, Sendable, Equatable {
     public let firstID: String
     public let secondID: String
     public let firstCovered: Data
     public let secondCovered: Data
+
+    public init(firstID: String, secondID: String, firstCovered: Data, secondCovered: Data) {
+        self.firstID = firstID; self.secondID = secondID
+        self.firstCovered = firstCovered; self.secondCovered = secondCovered
+    }
 }
 
-public struct AgentOverlapTarget: Sendable, Identifiable {
+public struct AgentOverlapTarget: Codable, Sendable, Identifiable, Equatable {
     public var id: String { targetID }
     public let targetID: String
     public let title: String
     public let coverage: Double
+
+    public init(targetID: String, title: String, coverage: Double) {
+        self.targetID = targetID; self.title = title; self.coverage = coverage
+    }
 }
 
-public struct AgentOverlapMatch: Sendable, Identifiable {
+public struct AgentOverlapMatch: Codable, Sendable, Identifiable, Equatable {
     public var id: String { sourceID }
     public let sourceID: String
     public let targets: [AgentOverlapTarget]
@@ -72,6 +91,11 @@ public struct AgentOverlapMatch: Sendable, Identifiable {
     public let totalFeatureCount: Int
     public var maximumSingleCoverage: Double { targets.first?.coverage ?? 0 }
     public var coverage: Double { totalFeatureCount == 0 ? 0 : Double(coveredFeatureCount) / Double(totalFeatureCount) }
+
+    public init(sourceID: String, targets: [AgentOverlapTarget], coveredFeatureCount: Int, totalFeatureCount: Int) {
+        self.sourceID = sourceID; self.targets = targets
+        self.coveredFeatureCount = coveredFeatureCount; self.totalFeatureCount = totalFeatureCount
+    }
 }
 
 public struct AgentOverlapIndex: Codable, Sendable {
@@ -82,8 +106,21 @@ public struct AgentOverlapIndex: Codable, Sendable {
     public var entries: [String: AgentOverlapMemoryEntry] = [:]
     public var matches: [String: AgentOverlapPair] = [:]
     public var localMetadata: [String: AgentOverlapLocalMetadata] = [:]
+    public var completeIDs: Set<String>?
+    public var vectorFiles: [String: String]?
+    public var revision: String?
+    public var vectorSlices: [String: AgentVectorSlice]?
+    public var recommendationIDs: Set<String>?
+    public var cachedRecommendations: [AgentOverlapMatch]?
 
     public init() {}
+}
+
+public struct AgentVectorSlice: Codable, Sendable {
+    public let file: String
+    public let offset: Int
+    public let rows: Int
+    public let width: Int
 }
 
 public struct AgentOverlapLocalMetadata: Codable, Sendable {
@@ -95,6 +132,7 @@ public struct AgentOverlapAnalysisResult: Sendable {
     public let matches: [AgentOverlapMatch]
     public let addedIDs: Set<String>
     public let calculatedPairCount: Int
+    public var changedIDs: Set<String> = []
 }
 
 public enum AgentFeatureCoverage {
@@ -115,5 +153,13 @@ public enum AgentFeatureCoverage {
 
     public static func fraction(_ mask: Data, featureCount: Int) -> Double {
         featureCount == 0 ? 0 : Double(count(mask)) / Double(featureCount)
+    }
+}
+
+extension AgentOverlapInput {
+    public var fingerprint: String {
+        // Length boundaries are supplied by JSON, avoiding concatenation collisions.
+        let data = try! JSONEncoder().encode([kind.rawValue, description, contentVersion ?? ""] + features)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

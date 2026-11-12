@@ -204,7 +204,7 @@ public enum ReadOnlyInterface {
         var providers: [AgentProviderCoverage] = []
         switch module {
         case .applications:
-            let inventory = await ApplicationScanner().installedApplications(context: context, maximumDepth: 12, maximumEntries: 30_000)
+            let inventory = await ApplicationScanner().installedApplications(context: context, maximumEntries: 30_000)
             let analyzed = await ApplicationUninstallAnalyzer().analyze(inventory: inventory, context: context)
             applications = analyzed.analyses
             candidates = analyzed.plans.flatMap { $0.items.map(\.candidate) }
@@ -224,7 +224,7 @@ public enum ReadOnlyInterface {
                 coverage: report.diskUsageTree.coverage, candidates: report.largeFileCandidates,
                 applications: [], agentSkills: [], mcpConfigurations: [], protectionAvailable: context.protectionPolicy.isAvailable)
         case .agentEnvironment:
-            let inventory = try await AgentWorkspaceScanner(maximumDepth: 8, maximumAssets: 20_000).scanAssetInventory(context: context)
+            let inventory = try await AgentWorkspaceScanner(maximumAssets: 20_000).scanAssetInventory(context: context)
             candidates = inventory.assets.map(\.candidate)
             skills = inventory.skills
             mcp = inventory.mcpConfigurations

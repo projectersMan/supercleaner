@@ -30,8 +30,8 @@ public struct ApplicationDataDiscovery: Sendable {
                 source = try Self.readFile(url, within: application.bundleURL, maximumBytes: 16_777_216)
                 origin = url.path
             }
-            guard !Task.isCancelled, let text = String(data: source, encoding: .utf8) else { return [] }
-            let names = Self.declaredDirectoryNames(in: text)
+            guard !Task.isCancelled else { return [] }
+            let names = await ApplicationDataDeclarationCache.shared.names(in: source)
             // Multiple explicit targets can describe migrations or development
             // profiles. Do not promote those ambiguous declarations to ownership.
             guard names.count == 1, let name = names.first else { return [] }

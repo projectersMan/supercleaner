@@ -105,12 +105,10 @@ public struct SystemScanCoordinator: Sendable {
         generalCoordinator: ScanCoordinator = ScanCoordinator(maxConcurrentScanners: 3),
         applicationScanner: ApplicationScanner = ApplicationScanner(),
         diskUsageScanner: DiskUsageScanner = DiskUsageScanner(
-            maximumDepth: 8,
             maximumEntries: 50_000
         ),
         largeFileIndex: any LargeFileMetadataIndexing = SpotlightLargeFileMetadataIndex(),
         agentScanner: AgentWorkspaceScanner = AgentWorkspaceScanner(
-            maximumDepth: 8,
             maximumAssets: 20_000
         ),
         rulesetVersion: String = "bundled-1",
@@ -162,7 +160,7 @@ public struct SystemScanCoordinator: Sendable {
                     let inventory = await applicationScanner.installedApplications(
                         context: context,
                         runningBundleIdentifiers: runningBundleIdentifiers,
-                        maximumDepth: 12, maximumEntries: 30_000
+                        maximumEntries: 30_000
                     )
                     let baseline = await applicationAnalyzer.analyze(inventory: inventory, context: context)
                     let running = inventory.applications.filter { $0.isRunning && !$0.isSystem }
@@ -263,7 +261,11 @@ public struct SystemScanCoordinator: Sendable {
                     let moduleStartedAt = Date()
                     await progress(await tracker.event(module: module, state: .scanning))
                     do {
-                        let inventory = try await agentScanner.scanAssetInventory(context: context)
+                        let inventory = try await agentScanner.scanAssetInventory(context: context) { catalog in
+                            let status = ScanModuleStatus(module: module, state: .limited, startedAt: moduleStartedAt,
+                                completedAt: Date(), message: L10n.text("能力清单已就绪，正在补充 Agent 清理资产"))
+                            await moduleResult(SystemScanOutcome.agentEnvironment(catalog, status).moduleResult(generationID: generationID))
+                        }
                         let completedAt = Date()
                         let state: ScanModuleState = inventory.isComplete ? .completed : .limited
                         let message = inventory.isComplete ? nil : L10n.text("部分 Agent 路径未完整检查")

@@ -19,6 +19,16 @@ actor ScanAccessTrackingFileSystem: FileSystemAccess {
         catch { record(error, at: url); throw error }
     }
 
+    func directoryGeneration(at url: URL) async throws -> String? {
+        do { return try await base.directoryGeneration(at: url) }
+        catch { record(error, at: url); throw error }
+    }
+
+    func itemGeneration(at url: URL) async throws -> String? {
+        do { return try await base.itemGeneration(at: url) }
+        catch { record(error, at: url); throw error }
+    }
+
     func readText(at url: URL, maximumBytes: Int) async throws -> String {
         do { return try await base.readText(at: url, maximumBytes: maximumBytes) }
         catch { record(error, at: url); throw error }
@@ -37,6 +47,11 @@ actor ScanAccessTrackingFileSystem: FileSystemAccess {
 
     func fileExists(_ url: URL) async -> Bool { await base.fileExists(url) }
     func isWritable(_ url: URL) async -> Bool { await base.isWritable(url) }
+    func isDeletable(_ url: URL) async -> Bool {
+        let allowed = await base.isDeletable(url)
+        if !allowed { deniedPaths.insert(url.standardizedFileURL) }
+        return allowed
+    }
     func move(_ source: URL, to destination: URL) async throws { try await base.move(source, to: destination) }
     func createDirectory(_ url: URL) async throws { try await base.createDirectory(url) }
     func removeEmptyDirectory(_ url: URL) async throws { try await base.removeEmptyDirectory(url) }
@@ -62,7 +77,14 @@ struct ScanAccessPresentation {
     func shows(_ limitation: ScanLimitation) -> Bool {
         if limitation.reason == .budget || limitation.reason == .cancelled || limitation.reason == .changed { return true }
         guard let path = limitation.path else { return true }
-        return !skips(path)
+        return !cannotInspectWholeItem(path)
+    }
+
+    func cannotInspectWholeItem(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        return deniedPaths.contains {
+            path == $0.path || path.hasPrefix($0.path + "/") || $0.path.hasPrefix(path + "/")
+        }
     }
 
     func status(for result: SystemScanModuleResult) -> ScanModuleStatus {
@@ -72,7 +94,7 @@ struct ScanAccessPresentation {
         switch result.payload {
         case let .general(report):
             limited = report.failures.contains { failure in
-                failure.path == nil || failure.reason != .access || !skips(failure.path!)
+                failure.path == nil || failure.reason != .access || !cannotInspectWholeItem(failure.path!)
             }
         case let .applications(inventory):
             let coverage = [inventory.applicationInventory.coverage, inventory.associationCoverage]

@@ -37,7 +37,7 @@ public struct ApplicationInstallation: Codable, Hashable, Sendable {
         switch source {
         case .homebrew: return L10n.text("请使用 Homebrew 卸载此 Cask，再刷新应用清单；不执行 --zap，不替包管理器直接移动应用或关联文件。")
         case .steam: return L10n.text("请在 Steam 的管理菜单卸载此游戏，再刷新应用清单；保留游戏存档与 Steam 安装记录。")
-        case .packageInstaller: return L10n.text("收据仅证明安装来源，不证明独占所有权；保留收据和系统文件，优先使用厂商卸载工具。")
+        case .packageInstaller: return L10n.text("安装记录用于核对安装内容；对应组件完整卸载后会尝试清理记录。")
         case .appStore: return L10n.text("可审查并可恢复移除应用本体；购买收据和共享容器保留，独占用户数据需单独勾选。")
         case .unknown: return L10n.text("仅审查应用本体和独占的可恢复文件；未知安装脚本不自动执行。")
         }

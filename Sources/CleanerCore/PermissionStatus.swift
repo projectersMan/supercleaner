@@ -178,3 +178,11 @@ public struct ScanPermissionPreflight: Sendable {
         }
     }
 }
+
+/// A prior declined preparation is not a grant. It only allows the user's chosen
+/// limited mode to continue when privileged operations are unavailable.
+public enum ScanPermissionPreparationPolicy {
+    public static func canProceed(diskAccess: PermissionCapabilityStatus) -> Bool {
+        diskAccess == .granted
+    }
+}

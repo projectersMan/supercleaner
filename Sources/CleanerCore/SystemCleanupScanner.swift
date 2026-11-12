@@ -17,9 +17,10 @@ public struct SystemCleanupScanner: Sendable {
                 message: L10n.text("清理规则暂时无法读取"), reason: .access)], startedAt: startedAt, completedAt: Date())
         }
         let cleanupScanner = ApplicationCleanupScanner()
-        let cleanupApps = await applicationScanner.installedApplications(context: context,
+        let basicApps = await applicationScanner.installedApplications(context: context,
             runningBundleIdentifiers: context.runningBundleIdentifiers,
-            maximumDepth: 12, maximumEntries: 30_000)
+            maximumEntries: 30_000)
+        let cleanupApps = await basicApps.completingSharedGroupDeclarations(ifNeededFor: context)
         var discovery = await cleanupScanner.discover(applications: cleanupApps.applications, context: context)
         // Keep reserved roots so a revoked app rule cannot reappear via the
         // broader generic cache rule.
@@ -39,6 +40,14 @@ public struct SystemCleanupScanner: Sendable {
             discovery.targets.removeAll { target in precise.contains { target.url.path == $0 || target.url.path.hasPrefix($0 + "/") || $0.hasPrefix(target.url.path + "/") } }
             discovery.reservedRoots.removeAll { url in precise.contains { url.path == $0 || url.path.hasPrefix($0 + "/") || $0.hasPrefix(url.path + "/") } }
         }
+        let inputCaches = InputMethodProtection.cacheRoots(applications: cleanupApps.applications, home: context.homeDirectory)
+        let inputRoots = InputMethodProtection.applicationRoots(home: context.homeDirectory)
+        let inputOwnershipUnknown = cleanupApps.coverage.unavailableRoots.contains {
+            InputMethodProtection.overlaps($0, roots: inputRoots)
+        }
+        let userCacheRoot = context.homeDirectory.appendingPathComponent("Library/Caches").path.lowercased()
+        discovery.targets.removeAll { InputMethodProtection.overlaps($0.url, roots: inputCaches) }
+        discovery.reservedRoots += inputCaches
         let dynamic: ScannerResult
         do { dynamic = try await cleanupScanner.scan(discovery: discovery, context: context) }
         catch { dynamic = ScannerResult(failures: [ScanFailure.from(error: error, scannerID: "system-cleanup.apps")]) }
@@ -49,13 +58,21 @@ public struct SystemCleanupScanner: Sendable {
             ], context: context
         )
         let consolidated = scanned.candidates + dynamic.candidates
-        let historicalResidues = await HistoricalResidueScanner().scan(context: context).filter { residue in
+        let historicalResidues = await HistoricalResidueScanner().scan(context: context, inventory: cleanupApps).filter { residue in
             !(consolidated.map(\.url) + discovery.reservedRoots).contains { root in
                 residue.url.path == root.path || residue.url.path.hasPrefix(root.path + "/") || root.path.hasPrefix(residue.url.path + "/")
             }
         }
+        var accessibleCandidates: [CleanupCandidate] = []
+        for candidate in consolidated + historicalResidues where !candidate.hasIncompleteScan {
+            if inputOwnershipUnknown, candidate.url.path.lowercased().hasPrefix(userCacheRoot + "/") { continue }
+            guard !InputMethodProtection.overlaps(candidate.url, roots: inputCaches) else { continue }
+            // This is a read-only permissions check, never a trial deletion.
+            // Execution still checks current permissions and reports later changes.
+            if await context.fileSystem.isDeletable(candidate.url) { accessibleCandidates.append(candidate) }
+        }
         let report = ScanReport(
-            candidates: consolidated + historicalResidues,
+            candidates: accessibleCandidates,
             failures: scanned.failures + dynamic.failures, startedAt: startedAt, completedAt: Date()
         )
         return report

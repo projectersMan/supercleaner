@@ -3,13 +3,19 @@ import Foundation
 public struct CleanupSessionSummary: Equatable, Sendable {
     public private(set) var itemCount: Int
     public private(set) var bytes: UInt64
+    private var recordedReceiptIDs = Set<UUID>()
 
     public init(itemCount: Int = 0, bytes: UInt64 = 0) {
         self.itemCount = itemCount
         self.bytes = bytes
     }
 
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.itemCount == rhs.itemCount && lhs.bytes == rhs.bytes
+    }
+
     public mutating func record(_ receipt: OperationReceipt) {
+        guard recordedReceiptIDs.insert(receipt.id).inserted else { return }
         let successfulResults = receipt.results.filter(\.countsAsCleanedContent)
         itemCount += successfulResults.count
         bytes += successfulResults.reduce(0) { $0 + $1.bytes }
@@ -78,7 +84,7 @@ public struct DefaultCleanupProgress: Equatable, Sendable {
             let previous = completedByModule[module] ?? DefaultCleanupModuleResult(itemCount: 0, bytes: 0)
             completedByModule[module] = DefaultCleanupModuleResult(
                 itemCount: previous.itemCount + completed.count,
-                bytes: previous.bytes + completed.reduce(0) { $0 + $1.bytes }
+                bytes: previous.bytes + completed.reduce(0) { $0 + (outcome.successfulBytesByCandidate[$1.id] ?? $1.bytes) }
             )
         }
     }
@@ -126,16 +132,18 @@ public enum CleanupCandidateVisibility {
         candidates: [CleanupCandidate],
         cleanedCandidateIDs: Set<UUID>
     ) -> [CleanupCandidate] {
-        candidates.filter { !cleanedCandidateIDs.contains($0.id) }
+        candidates.filter { !cleanedCandidateIDs.contains($0.id) && !$0.hasIncompleteScan }
     }
 }
 
 public struct DefaultCleanupAttemptOutcome: Equatable, Sendable {
+    public let successfulBytesByCandidate: [UUID: UInt64]
     public let successfulCandidateIDs: Set<UUID>
     public let successfulStandardizedPaths: Set<String>
     public let failures: [DefaultCleanupFailure]
 
     public init(attemptedCandidates: [CleanupCandidate], receipt: OperationReceipt) {
+        successfulBytesByCandidate = Dictionary(receipt.results.filter(\.countsAsCleanedContent).map { ($0.candidateID, $0.bytes) }, uniquingKeysWith: max)
         let attemptedByID = Dictionary(
             uniqueKeysWithValues: attemptedCandidates.map { ($0.id, $0) }
         )
@@ -167,6 +175,7 @@ public struct DefaultCleanupAttemptOutcome: Equatable, Sendable {
                 status: result.status,
                 reason: result.message ?? result.status.failureDescription,
                 isRetryable: result.status.isSafelyRetryable
+                    || (result.status == .skippedIdentityChanged && candidate.supportsAutomaticExecutionRefresh)
             )
         }
     }

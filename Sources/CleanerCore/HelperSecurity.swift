@@ -66,14 +66,15 @@ public struct HelperSigningIdentity: Sendable, Equatable {
 
 /// The opaque authorization is held only in memory, never logged, encoded into
 /// receipts, put on disk or acquired by an automatic background operation.
+/// Reused until revocation/app exit; the OS still validates every privileged request.
 public final class HelperAuthorizationSession: @unchecked Sendable {
     private let lock = NSLock()
     private var authorization: AuthorizationRef?
-    private var validUntil: Date = .distantPast
     public init() {}
     deinit { revoke() }
 
     public func authorizeUserInteraction() throws {
+        if isAuthorized { return }
         var created: AuthorizationRef?
         guard AuthorizationCreate(nil, nil, [], &created) == errAuthorizationSuccess, let created else { throw HelperClientError.notAuthorized }
         var granted = false
@@ -88,22 +89,22 @@ public final class HelperAuthorizationSession: @unchecked Sendable {
         guard status == errAuthorizationSuccess else { throw HelperClientError.notAuthorized }
         lock.withLock {
             if let authorization { AuthorizationFree(authorization, [.destroyRights]) }
-            authorization = created; validUntil = Date().addingTimeInterval(300)
+            authorization = created
         }
         granted = true
     }
 
     public var isAuthorized: Bool {
         lock.withLock {
-            if validUntil <= Date(), let authorization {
-                AuthorizationFree(authorization, [.destroyRights]); self.authorization = nil
-            }
-            return authorization != nil && validUntil > Date()
+            guard let authorization else { return false }
+            var form = AuthorizationExternalForm()
+            guard AuthorizationMakeExternalForm(authorization, &form) == errAuthorizationSuccess else { return false }
+            return Self.validateExternalForm(withUnsafeBytes(of: &form) { Data($0) })
         }
     }
     public func externalForm() throws -> Data {
         try lock.withLock {
-            guard let authorization, validUntil > Date() else { throw HelperClientError.notAuthorized }
+            guard let authorization else { throw HelperClientError.notAuthorized }
             var form = AuthorizationExternalForm()
             guard AuthorizationMakeExternalForm(authorization, &form) == errAuthorizationSuccess else { throw HelperClientError.notAuthorized }
             return withUnsafeBytes(of: &form) { Data($0) }
@@ -112,7 +113,7 @@ public final class HelperAuthorizationSession: @unchecked Sendable {
     public func revoke() {
         lock.withLock {
             if let authorization { AuthorizationFree(authorization, [.destroyRights]) }
-            authorization = nil; validUntil = .distantPast
+            authorization = nil
         }
     }
 

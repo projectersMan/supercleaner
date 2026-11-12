@@ -131,19 +131,21 @@ public actor QuarantineMaintenanceCoordinator {
 
     public func processDue(
         receiptID: UUID,
-        at date: Date
+        at date: Date,
+        progress: CleanupExecutor.ProgressHandler = { _ in }
     ) async throws -> QuarantineMaintenanceResult {
         guard let schedule = try await scheduleStore.dueSchedules(at: date).first(where: {
             $0.receiptID == receiptID
         }) else {
             return QuarantineMaintenanceResult()
         }
-        return try await process(schedule: schedule, at: date)
+        return try await process(schedule: schedule, at: date, progress: progress)
     }
 
     private func process(
         schedule: QuarantineSchedule,
-        at date: Date
+        at date: Date,
+        progress: CleanupExecutor.ProgressHandler = { _ in }
     ) async throws -> QuarantineMaintenanceResult {
         await lifecycleGate.acquire(receiptID: schedule.receiptID)
         do {
@@ -174,7 +176,8 @@ public actor QuarantineMaintenanceCoordinator {
                 )
                 try await resolutionJournalStore.upsert(resolutionEntry)
             }
-            let rawResolutionResults = await executor.resolve(resolutionEntry)
+            let rawResolutionResults = await executor.resolve(resolutionEntry, progress: progress)
+            progress(.init(completed: rawResolutionResults.count, total: resolutionEntry.items.count, currentURL: nil, phase: .savingResults))
             let resolutionResults = rawResolutionResults.map { result in
                 guard result.status == .sourceMissing else { return result }
                 return OperationResult(

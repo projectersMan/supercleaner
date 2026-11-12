@@ -57,8 +57,13 @@ struct ApplicationsView: View {
                 ApplicationScopePicker(selection: $model.applicationScope)
                     .frame(width: 420).fixedSize(horizontal: false, vertical: true)
                 applicationSort
+                Spacer(minLength: 0)
                 applicationCount
+                if model.applicationScope == .running {
+                    quitApplicationButton
+                }
             }
+            .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     applicationSearch
@@ -70,14 +75,34 @@ struct ApplicationsView: View {
                         .frame(width: 420).fixedSize(horizontal: false, vertical: true)
                     applicationSort
                     Spacer(minLength: 0)
+                    if model.applicationScope == .running {
+                        quitApplicationButton
+                    }
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .font(.caption)
-        .padding(.horizontal, 18)
+        .padding(.leading, 18)
+        // Match SelectionActionBar's trailing inset.
+        .padding(.trailing, 20)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+
+    private var quitApplicationButton: some View {
+        let count = model.selectedApplicationsToQuit.count
+        let title = model.quittingApplicationIDs.isEmpty
+            ? L10n.text("退出应用")
+            : L10n.text("正在退出…")
+        return Button { model.quitSelectedApplications() } label: {
+            Text(title).lineLimit(1)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!model.quittingApplicationIDs.isEmpty || count == 0)
+        .help(L10n.text("勾选运行中的应用后批量请求正常退出；不会强制结束或卸载应用。"))
+        .accessibilityLabel(title)
     }
 
     private var applicationSearch: some View {
@@ -127,9 +152,14 @@ private struct ApplicationUninstallRow: View {
         guard let plan else { return [] }
         return plan.items.filter(Self.isSelectable)
     }
+    private var receiptItems: [URL] {
+        guard let installation = analysis?.ownership?.installation,
+              installation.source == .packageInstaller else { return [] }
+        return installation.receipts.filter { PackageReceiptCleanupSelection.packageID(for: $0) != nil }
+    }
     private var selectableBytes: UInt64 { selectableItems.reduce(0) { $0 + $1.candidate.bytes } }
     private var selectableSizeDescription: String {
-        let estimated = selectableItems.contains { $0.candidate.evidence.contains { $0.code == "size-estimate" } }
+        let estimated = !receiptItems.isEmpty || selectableItems.contains { $0.candidate.evidence.contains { $0.code == "size-estimate" } }
         return (estimated ? L10n.text("至少 ") : "") + ByteCountFormatter.cleanerString(bytes: selectableBytes)
     }
     fileprivate static func isSelectable(_ item: UninstallItem) -> Bool {
@@ -143,7 +173,10 @@ private struct ApplicationUninstallRow: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 planCheckbox
-                Button { disclosure.toggle() } label: {
+                Button {
+                    model.selectedApplicationID = application.id
+                    disclosure.toggle()
+                } label: {
                     Image(systemName: disclosure.isExpanded ? "chevron.down" : "chevron.right")
                         .font(.caption.weight(.semibold)).frame(width: 16)
                 }
@@ -157,9 +190,13 @@ private struct ApplicationUninstallRow: View {
                 }
                 Spacer(minLength: 16)
                 if plan != nil {
-                    Text(L10n.text("可卸载 {0} 项 · {1}", String(describing: selectableItems.count), String(describing: selectableSizeDescription)))
+                    Text(L10n.text("可卸载 {0} 项 · {1}", String(describing: selectableItems.count + receiptItems.count), String(describing: selectableSizeDescription)))
                         .font(.callout.weight(.medium))
                         .frame(minWidth: 150, alignment: .trailing)
+                }
+                if analysis == nil && !application.isRunning {
+                    Label(L10n.text("正在准备卸载清单…"), systemImage: "clock")
+                        .font(.caption).foregroundColor(.secondary)
                 }
                 if let analysis, analysis.state != .complete && !hasOnlyAccessSkips {
                     AnalysisStateBadge(analysis: analysis)
@@ -170,6 +207,12 @@ private struct ApplicationUninstallRow: View {
             .contentShape(Rectangle())
             .onTapGesture { performRowAction(clickCount: 1) }
 
+            if let message = model.applicationQuitMessages[application.id] {
+                Text(message).font(.caption).foregroundColor(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 66).padding(.trailing, 18).padding(.bottom, 10)
+            }
+
             if disclosure.isExpanded {
                 Divider().padding(.leading, 52)
                 if let plan {
@@ -177,15 +220,20 @@ private struct ApplicationUninstallRow: View {
                 } else {
                     protectedContent
                 }
-                deepScanContent
+                // Uninstallable rows consistently show the uninstall inventory,
+                // not observations retained from when the application was running.
+                if model.applicationScope != .uninstallable {
+                    deepScanContent
+                }
                 if let ownership = analysis?.ownership { ownershipContent(ownership) }
             }
         }
-        .background(hasSelectedItems || isHovered ? Color.accentColor.opacity(0.08) : Color.clear)
+        .background(hasSelectedItems || isHovered || model.quitSelectedApplicationIDs.contains(application.id)
+            ? Color.accentColor.opacity(0.08) : Color.clear)
         .overlay(Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.08)), alignment: .bottom)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.16), value: disclosure.isExpanded)
-        .accessibilityAddTraits(hasSelectedItems ? .isSelected : [])
+        .accessibilityAddTraits(hasSelectedItems || model.quitSelectedApplicationIDs.contains(application.id) ? .isSelected : [])
         .alert(L10n.text("启动应用进行深度关联扫描？"), isPresented: $confirmDeepScan) {
             Button(L10n.text("取消"), role: .cancel) {}
             Button(L10n.text("启动并观察")) { model.startApplicationDeepScan(application, allowLaunch: true) }
@@ -263,9 +311,10 @@ private struct ApplicationUninstallRow: View {
                 Label(L10n.text("其他副本：{0}", String(describing: copy.path)), systemImage: "doc.on.doc").font(.caption2).textSelection(.enabled)
             }
             ForEach(ownership.serviceReferences ?? []) { reference in
-                Label(L10n.text("服务引用：{0}", String(describing: reference.file.path)), systemImage: "gearshape.2").font(.caption2).textSelection(.enabled)
+                Label(L10n.text(reference.file.standardizedFileURL.path.hasPrefix(application.id.standardizedFileURL.path + "/")
+                    ? "内嵌组件：{0}（随主应用卸载，大小已包含）" : "服务引用：{0}", reference.file.path), systemImage: "gearshape.2").font(.caption2).textSelection(.enabled)
             }
-            ForEach(ownership.installation.receipts, id: \.self) { receipt in
+            ForEach(ownership.installation.receipts.filter { !receiptItems.contains($0) }, id: \.self) { receipt in
                 Button(L10n.text("查看收据：{0}", String(describing: receipt.lastPathComponent))) { NSWorkspace.shared.activateFileViewerSelecting([receipt]) }
                     .font(.caption).buttonStyle(.link)
             }
@@ -302,7 +351,18 @@ private struct ApplicationUninstallRow: View {
     }
 
     @ViewBuilder private var planCheckbox: some View {
-        if let plan, !plan.selectableItemIDs.isEmpty {
+        if application.isRunning {
+            let checked = model.quitSelectedApplicationIDs.contains(application.id)
+            Button { model.toggleApplicationQuitSelection(application) } label: {
+                Image(systemName: checked ? "checkmark.square.fill" : "square")
+                    .font(.title3).foregroundColor(checked ? .accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!model.quittingApplicationIDs.isEmpty || (!checked && !model.canQuitApplication(application)))
+            .help(L10n.text("勾选以退出此应用，不会选择卸载内容"))
+            .accessibilityLabel(L10n.text("选择退出 {0}", application.name))
+            .accessibilityValue(checked ? L10n.text("已选择") : L10n.text("未选择"))
+        } else if let plan, !plan.selectableItemIDs.isEmpty {
             let state = model.uninstallSelectionState(for: plan)
             Button { model.toggleUninstall(plan) } label: {
                 Image(systemName: state == .all ? "checkmark.square.fill" : state == .partial ? "minus.square.fill" : "square")
@@ -312,8 +372,7 @@ private struct ApplicationUninstallRow: View {
             .disabled(model.isDeletionInProgress)
             .help(state == .all ? L10n.text("取消选择此应用的可卸载项目") : L10n.text("手动选择此应用的全部可卸载项目"))
         } else if analysis != nil {
-            Image(systemName: "lock.square").font(.title3).foregroundColor(.secondary).frame(width: 18)
-                .help(analysis?.message ?? L10n.text("当前应用没有可选择的卸载项目"))
+            Color.clear.frame(width: 18, height: 1)
         } else {
             Color.clear.frame(width: 18, height: 1)
         }
@@ -352,9 +411,16 @@ private struct ApplicationUninstallRow: View {
                 .padding(.horizontal, 54)
                 .padding(.bottom, 10)
             }
-            ForEach(plan.items) { item in
+            ForEach(selectableItems) { item in
                 UninstallItemRow(model: model, item: item).padding(.leading, 52)
-                if item.id != plan.items.last?.id { Divider().padding(.leading, 92) }
+                if item.id != selectableItems.last?.id || !receiptItems.isEmpty { Divider().padding(.leading, 92) }
+            }
+            ForEach(receiptItems, id: \.self) { receipt in
+                if let packageID = PackageReceiptCleanupSelection.packageID(for: receipt) {
+                    UninstallReceiptRow(model: model, receipt: receipt, packageID: packageID)
+                        .padding(.leading, 52)
+                    if receipt != receiptItems.last { Divider().padding(.leading, 92) }
+                }
             }
         }
         .background(Color.primary.opacity(0.018))
@@ -363,7 +429,7 @@ private struct ApplicationUninstallRow: View {
     private var protectedContent: some View {
         HStack(alignment: .top, spacing: 10) {
             if analysis != nil {
-                Image(systemName: application.isRunning ? "pause.circle.fill" : "lock.shield.fill")
+                Image(systemName: application.isRunning ? "pause.circle.fill" : "info.circle")
                     .foregroundColor(application.isRunning ? .orange : .secondary)
             }
             VStack(alignment: .leading, spacing: 5) {
@@ -399,7 +465,7 @@ private struct UninstallItemRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Button { model.toggleUninstall(item) } label: {
-                Image(systemName: model.isUninstallItemSelected(item) ? "checkmark.square.fill" : isSelectable ? "square" : "lock.square")
+                Image(systemName: model.isUninstallItemSelected(item) ? "checkmark.square.fill" : "square")
                     .font(.body).foregroundColor(model.isUninstallItemSelected(item) ? .accentColor : .secondary)
             }
             .buttonStyle(.plain)
@@ -421,10 +487,36 @@ private struct UninstallItemRow: View {
             Spacer()
             Text(sizeDescription)
                 .font(.caption).foregroundColor(.secondary).frame(minWidth: 72, alignment: .trailing)
-            ItemProtectionBadge(item: item, isSelected: model.isUninstallItemSelected(item))
-                .help(item.candidate.evidence.first { $0.code == "protection-reason" }?.summary
-                    ?? item.candidate.evidence.first { $0.code == "service-definition" }?.summary
-                    ?? L10n.text("可手动加入卸载计划"))
+
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct UninstallReceiptRow: View {
+    @ObservedObject var model: AppModel
+    let receipt: URL
+    let packageID: String
+
+    private var isSelected: Bool { model.packageReceiptSelection.isSelected(packageID) }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { model.setPackageReceiptSelected(!isSelected, packageID: packageID) } label: {
+                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                    .font(.body).foregroundColor(isSelected ? .accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isDeletionInProgress)
+            .accessibilityLabel(receipt.lastPathComponent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(receipt.lastPathComponent).font(.callout.weight(.medium)).lineLimit(1)
+                Text(receipt.path).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)
+            }
+            Spacer()
+            Text(L10n.text("未统计"))
+                .font(.caption).foregroundColor(.secondary).frame(minWidth: 72, alignment: .trailing)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -435,48 +527,20 @@ private struct AnalysisStateBadge: View {
     let analysis: ApplicationUninstallAnalysis
     var body: some View {
         let value = presentation
-        Label(analysis.statusTitle, systemImage: value.icon)
-            .font(.caption.weight(.semibold)).foregroundColor(value.color)
-            .padding(.horizontal, 9).padding(.vertical, 5)
-            .background(value.color.opacity(0.12), in: Capsule()).frame(minWidth: 104)
+        if analysis.state != .protected || analysis.application.isRunning {
+            Label(analysis.statusTitle, systemImage: value.icon)
+                .font(.caption.weight(.semibold)).foregroundColor(value.color)
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(value.color.opacity(0.12), in: Capsule()).frame(minWidth: 104)
+        }
     }
     private var presentation: (icon: String, color: Color) {
         switch analysis.state {
         case .complete: return ("checkmark.shield", .green)
         case .limited: return ("exclamationmark.triangle", .orange)
         case .protected where analysis.application.isRunning: return ("pause.circle.fill", .orange)
-        case .protected: return ("lock.fill", .secondary)
+        case .protected: return ("info.circle", .secondary)
         case .unavailable: return ("xmark.octagon", .red)
-        }
-    }
-}
-
-private struct ItemProtectionBadge: View {
-    let item: UninstallItem
-    let isSelected: Bool
-    var body: some View {
-        let protected = item.isShared || !item.candidate.risk.isSelectable || item.candidate.isActive
-        let isSelectable = ApplicationUninstallRow.isSelectable(item)
-        let reason = item.candidate.evidence.first { $0.code == "protection-reason" }?.summary ?? ""
-        let isService = item.candidate.evidence.contains { $0.code == "service-definition" }
-        let isExternal = item.candidate.evidence.contains { $0.code == "external-uninstall" }
-        let isReferenceOnly = item.candidate.evidence.contains { $0.code == "association-reference-only" }
-        let isSystem = reason.contains(L10n.text("系统目录"))
-        let isReferenced = reason.contains(L10n.text("引用"))
-        let title = item.isShared ? L10n.text("其他应用共用")
-            : isService ? L10n.text("需先停止服务")
-            : isExternal && !isSelectable ? L10n.text("请使用原安装器")
-            : isSystem ? L10n.text("系统目录保护")
-            : isReferenceOnly ? L10n.text("仅关联展示")
-            : isReferenced ? L10n.text("仍有项目引用")
-            : protected ? L10n.text("归属待确认")
-            : isSelected ? L10n.text("已选择") : nil
-        let color: Color = protected ? .secondary : isSelected ? .green : item.containsUserData ? .blue : .orange
-        if let title {
-            Label(title, systemImage: protected ? "lock.fill" : "checkmark.circle.fill")
-                .font(.caption2.weight(.semibold)).foregroundColor(color)
-                .padding(.horizontal, 7).padding(.vertical, 4)
-                .background(color.opacity(0.11), in: Capsule()).frame(minWidth: 76)
         }
     }
 }

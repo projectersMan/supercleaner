@@ -10,6 +10,7 @@ public struct ApplicationCleanupTarget: Sendable {
     public let manualOnly: Bool
     public let allowOfflineContent: Bool
     public let logExtensions: Set<String>?
+    public let allowedSensitiveDirectoryNames: Set<String>
 
     var allowRuntimeCleanup: Bool { logExtensions == nil && !manualOnly }
 
@@ -28,8 +29,10 @@ public struct ApplicationCleanupTarget: Sendable {
             defaultSelection: logExtensions == nil && !manualOnly, sourceKind: "platform-convention-and-local-observation",
             sourceReference: "SRC-SYSTEM-APP-CLEANUP-001", testFixture: "SystemCleanupContract",
             granularity: logExtensions == nil ? .root : .descendantFiles,
-            fileExtensions: logExtensions, activeBundleIdentifiers: [application.bundleIdentifier],
-            maximumDepth: 16, maximumEntries: maximumEntries)
+            fileExtensions: logExtensions,
+            activeBundleIdentifiers: logExtensions == nil ? [application.bundleIdentifier] : [],
+            maximumEntries: maximumEntries,
+            allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames)
     }
 }
 
@@ -73,7 +76,8 @@ public struct ApplicationCleanupScanner: Sendable {
             }
         }
         func add(_ url: URL, app: InstalledApplication, kind: String, manual: Bool = false,
-                 allowOfflineContent: Bool = false, logs: Set<String>? = nil) async {
+                 allowOfflineContent: Bool = false, logs: Set<String>? = nil,
+                 allowedSensitiveDirectoryNames: Set<String> = []) async {
             guard !Task.isCancelled, url.path.hasPrefix(home.path + "/"), await context.fileSystem.fileExists(url), seen.insert(url.path).inserted else { return }
             // Reserve before inspecting: a failed precise check must not fall
             // through to a broader, less restrictive deletion candidate.
@@ -82,7 +86,8 @@ public struct ApplicationCleanupScanner: Sendable {
                 try CleanupRuleEngine.validateTraversal(url, context: context)
                 guard try await context.fileSystem.identity(at: url).kind == .directory else { return }
                 output.targets.append(.init(url: url, application: app, kind: kind, manualOnly: manual,
-                    allowOfflineContent: allowOfflineContent, logExtensions: logs))
+                    allowOfflineContent: allowOfflineContent, logExtensions: logs,
+                    allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames))
             } catch {
                 output.failures.append(.init(scannerID: "system-cleanup.discovery", message: L10n.text("目录无法完整检查"), path: url, reason: .access))
             }
@@ -157,7 +162,8 @@ public struct ApplicationCleanupScanner: Sendable {
                 // Current account roots are enumerated without opening messages or account files.
                 if (app.version ?? "").hasPrefix("4.") {
                     for account in await list(documents.appendingPathComponent("xwechat_files")) where !account.lastPathComponent.hasPrefix(".") {
-                        await add(account.appendingPathComponent("cache"), app: app, kind: L10n.text("微信缓存"))
+                        await add(account.appendingPathComponent("cache"), app: app, kind: L10n.text("微信缓存"),
+                            allowedSensitiveDirectoryNames: ["message"])
                     }
                     await add(documents.appendingPathComponent("app_data/log"), app: app, kind: L10n.text("微信日志"), logs: ["xlog"])
                 }
@@ -196,13 +202,16 @@ public struct ApplicationCleanupScanner: Sendable {
                 var evidence = candidate.evidence
                 evidence.insert(Evidence(code: "application-cleanup", summary: target.application.name + " · " + target.kind,
                     details: target.application.bundleIdentifier), at: 0)
-                let appIsActive = candidate.isActive || target.application.isRunning
+                let applicationIsRunning = target.application.isRunning
                     || context.runningBundleIdentifiers.contains(target.application.bundleIdentifier)
-                    || context.isActive(candidate.url)
+                let appIsActive = candidate.isActive || context.isActive(candidate.url)
+                    || (applicationIsRunning && target.logExtensions == nil)
                 if target.allowRuntimeCleanup && appIsActive {
                     evidence.append(Evidence(code: "active-cleanup", summary: target.allowOfflineContent
                         ? L10n.text("应用运行中，缓存可能立即重新生成；离线页面可能暂时不可用")
                         : L10n.text("应用运行中，缓存可能立即重新生成")))
+                } else if target.logExtensions != nil && applicationIsRunning {
+                    evidence.append(Evidence(code: "active-log-cleanup", summary: L10n.text("应用运行中；日志清理后可能继续生成")))
                 }
                 if target.manualOnly {
                     evidence.append(Evidence(code: "manual-only", summary: L10n.text("必须逐项手动选择；清理后离线内容或共享缓存可能不可用")))
@@ -210,7 +219,7 @@ public struct ApplicationCleanupScanner: Sendable {
                 return CleanupCandidate(id: candidate.id, url: candidate.url, displayName: candidate.displayName,
                     category: candidate.category, bytes: candidate.bytes, risk: candidate.risk, evidence: evidence,
                     identity: candidate.identity, source: .general, lastAccessDate: candidate.lastAccessDate,
-                    isActive: target.allowRuntimeCleanup ? false : (candidate.isActive || target.application.isRunning), ruleID: rule.ruleID,
+                    isActive: target.allowRuntimeCleanup || target.logExtensions != nil ? false : appIsActive, ruleID: rule.ruleID,
                     defaultSelection: candidate.defaultSelection, requiresExplicitSelection: target.manualOnly || candidate.requiresExplicitSelection == true,
                     cleanupApplication: CleanupApplication(bundleIdentifier: target.application.bundleIdentifier,
                         name: target.application.name, kind: target.kind, bundleURL: target.application.bundleURL))
@@ -226,10 +235,15 @@ public struct ApplicationCleanupScanner: Sendable {
               (target.logExtensions == nil ? candidate.url == target.url : candidate.url.path.hasPrefix(target.url.path + "/")),
               target.logExtensions.map({ $0.contains(candidate.url.pathExtension.lowercased()) }) ?? true,
               (!target.manualOnly || candidate.requiresExplicitSelection == true),
-              target.allowRuntimeCleanup || (!target.application.isRunning
-                && !context.runningBundleIdentifiers.contains(target.application.bundleIdentifier)
-                && !context.isActive(candidate.url)) else {
+              target.logExtensions != nil || !context.isActive(candidate.url) else {
             throw RuleScanError.executionRefused(candidate.ruleID ?? "system-cleanup")
+        }
+        let applicationIsRunning = target.application.isRunning
+            || context.runningBundleIdentifiers.contains(target.application.bundleIdentifier)
+        if applicationIsRunning && !target.allowRuntimeCleanup {
+            guard target.logExtensions != nil else {
+                throw RuleScanError.executionRefused(candidate.ruleID ?? "system-cleanup")
+            }
         }
         let rule = target.rule(home: context.homeDirectory, maximumEntries: maximumEntries)
         try await CleanupRuleEngine(pack: RulePack(version: "system-cleanup-v1", issuedAt: .distantPast,

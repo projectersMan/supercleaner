@@ -16,6 +16,9 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
     public let limitations: [ScanLimitation]
     public let ownership: ApplicationOwnershipNode?
     public let runtimeObservation: ApplicationRuntimeObservation?
+    public let preparedPlan: UninstallPlan?
+    public let preparedState: ApplicationUninstallCoverageState?
+    public let preparedMessage: String?
 
     public init(
         application: InstalledApplication,
@@ -24,7 +27,10 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         message: String? = nil,
         limitations: [ScanLimitation] = [],
         ownership: ApplicationOwnershipNode? = nil,
-        runtimeObservation: ApplicationRuntimeObservation? = nil
+        runtimeObservation: ApplicationRuntimeObservation? = nil,
+        preparedPlan: UninstallPlan? = nil,
+        preparedState: ApplicationUninstallCoverageState? = nil,
+        preparedMessage: String? = nil
     ) {
         self.application = application
         self.plan = plan
@@ -33,6 +39,23 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         self.limitations = limitations
         self.ownership = ownership
         self.runtimeObservation = runtimeObservation
+        self.preparedPlan = preparedPlan
+        self.preparedState = preparedState
+        self.preparedMessage = preparedMessage
+    }
+
+    /// Toggle availability without rediscovery, size traversal, or new item IDs.
+    public func withRunningState(_ running: Bool) -> Self {
+        guard !application.isSystem else { return self }
+        let availablePlan = preparedPlan ?? plan
+        let availableState = preparedState ?? state
+        let availableMessage = preparedState == nil ? message : preparedMessage
+        return Self(application: application.withRunningState(running),
+            plan: running ? nil : availablePlan,
+            state: running ? .protected : availableState,
+            message: running ? L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。") : availableMessage,
+            limitations: limitations, ownership: ownership, runtimeObservation: runtimeObservation,
+            preparedPlan: availablePlan, preparedState: availableState, preparedMessage: availableMessage)
     }
 
     public var statusTitle: String {
@@ -41,7 +64,7 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         case .limited: return L10n.text("可卸载 · 部分未统计")
         case .unavailable: return L10n.text("无法分析")
         case .protected:
-            return application.isRunning ? L10n.text("运行中 · 暂不可卸载") : L10n.text("系统保护")
+            return application.isRunning ? L10n.text("运行中 · 暂不可卸载") : L10n.text("当前应用没有可选择的卸载项目")
         }
     }
 }
@@ -68,18 +91,21 @@ public struct ApplicationUninstallInventory: Codable, Hashable, Sendable {
     public let applicationInventory: ApplicationInventory
     public let analyses: [ApplicationUninstallAnalysis]
     public let associationCoverage: CoverageSummary
+    public let associationIndex: ApplicationAssociationIndex?
     public let ownershipGraph: ApplicationOwnershipGraph?
 
     public init(
         applicationInventory: ApplicationInventory,
         analyses: [ApplicationUninstallAnalysis],
         associationCoverage: CoverageSummary = CoverageSummary(),
-        ownershipGraph: ApplicationOwnershipGraph? = nil
+        ownershipGraph: ApplicationOwnershipGraph? = nil,
+        associationIndex: ApplicationAssociationIndex? = nil
     ) {
         self.applicationInventory = applicationInventory
         self.analyses = analyses
         self.associationCoverage = associationCoverage
         self.ownershipGraph = ownershipGraph
+        self.associationIndex = associationIndex
     }
 
     public func analysis(for applicationID: URL) -> ApplicationUninstallAnalysis? {
@@ -95,8 +121,9 @@ public struct ApplicationUninstallInventory: Codable, Hashable, Sendable {
         Self(applicationInventory: applicationInventory, analyses: analyses.map { analysis in
             ApplicationUninstallAnalysis(application: analysis.application, plan: analysis.plan, state: analysis.state,
                 message: analysis.message, limitations: analysis.limitations, ownership: analysis.ownership,
-                runtimeObservation: observations[analysis.id] ?? analysis.runtimeObservation)
-        }, associationCoverage: associationCoverage, ownershipGraph: ownershipGraph)
+                runtimeObservation: observations[analysis.id] ?? analysis.runtimeObservation,
+                preparedPlan: analysis.preparedPlan, preparedState: analysis.preparedState, preparedMessage: analysis.preparedMessage)
+        }, associationCoverage: associationCoverage, ownershipGraph: ownershipGraph, associationIndex: associationIndex)
     }
 
     public var moduleCoverage: ApplicationModuleCoverage {
@@ -121,7 +148,7 @@ public struct ApplicationModuleCoverage: Codable, Hashable, Sendable {
             && !discovery.budgetLimitedModules.contains(.applications) ? .complete : .limited
 
         let individuallyLimited = inventory.analyses.filter {
-            [.limited, .unavailable].contains($0.state)
+            [.limited, .unavailable].contains($0.preparedState ?? $0.state)
         }
         associationAnalysisState = inventory.associationCoverage.unavailableRoots.isEmpty
             && !inventory.associationCoverage.budgetLimitedModules.contains(.applications)
@@ -201,23 +228,28 @@ public struct ApplicationUninstallAnalyzer: Sendable {
         context: ScanContext
     ) async -> ApplicationUninstallInventory {
         let applications = inventory.applications
-        let associationIndex = await scanner.associationIndex(for: applications, context: context)
+        // Runtime availability is applied separately; ownership/shared-resource checks remain intact.
+        let associationIndex = await scanner.associationIndex(for: applications.map { $0.withRunningState(false) }, context: context)
         return ApplicationUninstallInventory(
             applicationInventory: inventory,
             analyses: await analyze(applications, using: associationIndex, context: context),
             associationCoverage: associationIndex.coverage,
-            ownershipGraph: associationIndex.ownershipGraph
+            ownershipGraph: associationIndex.ownershipGraph, associationIndex: associationIndex
         )
     }
 
     public func analyzeStoppedApplications(
-        _ ids: Set<URL>, in applications: [InstalledApplication], context: ScanContext
+        _ ids: Set<URL>, in applications: [InstalledApplication], context: ScanContext,
+        cachedIndex: ApplicationAssociationIndex? = nil
     ) async -> [ApplicationUninstallAnalysis] {
         let targets = applications.filter { ids.contains($0.id) && !$0.isRunning && !$0.isSystem }
         guard !targets.isEmpty else { return [] }
-        // Keep all installed copies in the ownership check, even when only a few plans need rebuilding.
-        let associationIndex = await scanner.associationIndex(for: applications, context: context)
-        return await analyze(targets, using: associationIndex, context: context)
+        // Reuse the shared ownership index; a quit must never restart discovery.
+        guard let cachedIndex else {
+            return targets.map { ApplicationUninstallAnalysis(application: $0, plan: nil, state: .unavailable,
+                message: L10n.text("缺少关联扫描结果，请刷新应用列表。")) }
+        }
+        return await analyze(targets, using: cachedIndex, context: context)
     }
 
     private func analyze(
@@ -265,18 +297,10 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 message: L10n.text("这是由 macOS 管理的系统应用，无论是否运行都不会提供卸载操作。"), ownership: ownership
             )
         }
-        if application.isRunning {
-            return ApplicationUninstallAnalysis(
-                application: application,
-                plan: nil,
-                state: .protected,
-                message: L10n.text("应用正在运行，因此暂时不能卸载；退出应用并刷新后即可重新分析。"), ownership: ownership
-            )
-        }
 
         do {
             let result = try await planner.buildPlan(
-                application,
+                application.withRunningState(false),
                 associations: associations,
                 context: context,
                 maximumSizeEntries: maximumSizeEntries,
@@ -294,7 +318,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                         : limited ? L10n.text("应用本体可卸载；部分文件未完整统计，受影响的关联项保持保护。") : nil,
                 limitations: result.limitations,
                 ownership: ownership
-            )
+            ).withRunningState(application.isRunning)
         } catch {
             return ApplicationUninstallAnalysis(
                 application: application,
@@ -307,7 +331,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                     impact: L10n.text("应用本体无法验证，因此没有生成卸载计划。"),
                     recovery: L10n.text("确认应用仍在原位置并可读取，然后刷新应用。")
                 )], ownership: ownership
-            )
+            ).withRunningState(application.isRunning)
         }
     }
 }

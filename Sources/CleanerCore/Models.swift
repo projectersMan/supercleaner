@@ -66,6 +66,11 @@ public struct FileIdentity: Codable, Hashable, Sendable {
     public let modificationTime: Int64
     public let kind: Kind
 
+    /// Object identity survives normal writes, but never replacement or a type change.
+    func isSameObject(as other: FileIdentity) -> Bool {
+        device == other.device && inode == other.inode && kind == other.kind
+    }
+
     public init(device: UInt64, inode: UInt64, size: UInt64, modificationTime: Int64, kind: Kind) {
         self.device = device
         self.inode = inode
@@ -304,6 +309,7 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
     public let results: [OperationResult]
     public let overallStatus: OverallStatus
     public let rejectionReason: String?
+    public let integrationWarnings: [String]?
 
     public init(
         id: UUID = UUID(),
@@ -312,7 +318,8 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
         completedAt: Date,
         results: [OperationResult],
         overallStatus: OverallStatus = .completed,
-        rejectionReason: String? = nil
+        rejectionReason: String? = nil,
+        integrationWarnings: [String]? = nil
     ) {
         self.id = id
         self.planID = planID
@@ -321,6 +328,14 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
         self.results = results
         self.overallStatus = overallStatus
         self.rejectionReason = rejectionReason
+        self.integrationWarnings = integrationWarnings
+    }
+
+    public func addingIntegrationWarning(_ warning: String) -> OperationReceipt {
+        let warnings = integrationWarnings ?? []
+        return OperationReceipt(id: id, planID: planID, startedAt: startedAt, completedAt: completedAt,
+            results: results, overallStatus: overallStatus, rejectionReason: rejectionReason,
+            integrationWarnings: warnings.contains(warning) ? warnings : warnings + [warning])
     }
 
     public var recoveredBytes: UInt64 {
@@ -350,7 +365,8 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
             completedAt: completedAt,
             results: updatedResults,
             overallStatus: overallStatus,
-            rejectionReason: rejectionReason
+            rejectionReason: rejectionReason,
+            integrationWarnings: integrationWarnings
         )
     }
 }
@@ -360,12 +376,14 @@ public struct RestoreReceipt: Identifiable, Codable, Hashable, Sendable {
     public let sourceReceiptID: UUID
     public let completedAt: Date
     public let results: [OperationResult]
+    public let integrationWarnings: [String]?
 
-    public init(id: UUID = UUID(), sourceReceiptID: UUID, completedAt: Date, results: [OperationResult]) {
+    public init(id: UUID = UUID(), sourceReceiptID: UUID, completedAt: Date, results: [OperationResult], integrationWarnings: [String]? = nil) {
         self.id = id
         self.sourceReceiptID = sourceReceiptID
         self.completedAt = completedAt
         self.results = results
+        self.integrationWarnings = integrationWarnings
     }
 }
 
@@ -380,5 +398,53 @@ public struct PurgeReceipt: Identifiable, Codable, Hashable, Sendable {
         self.sourceReceiptID = sourceReceiptID
         self.completedAt = completedAt
         self.results = results
+    }
+}
+
+// Refreshable system-cleanup files still require live rule, path and ownership checks.
+extension CleanupCandidate {
+    var supportsAutomaticExecutionRefresh: Bool {
+        guard source == .general, identity.kind == .file else { return false }
+        let appRule = ruleID?.hasPrefix("system-cleanup.v1.") == true && cleanupApplication != nil
+        return (category == .cache && ruleID == "discovery.user-caches")
+            || (category == .log && ruleID == "general.logs")
+            || (appRule && [.cache, .log].contains(category))
+    }
+}
+
+// Content changes do not revoke an explicit cleanup selection in these scopes.
+// Duplicate/extracted-content proofs and non-cache Agent data stay strict.
+extension CleanupCandidate {
+    var allowsExecutionContentChanges: Bool {
+        guard largeFileProof == nil, identity.kind == .file || identity.kind == .directory else { return false }
+        switch source {
+        case .general:
+            return [.cache, .log, .temporaryFile, .installerArtifact, .developerCache].contains(category)
+        case .application, .historicalApplicationResidue, .projectArtifacts:
+            return true
+        case .diskAnalysis:
+            return category == .largeFile
+        case .agentWorkspace:
+            return [.agentModelCache, .agentPackageCache].contains(category)
+        }
+    }
+
+    func matchesExecutionIdentity(_ current: FileIdentity) -> Bool {
+        allowsExecutionContentChanges ? current.isSameObject(as: identity) : current == identity
+    }
+}
+
+
+public extension CleanupCandidate {
+    var hasIncompleteScan: Bool { evidence.contains { $0.code.hasPrefix("scan-incomplete-") } }
+}
+
+extension CleanupCandidate {
+    var hasVerifiedCleanupScope: Bool {
+        risk.isSelectable && evidence.contains { $0.code == "verified-cleanup-scope" && $0.summary == ruleID }
+    }
+    var isDisposableRuntimeCache: Bool {
+        source == .general && hasVerifiedCleanupScope && requiresExplicitSelection != true
+            && evidence.contains { $0.code == "verified-regenerable-cache" && $0.summary == ruleID }
     }
 }

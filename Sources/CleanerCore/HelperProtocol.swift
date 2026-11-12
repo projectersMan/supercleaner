@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 
 public enum HelperOperation: Codable, Hashable, Sendable {
+    case forgetInstallationReceipt(PackageReceiptCleanupProof)
     case inspect(path: String)
     case moveToQuarantine(path: String, destination: String)
     case restoreFromQuarantine(path: String, destination: String)
@@ -11,6 +12,7 @@ public enum HelperOperation: Codable, Hashable, Sendable {
 
     public var sourcePath: String {
         switch self {
+        case let .forgetInstallationReceipt(proof): proof.receiptURL.path
         case let .inspect(path), let .removeOwnedQuarantine(path), let .purgeOwnedQuarantine(path): path
         case let .moveToQuarantine(path, _), let .restoreFromQuarantine(path, _): path
         case let .unloadVerifiedService(_, plistPath): plistPath
@@ -85,7 +87,14 @@ public actor HelperAuthorizer {
         guard token.expiresAt > now, token.expiresAt <= now.addingTimeInterval(120) else { return .rejected(.expired) }
         guard token.callerRequirement == expectedCallerRequirement else { return .rejected(.callerMismatch) }
         guard token.operationDigest == operation.digest else { return .rejected(.operationMismatch) }
-        guard token.identity == currentIdentity else { return .rejected(.identityMismatch) }
+        let matchesIdentity: Bool
+        switch operation {
+        case .moveToQuarantine, .restoreFromQuarantine:
+            matchesIdentity = token.identity.isSameObject(as: currentIdentity)
+        default:
+            matchesIdentity = token.identity == currentIdentity
+        }
+        guard matchesIdentity else { return .rejected(.identityMismatch) }
         consumedNonces = consumedNonces.filter { $0.value > now }
         guard consumedNonces[token.nonce] == nil else { return .rejected(.replayedNonce) }
         guard consumedNonces.count < 10_000 else { return .rejected(.rateLimited) }

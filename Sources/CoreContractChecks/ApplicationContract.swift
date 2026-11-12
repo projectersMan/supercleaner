@@ -186,10 +186,10 @@ func runApplicationContracts() async throws {
     require(analyzedInventory.analysis(for: application.id)?.state == .limited, "bounded size traversal must disclose limited analysis")
     let runningAnalysis = analyzedInventory.analysis(for: URL(fileURLWithPath: "/Applications/Runner.app"))
     let systemAnalysis = analyzedInventory.analysis(for: URL(fileURLWithPath: "/System/Applications/System.app"))
-    require(runningAnalysis?.state == .protected, "running applications must be protected without traversal")
+    require(runningAnalysis?.state == .protected, "running applications must remain protected while their plans are prepared")
     require(systemAnalysis?.state == .protected, "system applications must be protected without traversal")
     require(runningAnalysis?.statusTitle == L10n.text("运行中 · 暂不可卸载"), "running protection must be explicitly temporary")
-    require(systemAnalysis?.statusTitle == L10n.text("系统保护"), "system protection must not be confused with temporary running protection")
+    require(systemAnalysis?.statusTitle == L10n.text("当前应用没有可选择的卸载项目"), "unavailable app uses a plain explanation distinct from temporary running protection")
     var protectedDisclosure = ApplicationUninstallDisclosureState()
     protectedDisclosure.toggle()
     require(protectedDisclosure.isExpanded, "protected application rows must expand even without an uninstall plan")
@@ -376,8 +376,8 @@ func runApplicationContracts() async throws {
         context: ScanContext(homeDirectory: home, fileSystem: deepDiscoveryFileSystem),
         maximumDepth: 2
     )
-    require(depthLimitedInventory.applications.isEmpty, "an explicit diagnostic depth cap must remain available")
-    require(depthLimitedInventory.coverage.budgetLimitedModules.contains(.applications), "an explicit depth cap that truncates traversal must disclose limited coverage")
+    require(depthLimitedInventory.applications.count == 1, "legacy depth parameters must not truncate application discovery")
+    require(depthLimitedInventory.coverage.budgetLimitedModules.isEmpty, "complete depth traversal must not claim limited coverage")
 }
 
 private actor DeepApplicationSizeContractFileSystem: FileSystemAccess {

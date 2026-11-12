@@ -41,7 +41,9 @@ func runAgentCleanupPresentationContracts() {
 }
 
 func runAgentSkillPresentationPerformanceContract() {
-    let skillCount = 300
+    // Real installations can contain thousands of duplicate plugin/runtime Skills.
+    // Keep first-page presentation construction within an interactive budget.
+    let skillCount = 3_100
     let assetCount = 20_000
     let skills = (0..<skillCount).map { index in
         let root = URL(fileURLWithPath: "/Users/tester/.agents/skills/skill-\(index)", isDirectory: true)
@@ -99,6 +101,13 @@ func runAgentSkillPresentationPerformanceContract() {
         presentation.bindingsByID.values.reduce(0) { $0 + $1.linkedAssets.count } == assetCount,
         "Skill presentation must associate every nested asset exactly once"
     )
-    require(elapsed < 2, "Skill presentation must remain interactive for 300 Skills / 20,000 assets (elapsed: \(elapsed)s)")
+    require(elapsed < 1, "Skill presentation must remain interactive for 3,100 Skills / 20,000 assets (elapsed: \(elapsed)s)")
+    let selectedIDs = Set(assets.prefix(4_000).map(\.id))
+    let updated = presentation.selecting(selectedIDs)
+    let rebuilt = AgentSkillCatalogPresentation(skills: skills, assets: assets, selectedIDs: selectedIDs)
+    require(updated.sections == rebuilt.sections && updated.bindingsByID == rebuilt.bindingsByID,
+        "updating selection must exactly match rebuilding all Skill relationships")
+    require(updated.selecting([]).sections == presentation.sections,
+        "clearing selection must preserve the original Skill relationships and ordering")
     print("Agent Skill presentation: \(elapsed) seconds for \(skillCount) Skills / \(assetCount) assets")
 }

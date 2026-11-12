@@ -36,7 +36,7 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
                     guard hasBudget() else { limited = true; break }
                     if context.enforcesEntryBudgets { remaining -= 1 }
                     guard let identity = try? await context.fileSystem.identity(at: child) else { unavailable.append(child); continue }
-                    if identity.kind == .directory, depth < 6, child.pathExtension.lowercased() != "app" {
+                    if identity.kind == .directory, child.pathExtension.lowercased() != "app" {
                         queue.append((child, depth + 1)); continue
                     }
                     guard identity.kind == .file, child.pathExtension.lowercased() == "json", child.path.contains("/.metadata/") else { continue }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 public enum MCPTransportKind: String, Codable, Hashable, Sendable, CaseIterable {
     case stdio
@@ -37,6 +38,7 @@ public struct MCPConfigurationRecord: Identifiable, Codable, Hashable, Sendable 
     public let sourceLabel: String
     public let parseStatus: MCPConfigurationParseStatus
     public let servers: [MCPServerSummary]
+    public let contentFingerprint: String?
 
     public init(
         provider: AgentProvider,
@@ -44,7 +46,8 @@ public struct MCPConfigurationRecord: Identifiable, Codable, Hashable, Sendable 
         fileURL: URL,
         sourceLabel: String,
         parseStatus: MCPConfigurationParseStatus,
-        servers: [MCPServerSummary]
+        servers: [MCPServerSummary],
+        contentFingerprint: String? = nil
     ) {
         self.provider = provider
         self.scope = scope
@@ -52,6 +55,7 @@ public struct MCPConfigurationRecord: Identifiable, Codable, Hashable, Sendable 
         self.sourceLabel = sourceLabel
         self.parseStatus = parseStatus
         self.servers = servers
+        self.contentFingerprint = contentFingerprint
     }
 }
 
@@ -91,7 +95,8 @@ public enum MCPConfigurationCatalogSupport {
             fileURL: url,
             sourceLabel: sourceLabel,
             parseStatus: result.status,
-            servers: result.servers
+            servers: result.servers,
+            contentFingerprint: SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
         )
     }
 

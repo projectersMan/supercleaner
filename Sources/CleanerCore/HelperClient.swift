@@ -21,7 +21,7 @@ public final class XPCPrivilegedHelperClient: PrivilegedHelperClient, @unchecked
                     pending.finish(.failure(HelperClientError.unavailable)); return
                 }
                 proxy.ping { version in
-                    pending.finish(version == 2 ? .success(version) : .failure(HelperClientError.invalidResponse))
+                    pending.finish(version == 3 ? .success(version) : .failure(HelperClientError.invalidResponse))
                 }
                 DispatchQueue.global().asyncAfter(deadline: .now() + 5) { pending.finish(.failure(HelperClientError.timedOut)) }
             }
@@ -128,6 +128,21 @@ public enum HelperRegistrationStatus: String, Sendable {
         @unknown default: return .unavailable
         }
     }
+    /// Status display may perform signature I/O. Keep that work off the UI thread.
+    /// Installation and authorization still perform their own fresh verification.
+    public func readStatus() async -> HelperRegistrationStatus {
+        let name = (bundle.bundleIdentifier ?? "com.example.SuperCleaner") + ".helper.plist"
+        return await Task.detached(priority: .utility) {
+            switch SMAppService.daemon(plistName: name).status {
+            case .enabled: return .enabled
+            case .requiresApproval: return .requiresApproval
+            case .notFound: return .notFound
+            case .notRegistered: return (try? HelperSigningIdentity.current()) == nil ? .unavailable : .notRegistered
+            @unknown default: return .unavailable
+            }
+        }.value
+    }
+
     public func install() throws {
         let identity = try HelperSigningIdentity.current()
         guard bundle.bundleIdentifier == identity.applicationIdentifier,
@@ -177,6 +192,12 @@ public actor AuthorizedApplicationOperations: PrivilegedApplicationOperations {
         self.session = session; self.registrationEnabled = registrationEnabled; signingIdentity = identity
         self.client = client ?? identity.map { XPCPrivilegedHelperClient(identity: $0) }
         self.fileSystem = fileSystem; self.userID = userID
+    }
+    public func forgetInstallationReceipt(_ proof: PackageReceiptCleanupProof, planID: UUID) async throws {
+        let identity = try await PackageReceiptStore().identity(for: proof)
+        guard try await perform(.forgetInstallationReceipt(proof), planID: planID, identity: identity) else {
+            throw HelperClientError.notAuthorized
+        }
     }
     public func moveToQuarantine(candidate: CleanupCandidate, destination: URL, planID: UUID) async throws -> Bool {
         guard candidate.source == .application, candidate.category == .application, candidate.url.path.hasPrefix("/Applications/") else { return false }

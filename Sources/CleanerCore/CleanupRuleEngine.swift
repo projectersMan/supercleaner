@@ -69,9 +69,7 @@ public struct CleanupRuleEngine: Scanner {
                 try Task.checkCancellation()
                 let root = context.homeDirectory.appendingPathComponent(relative).standardizedFileURL
                 guard await context.fileSystem.fileExists(root) else { continue }
-                // Discovery and each candidate have independent bounds. A large
-                // app may be incomplete, but cannot consume its siblings' budget.
-                var discoveryRemaining = rule.maximumEntries ?? 20_000
+                // Rule entry counts never truncate a scan. Cancellation remains cooperative.
                 var pending: [(URL, Int)] = []
                 do {
                     try Self.validateTraversal(root, context: context)
@@ -83,28 +81,20 @@ public struct CleanupRuleEngine: Scanner {
                 }
                 while let (url, depth) = pending.popLast() {
                     try Task.checkCancellation()
-                    guard (!context.enforcesEntryBudgets || discoveryRemaining > 0) else {
-                        output.failures.append(ScanFailure(scannerID: id, message: L10n.text("达到扫描数量上限"), path: root, reason: .budget))
-                        break
-                    }
-                    if context.enforcesEntryBudgets { discoveryRemaining -= 1 }
+                    if let registry = rule.referenceInventory?.registryDirectory, url == root.appendingPathComponent(registry) { continue }
                     if reservedRoots.contains(where: { url.path == $0.path || url.path.hasPrefix($0.path + "/") }) { continue }
                     do {
                         try Self.validateTraversal(url, context: context)
                         let identity = try await context.fileSystem.identity(at: url)
                         let containsReserved = reservedRoots.contains { $0.path.hasPrefix(url.path + "/") }
                         if identity.kind == .directory && (rule.granularity == .descendantFiles || containsReserved) {
-                            guard depth < (rule.maximumDepth ?? 8) else {
-                                output.failures.append(ScanFailure(scannerID: id, message: L10n.text("达到扫描深度上限"), path: url, reason: .budget)); continue
-                            }
                             pending.append(contentsOf: try await context.fileSystem.children(of: url).sorted { $0.path > $1.path }.map { ($0, depth + 1) })
                             continue
                         }
                         if let extensions = rule.fileExtensions, !extensions.contains(url.pathExtension.lowercased()) { continue }
                         guard seen.insert(url.path).inserted else { continue }
-                        var remaining = rule.maximumEntries ?? 20_000
                         let allowsOfflineContent = allowOfflineContentRoots.contains { $0.path == url.path }
-                        let candidate = try await inspect(url, identity: identity, rule: rule, remaining: &remaining,
+                        let candidate = try await inspect(url, identity: identity, rule: rule,
                             context: context, allowOfflineContent: allowsOfflineContent)
                         output.candidates.append(context.protectionPolicy.applying(to: candidate))
                         for evidence in candidate.evidence where evidence.code.hasPrefix("scan-incomplete-") {
@@ -142,37 +132,87 @@ public struct CleanupRuleEngine: Scanner {
                   let root = context.homeDirectory.appendingPathComponent($0).standardizedFileURL.path
                   return candidate.url.path == root || candidate.url.path.hasPrefix(root + "/")
               }) else { throw RuleScanError.ruleUnavailable(id) }
-        var remaining = rule.maximumEntries ?? 20_000
+        if let descriptor = rule.referenceInventory {
+            guard !context.isActive(candidate.url) else { throw RuleScanError.executionRefused(id) }
+            if candidate.requiresExplicitSelection != true,
+               CacheReferenceInventory.state(of: candidate.url, descriptor: descriptor) != .unused {
+                throw RuleScanError.executionRefused(id)
+            }
+        }
         let allowsOfflineContent = allowOfflineContentRoots.contains { $0.path == candidate.url.path }
-        let inspected = try await inspect(candidate.url, identity: candidate.identity, rule: rule, remaining: &remaining,
+        let currentIdentity = try await context.fileSystem.identity(at: candidate.url)
+        if candidate.hasVerifiedCleanupScope && candidate.source == .general && rule.defaultRisk != .blocked {
+            do {
+                try Self.validateTraversal(candidate.url, context: context)
+                try context.protectionPolicy.validate(candidate.url)
+            } catch { throw RuleScanError.executionRefused(id) }
+            guard candidate.matchesExecutionIdentity(currentIdentity), !sensitive(candidate.url),
+                  rule.fileExtensions.map({ $0.contains(candidate.url.pathExtension.lowercased()) }) ?? true else {
+                throw RuleScanError.executionRefused(id)
+            }
+            for relative in rule.protectedRelativePaths ?? [] {
+                let protected = context.homeDirectory.appendingPathComponent(relative).standardizedFileURL.path
+                let path = candidate.url.standardizedFileURL.path
+                if path == protected || path.hasPrefix(protected + "/") || protected.hasPrefix(path + "/") {
+                    throw RuleScanError.executionRefused(id)
+                }
+            }
+            // Fixed-cost exclusions catch newly created top-level secrets/offline data,
+            // without walking or sizing the selected directory again.
+            if currentIdentity.kind == .directory {
+                for name in ["auth.json", "credentials.json", ".env", ".ssh", ".git", "Cookies", "Login Data", "Local Storage", "IndexedDB"] {
+                    if await context.fileSystem.fileExists(candidate.url.appendingPathComponent(name)) { throw RuleScanError.executionRefused(id) }
+                }
+                if !allowsOfflineContent && candidate.requiresExplicitSelection != true {
+                    for name in ["CacheStorage", "Service Worker", "ScriptCache"] {
+                        if await context.fileSystem.fileExists(candidate.url.appendingPathComponent(name)) { throw RuleScanError.executionRefused(id) }
+                    }
+                }
+            }
+            return
+        }
+        let inspected = try await inspect(candidate.url, identity: currentIdentity, rule: rule,
             context: context, allowOfflineContent: allowsOfflineContent)
         guard inspected.risk != .blocked, !(inspected.requiresExplicitSelection == true && candidate.requiresExplicitSelection != true) else { throw RuleScanError.executionRefused(id) }
     }
 
     private func inspect(
-        _ url: URL, identity: FileIdentity, rule: CleanupRule, remaining: inout Int,
+        _ url: URL, identity: FileIdentity, rule: CleanupRule,
         context: ScanContext, allowOfflineContent: Bool = false
     ) async throws -> CleanupCandidate {
         var bytes: UInt64 = 0
         var newest = identity.modificationTime
         var blocked = false
         var incomplete = false
-        var budgetLimited = false
-        var manualOnly = false
+        // A runtime cache without regeneration or reference evidence follows the
+        // same manual-selection rule, regardless of product name or location.
+        var manualOnly = rule.requiresExplicitSelection == true
+            || (rule.category == .developerCache && rule.defaultRisk != .safe
+                && rule.regenerable != true && rule.referenceInventory == nil)
         var active = context.isActive(url)
             || !(rule.activeBundleIdentifiers ?? []).isDisjoint(with: context.runningBundleIdentifiers)
             || !(rule.activeProcessNames ?? []).isDisjoint(with: context.activeProcessNames)
             || ((rule.activeProcessNames?.isEmpty == false) && !context.activityProbeAvailable)
         var pending = [(url, identity, 0)]
         let protected = (rule.protectedRelativePaths ?? []).map { context.homeDirectory.appendingPathComponent($0) }
+        let allowedSensitiveDirectoryNames = rule.allowedSensitiveDirectoryNames ?? []
         var evidence = [Evidence(code: "cleanup-rule", summary: rule.ruleID, details: rule.sourceReference)]
         while let (entry, entryIdentity, depth) = pending.popLast() {
             try Task.checkCancellation()
+            // A framework link inside a known cache is part of that cache. Never follow it.
+            if entryIdentity.kind == .symbolicLink,
+               CacheLinkPolicy.permitsInternalLink(entry, within: url, allowed: rule.allowsInternalLinks == true) {
+                do { try context.protectionPolicy.validate(entry) } catch { blocked = true }
+                continue
+            }
             do { try Self.validateTraversal(entry, context: context); try context.protectionPolicy.validate(entry) }
             catch { blocked = true; continue }
             let path = entry.standardizedFileURL.path
             if protected.contains(where: { path == $0.path || path.hasPrefix($0.path + "/") || $0.path.hasPrefix(path + "/") }) { blocked = true }
-            if sensitive(entry) { blocked = true }
+            if sensitive(entry), !(entryIdentity.kind == .directory
+                && allowedSensitiveDirectoryNames.contains(entry.lastPathComponent.lowercased())) {
+                blocked = true
+            }
             let isOfflineStorage = ["cachestorage", "service worker", "scriptcache"].contains(entry.lastPathComponent.lowercased())
             if isOfflineStorage && !allowOfflineContent {
                 manualOnly = true
@@ -186,11 +226,8 @@ public struct CleanupRuleEngine: Scanner {
                 let (sum, overflow) = bytes.addingReportingOverflow(entryIdentity.size)
                 bytes = overflow ? .max : sum
             case .directory:
-                guard depth < (rule.maximumDepth ?? 8), (!context.enforcesEntryBudgets || remaining > 0) else { incomplete = true; budgetLimited = true; continue }
                 do {
                     for child in try await context.fileSystem.children(of: entry) {
-                        guard (!context.enforcesEntryBudgets || remaining > 0) else { incomplete = true; budgetLimited = true; break }
-                        if context.enforcesEntryBudgets { remaining -= 1 }
                         do { pending.append((child, try await context.fileSystem.identity(at: child), depth + 1)) }
                         catch { incomplete = true }
                     }
@@ -202,16 +239,32 @@ public struct CleanupRuleEngine: Scanner {
         // Activity is advisory for general cleanup. The user may explicitly try
         // the item; the executor records a failed move and leaves it in place if
         // the owning process or filesystem refuses the operation.
+        if let descriptor = rule.referenceInventory {
+            let ownership = CacheReferenceInventory.state(of: url, descriptor: descriptor)
+            manualOnly = manualOnly || ownership != .unused || !context.activityProbeAvailable
+            active = context.isActive(url)
+            if ownership == .metadata { manualOnly = true }
+            evidence.append(Evidence(code: "cache-reference-ownership", summary: ownership == .unused
+                ? L10n.text("未发现已登记项目引用此版本，可清理旧运行文件")
+                : ownership == .referenced ? L10n.text("仍有已登记项目声明使用此版本")
+                : L10n.text("安装索引或引用信息尚未完整确认")))
+        }
         let risk: RiskLevel = blocked || incomplete ? .blocked : (old ? rule.defaultRisk : .review)
-        if manualOnly { evidence.append(Evidence(code: "manual-only", summary: L10n.text("必须逐项手动选择；清理后离线内容或共享缓存可能不可用"))) }
+        if !blocked && !incomplete {
+            evidence.append(Evidence(code: "verified-cleanup-scope", summary: rule.ruleID))
+        }
+        if !blocked && !incomplete && rule.regenerable == true {
+            evidence.append(Evidence(code: "verified-regenerable-cache", summary: rule.ruleID))
+        }
+        if manualOnly { evidence.append(Evidence(code: "manual-only", summary:
+            L10n.text(rule.manualExplanation ?? "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"))) }
         if let regeneration = rule.regenerationEvidence { evidence.append(Evidence(code: "regeneration", summary: L10n.text(regeneration))) }
         if let ownership = rule.ownershipEvidence { evidence.append(Evidence(code: "ownership", summary: L10n.text(ownership))) }
         if active { evidence.append(Evidence(code: "active", summary: L10n.text("关联应用或工具正在使用，或活动状态无法验证"))) }
         if blocked { evidence.append(Evidence(code: "protected-content", summary: L10n.text("包含受保护、敏感或链接内容"))) }
         if incomplete {
             evidence.append(Evidence(code: "incomplete-inspection", summary: L10n.text("未完成目录验证，不可删除")))
-            evidence.append(Evidence(code: budgetLimited ? "scan-incomplete-budget" : "scan-incomplete-access",
-                summary: budgetLimited ? L10n.text("达到扫描数量或深度上限") : L10n.text("部分内容不可读取或已变化")))
+            evidence.append(Evidence(code: "scan-incomplete-access", summary: L10n.text("部分内容不可读取或已变化")))
         }
         evidence.append(Evidence(code: "newest-modified", summary: L10n.text("目录内容按最新修改时间判断")))
         return CleanupCandidate(

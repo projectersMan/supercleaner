@@ -97,6 +97,8 @@ public struct HelperFileOperations: Sendable {
             defer { close(parent) }
             guard try identity(parent: parent, name: basename(source)) == token.identity else { throw HelperRejection.identityMismatch }
             guard unlinkat(parent, basename(source), AT_REMOVEDIR) == 0 else { throw posixFailure() }
+        case .forgetInstallationReceipt:
+            throw HelperRejection.unsupported // handled asynchronously after receipt verification
         case .unloadVerifiedService:
             throw HelperRejection.unsupported
         }
@@ -109,10 +111,10 @@ public struct HelperFileOperations: Sendable {
         defer { close(sourceParent) }
         let destinationParent = try openParent(destination)
         defer { close(destinationParent) }
-        guard try identity(parent: sourceParent, name: basename(source)) == expected else { throw HelperRejection.identityMismatch }
+        guard try identity(parent: sourceParent, name: basename(source)).isSameObject(as: expected) else { throw HelperRejection.identityMismatch }
         guard Date() < expiresAt else { throw HelperRejection.expired }
         guard renameatx_np(sourceParent, basename(source), destinationParent, basename(destination), UInt32(RENAME_EXCL)) == 0 else { throw posixFailure() }
-        guard (try? identity(parent: destinationParent, name: basename(destination))) == expected else {
+        guard (try? identity(parent: destinationParent, name: basename(destination)))?.isSameObject(as: expected) == true else {
             // A racing replacement is never silently accepted. Roll back only if
             // the original slot is still empty; do not overwrite either entry.
             _ = renameatx_np(destinationParent, basename(destination), sourceParent, basename(source), UInt32(RENAME_EXCL))
@@ -225,7 +227,15 @@ public actor HelperRequestHandler {
         let operations = HelperFileOperations(scope: scope)
         do {
             let identity: FileIdentity
-            if case .removeOwnedQuarantine = request.operation {
+            if case let .forgetInstallationReceipt(proof) = request.operation {
+                guard authorizationCheck(request.authorizationExternalForm) else { return .init(authorization: .rejected(.authorizationRequired)) }
+                let store = PackageReceiptStore()
+                identity = try await store.identity(for: proof)
+                let decision = await authorizer.authorize(operation: request.operation, token: request.token, currentIdentity: identity)
+                guard decision == .accepted else { return .init(authorization: decision) }
+                try await store.forget(proof, scope: scope, expiresAt: request.token.expiresAt)
+                return .init(authorization: .accepted)
+            } else if case .removeOwnedQuarantine = request.operation {
                 return .init(authorization: .rejected(.unsupported)) // no caller can remove recovery containers
             } else { identity = try operations.inspect(request.operation.sourcePath) }
             let decision = await authorizer.authorize(operation: request.operation, token: request.token, currentIdentity: identity)

@@ -16,7 +16,8 @@ final class ExecutionTests: XCTestCase {
 
     func testPreparedBatchReusesValidationAndCoalescesGeneralActivityLookup() async throws {
         let first = executionFixtureCandidate(path: "/tmp/item-a", inode: 2)
-        let second = executionFixtureCandidate(path: "/tmp/item-b", inode: 3)
+        // This fixture returns one identity for all paths (two synthetic hard links).
+        let second = executionFixtureCandidate(path: "/tmp/item-b", inode: 2)
         let plan = try PlanBuilder(ruleVersion: "rules-1").build(
             candidates: [first, second], selectedIDs: [first.id, second.id], now: Date()
         )

@@ -100,6 +100,7 @@ public struct DiskUsageTree: Codable, Hashable, Sendable {
 
 public struct DiskUsageScanner: Sendable {
     public let minimumFileBytes: UInt64
+    /// Legacy compatibility only; directory traversal has no depth cutoff.
     public let maximumDepth: Int?
     public let maximumEntries: Int?
 
@@ -186,14 +187,7 @@ public struct DiskUsageScanner: Sendable {
                 isReadable: false, children: .unavailable(L10n.text("无法读取目录")), identity: identity
             )
         }
-        if let maximumDepth, depth >= maximumDepth {
-            reachedBudget = true
-            return DiskUsageNode(
-                url: url, kind: .directory, ownBytes: identity?.size ?? 0,
-                recursiveBytes: identity?.size ?? 0, childCount: 0, modifiedAt: modifiedAt,
-                isReadable: true, children: .unloaded, identity: identity
-            )
-        }
+
 
         let childURLs: [URL]
         do {

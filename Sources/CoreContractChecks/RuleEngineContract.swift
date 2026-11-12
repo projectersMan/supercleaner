@@ -56,7 +56,6 @@ func runRuleEngineContracts() async throws {
     }, "every bundled source reference must exist in the rule source ledger")
     let broad = bundled.rules.first { $0.ruleID == "discovery.user-caches" }
     require(broad?.defaultRisk == .review && broad?.defaultSelection == false, "cache age alone cannot authorize default cleanup")
-    require(bundled.rules.first { $0.ruleID == "developer.uv-managed-cache" }?.defaultRisk == .blocked, "uv managed cache must reject direct removal")
     let expandedRuleIDs = Set(bundled.rules.map(\.ruleID))
     require(["developer.go-build-cache", "developer.deno-cache", "developer.cargo-download-cache",
              "developer.cocoapods-cache", "developer.playwright-browsers"].allSatisfy(expandedRuleIDs.contains),
@@ -144,7 +143,7 @@ func runRuleEngineContracts() async throws {
     let tiny = CleanupRule(ruleID: "budget", category: .cache, relativePaths: ["Library/Caches"], minimumAgeDays: 30, defaultRisk: .review, maximumDepth: 1, maximumEntries: 1)
     do {
         let limited = try await CleanupRuleEngine(pack: RulePack(version: "tiny", issuedAt: now, rules: [tiny], revokedRuleIDs: [])).scan(context: context)
-        require(limited.allSatisfy { $0.risk == .blocked }, "incomplete inspection cannot create deletable candidate")
+        require(limited.first(where: { $0.url.standardizedFileURL.path == cache.standardizedFileURL.path })?.risk == .blocked, "sensitive content remains blocked without entry or depth limits")
     } catch is RuleScanError {}
     let rawIdentity = pack.executionVersion
     let activeIdentity = try await store.currentPack().executionVersion

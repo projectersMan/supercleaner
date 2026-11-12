@@ -106,28 +106,41 @@ public enum AgentResourcePathRegistry {
     }
 
     public static func matchingRule(for url: URL, homeDirectory: URL) -> AgentResourcePathRule? {
-        let path = url.standardizedFileURL.path
-        return rules.compactMap { rule -> (rule: AgentResourcePathRule, targetLength: Int, exact: Bool)? in
-            let target: URL
-            switch rule.base {
-            case .home:
-                target = homeDirectory.appendingPathComponent(rule.path)
-            case .absolute:
-                target = URL(fileURLWithPath: rule.path)
-            case .project:
-                let exact = path.hasSuffix("/" + rule.path)
-                guard exact || path.contains("/" + rule.path + "/") else { return nil }
-                return (rule, rule.path.count, exact)
+        Resolver(homeDirectory: homeDirectory).matchingRule(for: url)
+    }
+
+    /// Compile literal rule paths once for a scan rather than building and
+    /// standardizing every rule URL for each of hundreds of thousands of files.
+    public struct Resolver: Sendable {
+        private let targets: [(rule: AgentResourcePathRule, path: String)]
+        public init(homeDirectory: URL) {
+            targets = AgentResourcePathRegistry.rules.map { rule in
+                switch rule.base {
+                case .home: return (rule, homeDirectory.appendingPathComponent(rule.path).standardizedFileURL.path)
+                case .absolute: return (rule, URL(fileURLWithPath: rule.path).standardizedFileURL.path)
+                case .project: return (rule, rule.path)
+                }
             }
-            let targetPath = target.standardizedFileURL.path
-            guard path == targetPath || path.hasPrefix(targetPath + "/") else { return nil }
-            return (rule, targetPath.count, path == targetPath)
         }
-        .sorted {
-            if $0.exact != $1.exact { return $0.exact && !$1.exact }
-            return $0.targetLength > $1.targetLength
+        public func matchingRule(for url: URL) -> AgentResourcePathRule? {
+            let path = url.standardizedFileURL.path
+            var best: (rule: AgentResourcePathRule, length: Int, exact: Bool)?
+            for target in targets {
+                let exact: Bool
+                if target.rule.base == .project {
+                    exact = path.hasSuffix("/" + target.path)
+                    if !exact && !path.contains("/" + target.path + "/") { continue }
+                } else {
+                    exact = path == target.path
+                    if !exact && !path.hasPrefix(target.path + "/") { continue }
+                }
+                let length = target.path.count
+                if let previous = best,
+                   (previous.exact && !exact || previous.exact == exact && previous.length >= length) { continue }
+                best = (target.rule, length, exact)
+            }
+            return best?.rule
         }
-        .first?.rule
     }
 
     private static func unique(_ values: [String]) -> [String] {
@@ -137,7 +150,6 @@ public enum AgentResourcePathRegistry {
 }
 
 enum AgentProjectResourceDiscovery {
-    private static let maximumDepth = 7
     private static let maximumDirectories = 20_000
     private static let skippedDirectoryNames: Set<String> = [
         ".git", ".svn", ".hg", "node_modules", "vendor", "deriveddata", ".build", "build", "dist",
@@ -151,7 +163,11 @@ enum AgentProjectResourceDiscovery {
         provider: AgentProvider,
         context: ScanContext
     ) async -> [AgentRoot] {
-        let rules = AgentResourcePathRegistry.projectRules(for: provider)
+        await discover(providers: [provider], context: context)
+    }
+
+    static func discover(providers: Set<AgentProvider>, context: ScanContext) async -> [AgentRoot] {
+        let rules = AgentResourcePathRegistry.rules.filter { providers.contains($0.provider) && $0.base == .project }
         guard !rules.isEmpty else { return [] }
         var seeds = [context.homeDirectory]
         for name in preferredSeedNames {
@@ -170,11 +186,10 @@ enum AgentProjectResourceDiscovery {
             for rule in rules {
                 let candidate = directory.appendingPathComponent(rule.path, isDirectory: rule.kind != .mcpConfiguration)
                 if await context.fileSystem.fileExists(candidate) {
-                    roots.append(AgentRoot(provider: provider, scope: .project, url: candidate.standardizedFileURL))
+                    roots.append(AgentRoot(provider: rule.provider, scope: .project, url: candidate.standardizedFileURL))
                 }
             }
-            guard depth < maximumDepth else { continue }
-            let children = (try? await context.fileSystem.children(of: directory)) ?? []
+            let children = (try? await AgentDirectorySnapshot.shared.children(of: directory, fileSystem: context.fileSystem)) ?? []
             for child in children {
                 let name = child.lastPathComponent.lowercased()
                 if skippedDirectoryNames.contains(name) || (name.hasPrefix(".") && name != ".config") { continue }
@@ -183,7 +198,7 @@ enum AgentProjectResourceDiscovery {
             }
         }
         var seen = Set<String>()
-        return roots.filter { seen.insert($0.url.path).inserted }
+        return roots.filter { seen.insert($0.provider.rawValue + "|" + $0.url.path).inserted }
     }
 }
 

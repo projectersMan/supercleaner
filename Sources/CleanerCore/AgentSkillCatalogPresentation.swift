@@ -35,6 +35,15 @@ public struct AgentSkillCleanupBinding: Identifiable, Hashable, Sendable {
         !selectableCandidateIDs.isEmpty && !containsProtectedAssets && !containsAmbiguousOwnership
     }
 
+    func selecting(_ selectedIDs: Set<UUID>) -> Self {
+        Self(skill: skill, group: group, linkedAssets: linkedAssets,
+            selectableCandidateIDs: selectableCandidateIDs,
+            selectedCandidateIDs: selectedIDs.intersection(selectableCandidateIDs),
+            reclaimableBytes: reclaimableBytes, totalLinkedBytes: totalLinkedBytes,
+            containsProtectedAssets: containsProtectedAssets,
+            containsAmbiguousOwnership: containsAmbiguousOwnership, decisionReason: decisionReason)
+    }
+
     public init(
         skill: SkillCatalogEntry,
         group: AgentCatalogGroup,
@@ -82,6 +91,18 @@ public struct AgentSkillCatalogSection: Identifiable, Hashable, Sendable {
 public struct AgentSkillCatalogPresentation: Sendable {
     public let sections: [AgentSkillCatalogSection]
     public let bindingsByID: [String: AgentSkillCleanupBinding]
+
+    private init(sections: [AgentSkillCatalogSection]) {
+        self.sections = sections
+        bindingsByID = Dictionary(uniqueKeysWithValues: sections.flatMap(\.skills).map { ($0.id, $0) })
+    }
+
+    /// Selection changes reuse the verified Skill-to-directory relationships.
+    public func selecting(_ selectedIDs: Set<UUID>) -> Self {
+        Self(sections: sections.map { section in
+            AgentSkillCatalogSection(group: section.group, skills: section.skills.map { $0.selecting(selectedIDs) })
+        })
+    }
 
     public init(
         skills: [SkillCatalogEntry],

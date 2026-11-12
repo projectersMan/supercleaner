@@ -36,6 +36,8 @@ actor ReceiptLifecycleGate {
 
 public actor CleanupExecutionCoordinator {
     private let executor: CleanupExecutor
+    private let packageReceipts: PackageReceiptCleanupService?
+    private let dockService: ApplicationDockService?
     private let historyStore: HistoryStore
     private let journalStore: ExecutionJournalStore
     private let resolutionJournalStore: ResolutionJournalStore
@@ -43,6 +45,7 @@ public actor CleanupExecutionCoordinator {
     private let maintenanceCoordinator: QuarantineMaintenanceCoordinator
     private let lifecycleGate = ReceiptLifecycleGate.shared
     private let now: @Sendable () -> Date
+    private let refreshPlan: @Sendable (CleanupPlan) async throws -> CleanupPlan
     private var claimedPlanIDs = Set<UUID>()
     private var activePlanIDs = Set<UUID>()
 
@@ -53,15 +56,21 @@ public actor CleanupExecutionCoordinator {
         resolutionJournalStore: ResolutionJournalStore,
         scheduleStore: QuarantineScheduleStore,
         maintenanceCoordinator: QuarantineMaintenanceCoordinator,
-        now: @escaping @Sendable () -> Date
+        now: @escaping @Sendable () -> Date,
+        refreshPlan: @escaping @Sendable (CleanupPlan) async throws -> CleanupPlan = { $0 },
+        dockService: ApplicationDockService? = nil,
+        packageReceipts: PackageReceiptCleanupService? = nil
     ) {
         self.executor = executor
+        self.dockService = dockService
+        self.packageReceipts = packageReceipts
         self.historyStore = historyStore
         self.journalStore = journalStore
         self.resolutionJournalStore = resolutionJournalStore
         self.scheduleStore = scheduleStore
         self.maintenanceCoordinator = maintenanceCoordinator
         self.now = now
+        self.refreshPlan = refreshPlan
     }
 
     public func execute(
@@ -91,6 +100,7 @@ public actor CleanupExecutionCoordinator {
         claimedPlanIDs.insert(plan.id)
         activePlanIDs.insert(plan.id)
         defer { activePlanIDs.remove(plan.id) }
+        let plan = try await refreshPlan(plan)
         let effectiveRetention: QuarantineRetentionPolicy = plan.selectedItems.contains { $0.candidate.largeFileProof != nil }
             ? .manual : retentionPolicy
         let entry = ExecutionJournalEntry(
@@ -101,16 +111,24 @@ public actor CleanupExecutionCoordinator {
         )
         try await journalStore.upsert(entry)
 
-        let receipt = await executor.execute(
+        let receiptProofs = await packageReceipts?.prepare(plan: plan) ?? []
+        var dockPreparationWarning: String?
+        do { try await dockService?.prepare(receiptID: entry.id, plan: plan) }
+        catch { dockPreparationWarning = L10n.text("Dock 图标备份未完成；应用文件仍按计划处理，图标可能需要手动移除。") }
+        var receipt = await executor.execute(
             plan: plan,
             receiptID: entry.id,
             startedAt: entry.startedAt,
             progress: progress
         )
-        try await finalize(receipt: receipt, entry: entry)
+        if let dockPreparationWarning { receipt = receipt.addingIntegrationWarning(dockPreparationWarning) }
+        progress(.init(completed: receipt.results.count, total: plan.selectedItems.count, currentURL: nil, phase: .savingResults))
+        receipt = try await finalize(receipt: receipt, entry: entry)
+        await packageReceipts?.finish(proofs: receiptProofs, receipt: receipt)
         return try await applyImmediateRetentionIfNeeded(
             to: receipt,
-            policy: effectiveRetention
+            policy: effectiveRetention,
+            progress: progress
         )
     }
 
@@ -121,7 +139,7 @@ public actor CleanupExecutionCoordinator {
         for entry in entries {
             if activePlanIDs.contains(entry.plan.id) { continue }
             await lifecycleGate.acquire(receiptID: entry.id)
-            let receipt: OperationReceipt
+            var receipt: OperationReceipt
             do {
                 // Read only after acquiring the same lifecycle claim used by
                 // restore, purge and maintenance. An await during verification
@@ -133,7 +151,7 @@ public actor CleanupExecutionCoordinator {
                 } else {
                     receipt = await executor.recoverInterruptedExecution(entry)
                 }
-                try await finalize(receipt: receipt, entry: entry)
+                receipt = try await finalize(receipt: receipt, entry: entry)
             } catch {
                 await lifecycleGate.release(receiptID: entry.id)
                 throw error
@@ -146,6 +164,18 @@ public actor CleanupExecutionCoordinator {
             recovered.append(finalizedReceipt)
         }
         try await recoverPendingResolutions()
+        // Replay a Dock change interrupted after file/history commit. Completed journals are no-ops.
+        if let dockService {
+            for receipt in try await historyStore.receipts() {
+                await lifecycleGate.acquire(receiptID: receipt.id)
+                do {
+                    if let latest = try await historyStore.receipt(id: receipt.id) {
+                        try await dockService.synchronize(receipt: latest)
+                    }
+                } catch { /* Keep the durable Dock journal for the next launch. */ }
+                await lifecycleGate.release(receiptID: receipt.id)
+            }
+        }
         return recovered
     }
 
@@ -171,13 +201,14 @@ public actor CleanupExecutionCoordinator {
             )
             try await resolutionJournalStore.upsert(entry)
             let results = await executor.resolve(entry)
-            try await finalizeResolution(entry: entry, results: results)
+            let warnings = try await finalizeResolution(entry: entry, results: results)
             await lifecycleGate.release(receiptID: receipt.id)
             return RestoreReceipt(
                 id: entry.id,
                 sourceReceiptID: receipt.id,
                 completedAt: now(),
-                results: results
+                results: results,
+                integrationWarnings: warnings.isEmpty ? nil : warnings
             )
         } catch {
             await lifecycleGate.release(receiptID: receipt.id)
@@ -249,11 +280,18 @@ public actor CleanupExecutionCoordinator {
         )
     }
 
+    @discardableResult
     private func finalize(
         receipt: OperationReceipt,
         entry: ExecutionJournalEntry
-    ) async throws {
+    ) async throws -> OperationReceipt {
+        var receipt = receipt
         try await historyStore.upsert(receipt)
+        do { try await dockService?.synchronize(receipt: receipt) }
+        catch {
+            receipt = receipt.addingIntegrationWarning(L10n.text("应用文件已处理，但 Dock 图标未能同步；可手动移除，或重启 SuperCleaner 后重试。"))
+            try await historyStore.upsert(receipt)
+        }
         let existingSchedule = try await scheduleStore.schedule(receiptID: receipt.id)
         let awaitsVerification = receipt.results.contains { $0.verificationNotBefore != nil }
         // Reconciliation can run long after a user rescheduled this receipt.
@@ -270,11 +308,13 @@ public actor CleanupExecutionCoordinator {
         if !awaitsVerification {
             try await journalStore.remove(id: entry.id)
         }
+        return receipt
     }
 
     private func applyImmediateRetentionIfNeeded(
         to receipt: OperationReceipt,
-        policy: QuarantineRetentionPolicy
+        policy: QuarantineRetentionPolicy,
+        progress: CleanupExecutor.ProgressHandler = { _ in }
     ) async throws -> OperationReceipt {
         guard policy == .immediate,
               receipt.hasQuarantinedContent,
@@ -282,7 +322,8 @@ public actor CleanupExecutionCoordinator {
         else { return receipt }
         _ = try await maintenanceCoordinator.processDue(
             receiptID: receipt.id,
-            at: now()
+            at: now(),
+            progress: progress
         )
         return try await historyStore.receipt(id: receipt.id) ?? receipt
     }
@@ -318,18 +359,30 @@ public actor CleanupExecutionCoordinator {
         }
     }
 
+    @discardableResult
     private func finalizeResolution(
         entry: ResolutionJournalEntry,
         results: [OperationResult]
-    ) async throws {
+    ) async throws -> [String] {
         guard let currentReceipt = try await historyStore.receipt(id: entry.receipt.id) else {
             throw CleanupExecutionCoordinatorError.receiptNotFound(entry.receipt.id)
         }
-        let updatedReceipt = currentReceipt.applying(resolutionResults: results)
+        var updatedReceipt = currentReceipt.applying(resolutionResults: results)
         try await historyStore.upsert(updatedReceipt)
+        var warnings = [String]()
+        do { try await dockService?.synchronize(receipt: updatedReceipt) }
+        catch {
+            let warning = entry.action == .restore
+                ? L10n.text("文件已恢复，但 Dock 图标未能还原；可手动添加，或重启 SuperCleaner 后重试。")
+                : L10n.text("应用文件已处理，但 Dock 图标未能同步；可手动移除，或重启 SuperCleaner 后重试。")
+            warnings.append(warning)
+            updatedReceipt = updatedReceipt.addingIntegrationWarning(warning)
+            try await historyStore.upsert(updatedReceipt)
+        }
         try await maintenanceCoordinator.reconcile(receipt: updatedReceipt)
         if entry.isFullyResolved(by: results) {
             try await resolutionJournalStore.remove(id: entry.id)
         }
+        return warnings
     }
 }

@@ -25,22 +25,50 @@ struct DashboardView: View {
                 Text(L10n.text("先完整扫描，再决定清理什么")).font(.system(size: 34, weight: .semibold))
                 Text(L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、重复大文件和 Agent 环境报告。扫描过程零写入。"))
                     .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 18) {
-                    Button(action: model.startFullScan) {
-                        Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
-                            .font(.headline).padding(.horizontal, 8).padding(.vertical, 4)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 18) {
+                        scanControls
+                        Spacer(minLength: 12)
+                        sessionCleanupMetric
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
-                    .accessibilityHint(L10n.text("只读扫描系统清理、应用、重复大文件和 Agent 环境"))
-                    fullScanElapsed
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 18) { scanControls }
+                        sessionCleanupMetric
+                    }
                 }
                 .padding(.top, 8)
             }
             Spacer()
         }
         .padding(.vertical, 14)
+    }
+
+    @ViewBuilder private var scanControls: some View {
+        Button(action: model.startFullScan) {
+            Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
+                .font(.headline).padding(.horizontal, 8).padding(.vertical, 4)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
+        .accessibilityHint(L10n.text("只读扫描系统清理、应用、重复大文件和 Agent 环境"))
+        fullScanElapsed
+    }
+
+    private var sessionCleanupMetric: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            Text(L10n.text("本次累计清理")).font(.caption).foregroundColor(.secondary)
+            Text(ByteCountFormatter.cleanerString(bytes: model.sessionCleanupSummary.bytes))
+                .font(.system(size: 26, weight: .semibold)).monospacedDigit().foregroundStyle(.tint)
+            Text(L10n.text("全部模块 · {0} 项", String(model.sessionCleanupSummary.itemCount)))
+                .font(.caption).foregroundColor(.secondary)
+            Text(L10n.text("清空废纸篓，即可立即释放磁盘空间。"))
+                .font(.caption2.bold()).foregroundColor(.secondary)
+        }
+        .multilineTextAlignment(.trailing)
+        .frame(width: 240, alignment: .trailing)
+        .fixedSize(horizontal: true, vertical: true)
+        .help(L10n.text("统计本次打开软件后的成功清理量，重新扫描不清零；不含失败或跳过项。恢复区和废纸篓中的文件可能仍占空间。"))
     }
 
     private var fullScanElapsed: some View {
@@ -111,8 +139,6 @@ struct DashboardView: View {
             .buttonStyle(.plain)
             .onHover { hoveredModule = $0 ? module : nil }
             .accessibilityHint(L10n.text("打开{0}扫描结果", module.resultDestinationTitle))
-            let failures = model.cleanupFailures(for: module)
-            if !failures.isEmpty { moduleFailureList(failures, module: module) }
         }
     }
 
@@ -124,39 +150,6 @@ struct DashboardView: View {
             TrustItem(icon: "arrow.uturn.backward.circle", title: L10n.text("默认可恢复"), detail: L10n.text("删除后可恢复，恢复不覆盖原文件"))
         }
         .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func moduleFailureList(_ failures: [DefaultCleanupFailure], module: ScanModuleID) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(failures) { failure in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: failure.isRetryable ? "arrow.clockwise.circle" : "exclamationmark.triangle")
-                        .foregroundColor(failure.isRetryable ? .orange : .secondary)
-                    Text(failure.candidate.displayName).fontWeight(.medium).lineLimit(1)
-                    Text(failure.reason).foregroundColor(.secondary).lineLimit(2)
-                    Spacer()
-                    Text(
-                        failure.isRetryable
-                            ? model.hasScanResult(for: module) ? L10n.text("可安全重试") : L10n.text("扫描完成后可重试")
-                            : L10n.text("需重新扫描")
-                    )
-                    .foregroundColor(failure.isRetryable ? .orange : .secondary)
-                }
-                .font(.caption)
-            }
-            let retryable = failures.filter(\.isRetryable)
-            if !retryable.isEmpty {
-                Button(
-                    L10n.text("安全重试 {0} 项", String(describing: retryable.count))
-                ) {
-                    model.retryCleanupFailures(retryable)
-                }
-                .controlSize(.small)
-                .disabled(!model.canRetryCleanupFailures(retryable))
-            }
-        }
-        .padding(.leading, 44)
-        .padding(.trailing, 8)
     }
 
 }

@@ -30,7 +30,7 @@ struct ContentView: View {
                     minHeight: 560,
                     maxHeight: .infinity
                 )
-                .disabled(model.updateInProgress && model.selection != .settings)
+                .disabled((model.updateInProgress && model.selection != .settings) || model.checkingScanPermissions)
                 if showsOneClickBar {
                     OneClickCleanupActionBar(model: model)
                         .disabled(model.updateInProgress)
@@ -53,11 +53,11 @@ struct ContentView: View {
         )) {
             DeletionOperationSheet(model: model)
         }
-        .alert(L10n.text("扫描权限提示"), isPresented: $model.showsPermissionIntroduction) {
-            Button(L10n.text("打开系统设置…"), action: model.openFullDiskAccessSettings)
-            Button(L10n.text("继续使用"), role: .cancel) {}
-        } message: {
-            Text(L10n.text("建议在系统设置中开启完全磁盘访问，以扫描更多位置。也可直接使用并跳过不可访问位置；App 管理在实际卸载时由系统确认。之后可在设置中调整，此提醒只显示一次。"))
+        .sheet(isPresented: Binding(
+            get: { model.showsScanPermissionPreparation },
+            set: { if !$0 { model.dismissScanPermissionPreparation() } }
+        )) {
+            ScanPermissionPreparationView(model: model)
         }
     }
 

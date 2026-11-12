@@ -12,14 +12,18 @@ import Foundation
 
     private let manager: HelperServiceManager
     private let session: HelperAuthorizationSession
+    private var refreshTask: Task<Void, Never>?
+    private let statusReader: (@Sendable () async -> HelperRegistrationStatus)?
     private var canChange: @MainActor () -> Bool = { true }
 
     init(
         manager: HelperServiceManager = HelperServiceManager(),
-        session: HelperAuthorizationSession = HelperAuthorizationSession()
+        session: HelperAuthorizationSession = HelperAuthorizationSession(),
+        statusReader: (@Sendable () async -> HelperRegistrationStatus)? = nil
     ) {
         self.manager = manager
         self.session = session
+        self.statusReader = statusReader
     }
 
     func configureAvailability(_ canChange: @escaping @MainActor () -> Bool) {
@@ -36,9 +40,19 @@ import Foundation
     }
 
     func refresh() {
-        status = manager.status
-        if status != .enabled { session.revoke() }
-        authorizationActive = session.isAuthorized
+        guard refreshTask == nil, !isChanging else { return }
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if !Task.isCancelled { refreshTask = nil } }
+            let updated: HelperRegistrationStatus
+            if let statusReader { updated = await statusReader() }
+            else { updated = await manager.readStatus() }
+            guard !Task.isCancelled else { return }
+            if status != updated { status = updated }
+            if updated != .enabled { session.revoke() }
+            let authorized = session.isAuthorized
+            if authorizationActive != authorized { authorizationActive = authorized }
+        }
     }
 
     func install() {
@@ -81,22 +95,42 @@ import Foundation
     }
 
     func authorizeSession() {
-        guard beginChange() else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            defer { finishChange() }
-            do {
-                guard manager.status == .enabled else { throw HelperClientError.unavailable }
-                let identity = try HelperSigningIdentity.current()
-                _ = try await XPCPrivilegedHelperClient(identity: identity).ping()
-                guard canChange() else { throw HelperClientError.unavailable }
-                try session.authorizeUserInteraction()
-                message = L10n.text("已验证同团队 Helper 并启用最多 5 分钟的受限应用操作；具体项目仍需明确选择、确认和复验。")
-            } catch {
-                session.revoke()
-                message = L10n.text("Helper 会话未启用：{0}", String(describing: error.localizedDescription))
+        Task { await prepareForScan() }
+    }
+
+    /// Invoked only from the user's permission preparation action.
+    @discardableResult func prepareForScan() async -> Bool {
+        guard beginChange() else { return false }
+        defer { finishChange() }
+        do {
+            status = await manager.readStatus()
+            if status == .notRegistered { try manager.install(); status = manager.status }
+            if status == .requiresApproval {
+                manager.openApprovalSettings()
+                message = L10n.text("请在系统设置中批准后台服务，然后返回继续。")
+                return false
             }
+            guard status == .enabled else { throw HelperClientError.unavailable }
+            let identity = try HelperSigningIdentity.current()
+            _ = try await XPCPrivilegedHelperClient(identity: identity).ping()
+            guard canChange() else { throw HelperClientError.unavailable }
+            try session.authorizeUserInteraction()
+            authorizationActive = session.isAuthorized
+            message = L10n.text("本次使用期间复用管理员授权；退出应用、主动关闭或系统撤销后失效。")
+            return authorizationActive
+        } catch {
+            session.revoke(); authorizationActive = false
+            message = L10n.text("Helper 会话未启用：{0}", error.localizedDescription)
+            return false
         }
+    }
+
+    func refreshForScan() async {
+        guard !isChanging else { return }
+        refreshTask?.cancel(); refreshTask = nil
+        status = await manager.readStatus()
+        if status != .enabled { session.revoke() }
+        authorizationActive = session.isAuthorized
     }
 
     func revokeSession() {
@@ -118,6 +152,8 @@ import Foundation
 
     private func beginChange(revoking: Bool = false) -> Bool {
         guard !isChanging, canChange() else { return false }
+        refreshTask?.cancel()
+        refreshTask = nil
         if revoking {
             session.revoke()
             authorizationActive = false
@@ -129,5 +165,37 @@ import Foundation
     private func finishChange() {
         isChanging = false
         refresh()
+    }
+}
+
+private actor HelperRefreshProbe {
+    private(set) var count = 0
+    func read() async -> HelperRegistrationStatus {
+        count += 1
+        try? await Task.sleep(for: .milliseconds(150))
+        return .enabled
+    }
+}
+
+extension HelperSettingsModel {
+    static func checkActivationRefresh() async throws {
+        struct Failure: Error { }
+        let probe = HelperRefreshProbe()
+        let model = HelperSettingsModel(statusReader: { await probe.read() })
+        var publications = 0
+        let observation = model.objectWillChange.sink { publications += 1 }
+        let start = Date()
+        for _ in 0..<20 { model.refresh() }
+        guard Date().timeIntervalSince(start) < 0.05 else { throw Failure() }
+        // The main actor remains available while the status request is pending.
+        try await Task.sleep(for: .milliseconds(20))
+        guard await probe.count == 1, model.status == .unavailable else { throw Failure() }
+        await model.refreshTask?.value
+        guard model.status == .enabled, publications == 1 else { throw Failure() }
+        model.refresh()
+        await model.refreshTask?.value
+        guard await probe.count == 2, publications == 1 else { throw Failure() }
+        observation.cancel()
+        print("PASS: activation status refresh is nonblocking, coalesces repeated requests and does not republish unchanged status")
     }
 }

@@ -148,7 +148,7 @@ import XCTest
         XCTAssertTrue(FileManager.default.fileExists(atPath: b.path))
     }
 
-    func testRuntimeCopiesAreBlockedInBothScanPaths() async throws {
+    func testRuntimeCopiesAreManualOnlyInBothScanPaths() async throws {
         let root = try makeFixtureDirectory()
         defer { removeFixtureDirectory(root) }
         let home = root.deletingLastPathComponent()
@@ -166,21 +166,20 @@ import XCTest
             let report = try await scan(ScanContext(homeDirectory: home), index: index)
             let candidates = report.largeFileCandidates.filter { files.contains($0.url) }
             XCTAssertFalse(candidates.isEmpty)
-            XCTAssertTrue(candidates.allSatisfy { !$0.risk.isSelectable && $0.largeFileProof == nil })
+            XCTAssertTrue(candidates.allSatisfy { $0.risk.isSelectable && $0.requiresExplicitSelection == true && $0.largeFileProof == nil })
             XCTAssertTrue(DefaultCleanupPolicy().selection(for: report).largeFiles.isEmpty)
             for candidate in candidates {
-                XCTAssertThrowsError(try PlanBuilder().build(candidates: candidates, selectedIDs: [candidate.id]))
+                XCTAssertNoThrow(try PlanBuilder().build(candidates: candidates, selectedIDs: [candidate.id]))
             }
         }
     }
 
-    func testExecutionRejectsPreviouslySelectableRuntimeFile() async throws {
+    func testExecutionAllowsExplicitlySelectedRuntimeFile() async throws {
         let root = try makeFixtureDirectory()
         defer { removeFixtureDirectory(root) }
         let home = root.deletingLastPathComponent()
         let file = try write(Data(repeating: 1, count: 8192), to: "miniconda3/lib/runtime.dat", in: home)
         let identity = try await LocalFileSystem().identity(at: file)
-        // Simulate a plan created before the personal-content restriction existed.
         let candidate = CleanupCandidate(url: file, displayName: "runtime.dat", category: .largeFile,
             bytes: identity.size, risk: .review, evidence: [], identity: identity, source: .diskAnalysis,
             lastAccessDate: nil, isActive: false)
@@ -189,7 +188,10 @@ import XCTest
         let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: home),
             quarantineRoot: home.appendingPathComponent("Quarantine"), currentRuleVersion: builder.ruleVersion)
         let receipt = await executor.execute(plan: plan)
-        XCTAssertEqual(receipt.results.first?.status, .skippedProtected)
+        XCTAssertEqual(receipt.results.first?.status, .succeeded)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        let restored = await executor.restore(receipt: receipt)
+        XCTAssertEqual(restored.results.first?.status, .restored)
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
     }
 
@@ -211,6 +213,73 @@ import XCTest
         XCTAssertFalse(scope.allows(executable))
         XCTAssertFalse(scope.allows(home.appendingPathComponent("Downloads-old/archive.zip")))
         XCTAssertFalse(scope.allows(home.appendingPathComponent("archive.zip")))
+    }
+
+    func testProjectBuildInstallersArePreselectedWithoutSelectingProjectData() async throws {
+        let root = try makeFixtureDirectory(); defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        _ = try write(Data(), to: "code/project/Package.swift", in: home)
+        let dmg = try write(Data(repeating: 42, count: 8192), to: "code/project/build/SuperCleaner.dmg", in: home)
+        let data = try write(Data(repeating: 43, count: 8192), to: "code/project/build/data.bin", in: home)
+        let runtime = try write(Data(repeating: 44, count: 8192), to: "code/project/node_modules/runtime.dmg", in: home)
+        let report = try await scan(ScanContext(homeDirectory: home), index: DuplicateFixtureIndex(urls: [dmg, data, runtime]))
+        XCTAssertEqual(Set(DefaultCleanupPolicy().selection(for: report).largeFiles.map(\.url)), [dmg])
+        XCTAssertEqual(report.largeFileCandidates.first { $0.url == dmg }?.largeFileRecommendation?.code, "installer-type")
+    }
+
+    func testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored() async throws {
+        let root = try makeFixtureDirectory()
+        defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        _ = try write(Data(), to: "code/aitone/.git/HEAD", in: home)
+        _ = try write(Data(), to: "code/aitone/pyproject.toml", in: home)
+        let dataFiles = try ["hdr.exr", "sdr-reference.npz", "copy.npz"].map {
+            try write(Data(repeating: 42, count: 8192), to: "code/aitone/dataoutput/experiments/\($0)", in: home)
+        }
+        let runtime = try write(Data(repeating: 42, count: 8192),
+            to: "CascadeProjects/VLM2Business/venv/lib/python3.13/site-packages/torch/lib/libtorch_cpu.dylib", in: home)
+        let report = try await scan(ScanContext(homeDirectory: home), index: DuplicateFixtureIndex(urls: dataFiles + [runtime]))
+        let candidates = report.largeFileCandidates.filter { dataFiles.contains($0.url) }
+        XCTAssertEqual(candidates.count, 3)
+        XCTAssertTrue(candidates.allSatisfy { $0.risk.isSelectable && $0.requiresExplicitSelection == true })
+        XCTAssertTrue(candidates.allSatisfy { $0.largeFileProof == nil && $0.defaultSelection != true })
+        XCTAssertTrue(DefaultCleanupPolicy().selection(for: report).largeFiles.isEmpty)
+        XCTAssertEqual(report.largeFileCandidates.first { $0.url == runtime }?.risk, .review)
+        let builder = PlanBuilder(protectionPolicy: .init(homeDirectory: home))
+        let plan = try builder.build(candidates: candidates, selectedIDs: Set(candidates.map(\.id)))
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: .init(homeDirectory: home),
+            quarantineRoot: home.appendingPathComponent("Quarantine"), currentRuleVersion: builder.ruleVersion)
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.count, 3)
+        XCTAssertTrue(receipt.results.allSatisfy { $0.status == .succeeded })
+        let restored = await executor.restore(receipt: receipt)
+        XCTAssertTrue(restored.results.allSatisfy { $0.status == .restored })
+        XCTAssertTrue(FileManager.default.fileExists(atPath: runtime.path))
+    }
+
+    func testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape() throws {
+        let root = try makeFixtureDirectory()
+        defer { removeFixtureDirectory(root) }
+        let home = root.deletingLastPathComponent()
+        let scope = LargeFileCleanupScope(homeDirectory: home)
+        let runtime = try write(Data([1]), to: "tools/custom-python/runtime.dat", in: home)
+        _ = try write(Data(), to: "tools/custom-python/pyvenv.cfg", in: home)
+        let link = root.appendingPathComponent("linked.dat")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: runtime)
+        for file in [runtime, link, home.appendingPathComponent(".ssh/key.dat"),
+                     home.appendingPathComponent("Library/data.dat"), home.appendingPathComponent("code/project/.git/objects/data") ] {
+            XCTAssertTrue(scope.allows(file, forManualSelection: true), file.path)
+        }
+        let data = try write(Data([1]), to: "datasets/experiment/result.npz", in: home)
+        XCTAssertTrue(scope.allows(data, forManualSelection: true))
+        XCTAssertFalse(scope.allows(data))
+        let outside = home.deletingLastPathComponent().appendingPathComponent("outside-\(UUID().uuidString).dat")
+        try Data([1]).write(to: outside)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        let escape = root.appendingPathComponent("escape.dat")
+        try FileManager.default.createSymbolicLink(at: escape, withDestinationURL: outside)
+        XCTAssertFalse(scope.allows(escape, forManualSelection: true))
+        XCTAssertThrowsError(try ProtectionPolicy(homeDirectory: home).validate(home.appendingPathComponent(".ssh/key.dat")))
     }
 
     private func scan(_ root: URL, index: any LargeFileMetadataIndexing = UnavailableDuplicateFixtureIndex()) async throws -> SystemScanReport {

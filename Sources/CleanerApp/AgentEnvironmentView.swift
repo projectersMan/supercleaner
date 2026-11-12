@@ -9,14 +9,18 @@ struct AgentEnvironmentView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if !model.hasScanResult(for: .agentEnvironment) {
+            if let message = model.agentEnvironmentProgressMessage,
+               model.preparingAgentSkillPresentation || !model.hasScanResult(for: .agentEnvironment) {
+                AgentEnvironmentProgressView(message: message)
+            } else if !model.hasScanResult(for: .agentEnvironment) {
                 ScanRequiredView(destinationTitle: L10n.text("Agent 环境")) { model.navigateToScan() }
             } else {
                 filterBar
+                Divider()
                 Text(model.agentOverlapStatus)
                     .font(.caption).foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24).padding(.bottom, 8)
+                    .padding(.horizontal, 24).padding(.vertical, 8)
                 if selectedSection == .skills {
                     skillsContent
                 } else {
@@ -41,7 +45,7 @@ struct AgentEnvironmentView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text(L10n.text("类型")).foregroundColor(.secondary)
                 Picker(L10n.text("类型"), selection: $selectedSection) {
@@ -54,7 +58,7 @@ struct AgentEnvironmentView: View {
                 .frame(width: 190)
             }
 
-            Divider().frame(height: 24)
+            Divider().frame(height: 18)
 
             HStack(spacing: 8) {
                 Text(L10n.text("平台")).foregroundColor(.secondary)
@@ -72,7 +76,7 @@ struct AgentEnvironmentView: View {
                 .frame(width: 170)
             }
 
-            Divider().frame(height: 24)
+            Divider().frame(height: 18)
 
             HStack(spacing: 8) {
                 Text(L10n.text("显示")).foregroundColor(.secondary)
@@ -88,42 +92,51 @@ struct AgentEnvironmentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
+        .font(.caption)
+        .controlSize(.regular)
+        .frame(height: 24)
+        .padding(.leading, 18)
+        .padding(.trailing, 20)
         .padding(.vertical, 10)
-        .background(Color.secondary.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .background(.bar)
     }
 
     @ViewBuilder private var mcpContent: some View {
         VStack(spacing: 0) {
             mcpToolbar
             if model.visibleAgentMCPConfigurations.isEmpty {
-                EmptyState(
+                if let message = model.agentEnvironmentProgressMessage {
+                    AgentEnvironmentProgressView(message: message)
+                } else { EmptyState(
                     title: model.agentItemsSelectionFilter == .selected ? L10n.text("没有已选中的 MCP 配置") : L10n.text("没有 MCP 配置"),
                     message: L10n.text("未发现符合条件的 MCP 配置。"),
                     icon: "network"
-                )
+                ) }
             } else {
-                List {
-                    Section {
-                        ForEach(model.visibleAgentMCPConfigurations) { configuration in
-                            MCPConfigurationRow(
-                                model: model,
-                                configuration: configuration,
-                                candidate: model.agentMCPCandidate(for: configuration)
-                            )
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        Section {
+                            ForEach(model.visibleAgentMCPConfigurations) { configuration in
+                                MCPConfigurationRow(
+                                    model: model,
+                                    configuration: configuration,
+                                    candidate: model.agentMCPCandidate(for: configuration)
+                                )
+                            }
+                        } header: {
+                            HStack {
+                                Label(L10n.text("Agents"), systemImage: "person.2")
+                                Spacer()
+                                Text(L10n.text("{0} 个 MCP", String(describing: model.visibleAgentMCPConfigurations.count)))
+                                Text(ByteCountFormatter.cleanerString(bytes: visibleMCPBytes))
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                            .background(.background)
                         }
-                    } header: {
-                        HStack {
-                            Label(L10n.text("Agents"), systemImage: "person.2")
-                            Spacer()
-                            Text(L10n.text("{0} 个 MCP", String(describing: model.visibleAgentMCPConfigurations.count)))
-                            Text(ByteCountFormatter.cleanerString(bytes: visibleMCPBytes))
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -155,29 +168,36 @@ struct AgentEnvironmentView: View {
         VStack(spacing: 0) {
             skillsToolbar
             if model.visibleAgentSkillSections.isEmpty {
-                EmptyState(
+                if let message = model.agentEnvironmentProgressMessage {
+                    AgentEnvironmentProgressView(message: message)
+                } else { EmptyState(
                     title: model.agentItemsSelectionFilter == .selected ? L10n.text("没有已选中的 Skill") : L10n.text("没有 Skill"),
                     message: L10n.text("未发现符合条件的 Skill。"),
                     icon: "square.stack.3d.up"
-                )
+                ) }
             } else {
-                List {
-                    ForEach(model.visibleAgentSkillSections) { section in
-                        Section {
-                            ForEach(section.skills) { binding in
-                                AgentSkillRow(model: model, binding: binding)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(model.visibleAgentSkillSections) { section in
+                            Section {
+                                ForEach(section.skills) { binding in
+                                    AgentSkillRow(model: model, binding: binding)
+                                }
+                            } header: {
+                                HStack {
+                                    Label(section.group.title, systemImage: section.group.icon)
+                                    Spacer()
+                                    Text(L10n.text("{0} 个 Skill", String(describing: section.skillCount)))
+                                    Text(ByteCountFormatter.cleanerString(bytes: section.reclaimableBytes))
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 8)
+                                .background(.background)
                             }
-                        } header: {
-                            HStack {
-                                Label(section.group.title, systemImage: section.group.icon)
-                                Spacer()
-                                Text(L10n.text("{0} 个 Skill", String(describing: section.skillCount)))
-                                Text(ByteCountFormatter.cleanerString(bytes: section.reclaimableBytes))
-                            }
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(.secondary)
                         }
                     }
+                    .padding(.horizontal, 24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -225,6 +245,8 @@ private struct MCPConfigurationRow: View {
                         Text(configuration.fileURL.lastPathComponent)
                             .font(.caption.monospaced())
                             .foregroundColor(.secondary)
+                        .padding(.vertical, 8)
+                        .background(.background)
                     }
                 }
                 HStack(spacing: 8) {

@@ -1,4 +1,5 @@
 /* Application interface and diagnostic messages. Parameters use {0}, {1}, etc. */
+"能力清单已就绪，正在补充 Agent 清理资产" = "Capabilities are ready; scanning remaining Agent assets";
 "访问检查未通过" = "Access check failed";
 "当前 App 可读取完全磁盘访问检查位置；其他位置以实际扫描为准" = "This app can read the Full Disk Access check location; access elsewhere is determined by the scan.";
 "当前 App 访问保护位置被拒绝。请检查当前版本授权，必要时重启；可继续扫描可访问位置。" = "This app was denied access to the protected check location. Check authorization for this version and restart if needed; accessible locations can still be scanned.";
@@ -108,7 +109,6 @@
 "建议清理" = "Recommended cleanup";
 "深度候选" = "Deep cleanup candidates";
 "默认保留" = "Keep by default";
-"始终保护" = "Always protected";
 "内置" = "Built-in";
 "插件" = "Plugin";
 "用户安装" = "User installed";
@@ -267,14 +267,12 @@
 "分析完整" = "Analysis complete";
 "分析受限" = "Limited analysis";
 "运行中 · 暂不可卸载" = "Running · Cannot uninstall yet";
-"系统保护" = "Protected";
 "无法分析" = "Cannot analyze";
 "系统目录" = "system directory";
 "引用" = "reference";
 "其他应用共用" = "Shared with other applications";
 "需先停止服务" = "Stop the service first";
 "请使用原安装器" = "Use the original installer";
-"系统目录保护" = "System directory protection";
 "仍有项目引用" = "Still referenced";
 "归属待确认" = "Ownership unverified";
 "已选择" = "Selected";
@@ -302,7 +300,7 @@
 "如何恢复" = "How to restore";
 "从恢复记录恢复；若原路径已有文件，会恢复到相邻位置，绝不覆盖。" = "Restore from Recovery. If the original path is occupied, restore to an adjacent location without overwriting.";
 "执行前复验" = "Checks before execution";
-"重新检查路径、文件身份、活跃状态、规则版本和计划期限；任何变化都会安全跳过。" = "Paths, file identity, activity, rule version, and plan expiration are checked again. Changed items are safely skipped.";
+"执行前检查路径、文件身份、适用的活跃状态、规则版本和计划期限；普通清理允许内容更新，重复内容及非缓存 Agent 数据仍需复验。" = "Paths, file identity, applicable activity checks, rules, and plan expiration are checked before cleanup. Ordinary cleanup allows content updates; duplicate content and non-cache Agent data still require revalidation.";
 "搜索名称、路径或证据" = "Search by name, path, or evidence";
 "建议" = "Recommendation";
 "仅显示已选" = "Selected only";
@@ -837,7 +835,6 @@
 "保护清单无法读取；所有删除均被阻止" = "Protection list unreadable; all deletion blocked";
 "清理计划" = "cleanup plan";
 "卸载计划" = "uninstall plan";
-"{0}，始终保护" = "{0}, always protected";
 "从{0}移除 {1}" = "Remove {1} from {0}";
 "将 {0} 加入{1}" = "Add {0} to {1}";
 "{0} 个区域受限" = "{0} locations limited";
@@ -990,6 +987,7 @@
 "部分内容不可读取或已变化" = "Some content could not be read or has changed";
 "缓存可能需要重新下载，日志将不再保留" = "Caches may need to be downloaded again; logs will no longer be available";
 "应用运行中，缓存可能立即重新生成" = "The app is running, so the cache may regenerate immediately";
+"应用运行中；日志清理后可能继续生成" = "The app is running; logs may continue to be generated after cleanup";
 "已移入系统废纸篓，可在清空前恢复；清空废纸篓后才会释放空间。" = "Items moved to macOS Trash can be restored before it is emptied. Empty Trash to free disk space.";
 "已彻底删除的项目无法恢复。" = "Permanently deleted items cannot be restored.";
 "已移入恢复区" = "Moved to Recovery";
@@ -1068,3 +1066,214 @@
 "应用、重复大文件和 Agent 环境可进入对应页面核对和确认。" = "Review and confirm apps, duplicate large files, and Agent resources on their respective pages.";
 
 "仅允许清理个人文件目录中的文件，应用和开发环境受到保护" = "Only personal file folders can be cleaned; applications and development environments are protected";
+
+"仅允许选择当前用户目录中的文件" = "Only files within your home folder can be selected.";
+
+"文件正在使用，暂不可选择" = "This file is in use and cannot be selected.";
+
+"无法验证文件，请刷新扫描" = "Unable to verify this file. Refresh the scan.";
+
+"仅支持手动选择：请确认文件用途，删除可能影响相关应用或项目" = "Manual selection only: check the file’s purpose. Deleting it may affect related apps or projects.";
+
+"退出应用" = "Quit App";
+
+"正在退出…" = "Quitting…";
+
+"请求正常退出；应用可提示保存文件，不会强制结束进程。" = "Request a normal quit. The app may prompt to save files; its process will not be force quit.";
+
+"应用尚未退出，请切换到该应用处理保存提示或手动退出。" = "The app is still running. Switch to it to handle save prompts or quit it manually.";
+
+"不能在此退出系统应用或 SuperCleaner 自身。" = "System apps and SuperCleaner itself cannot be quit here.";
+
+"退出 {0}" = "Quit {0}";
+
+"单击应用行选择退出目标；请求正常退出，不会强制结束进程。" = "Click an app row to choose which app to quit. Requests a normal quit without forcing the process to end.";
+
+"退出所选应用（{0}）" = "Quit Selected Apps ({0})";
+
+"正在退出 {0} 个应用…" = "Quitting {0} apps…";
+
+"勾选运行中的应用后批量请求正常退出；不会强制结束或卸载应用。" = "Check running apps to request normal quit for the selected apps. This does not force quit or uninstall them.";
+
+"勾选以退出此应用，不会选择卸载内容" = "Select this app to quit it, without selecting uninstall items.";
+
+"选择退出 {0}" = "Select {0} to quit";
+
+"本次累计清理" = "Cleaned This Session";
+
+"全部模块 · {0} 项" = "All modules · {0} items";
+
+"清空废纸篓，即可立即释放磁盘空间。" = "Empty the Trash to free up disk space immediately.";
+
+"统计本次打开软件后的成功清理量，重新扫描不清零；不含失败或跳过项。恢复区和废纸篓中的文件可能仍占空间。" = "Successful cleanup since opening the app, across all modules. Rescanning does not reset the total. Failed and skipped items are excluded. Recovery and Trash may still occupy disk space.";
+
+"正在准备卸载清单…" = "Preparing uninstall items…";
+
+"缺少关联扫描结果，请刷新应用列表。" = "Association scan results are missing. Refresh the application list.";
+
+"复用 {0} 项已知数据；内容未变化，未重新分析" = "Reused {0} known items; content unchanged, no reanalysis";
+
+"正在分析新增或已修改对象的能力包含关系…" = "Analyzing containment for new or modified items…";
+
+"新增或更新 {0} 项，复用 {1} 项；计算 {2} 对关系，{3} 项联合包含达到阈值" = "Added or updated {0} items, reused {1}; calculated {2} pairs, {3} items meet the coverage threshold";
+"Dock 图标备份未完成；应用文件仍按计划处理，图标可能需要手动移除。" = "Dock icons could not be backed up. App files will still be processed; you may need to remove the icons manually.";
+"应用文件已处理，但 Dock 图标未能同步；可手动移除，或重启 SuperCleaner 后重试。" = "App files were processed, but Dock icons could not be updated. Remove them manually or restart SuperCleaner to retry.";
+"文件已恢复，但 Dock 图标未能还原；可手动添加，或重启 SuperCleaner 后重试。" = "Files were restored, but Dock icons could not be restored. Add them manually or restart SuperCleaner to retry.";
+"扫描未完成" = "Scan incomplete";
+"标准用户缓存目录中的可再生数据；完整扫描排除凭证、用户数据和离线内容后推荐清理" = "Regenerable data in the standard user cache directory; recommended after a complete scan excludes credentials, user data, and offline content";
+
+"由 uv 管理" = "Managed by uv";
+
+"可手动清理" = "Available for manual cleanup";
+
+"未找到对应应用，但此处可能保留文档或设置；确认不再需要后可单独勾选清理" = "No matching app was found, but documents or settings may remain here. Select individually if no longer needed.";
+
+"uv 缓存需要由原工具管理；直接删除可能影响 Python 环境，请使用 uv cache prune 清理未使用内容" = "uv manages this cache. Direct deletion may affect Python environments; use uv cache prune to remove unused content.";
+
+"这是 Playwright 浏览器运行文件；清理后需重新安装浏览器才能运行相关任务" = "These are Playwright browser runtime files. Reinstall the browsers after cleanup to run dependent tasks.";
+
+"已按清理规则筛选，可直接批量清理" = "Selected by cleanup rules and ready for bulk cleanup";
+
+"包含归档或工具运行数据；确认不再需要后可单独勾选清理" = "Contains archives or tool runtime data. Select individually if no longer needed.";
+
+"Cargo 可重新下载依赖归档；离线时需先联网恢复缓存" = "Cargo can download dependency archives again; restoring the cache requires network access.";
+
+"Pod 缓存可从配置的依赖源重新下载；私有源需保持访问权限" = "Pod caches can be downloaded again from configured sources; private sources require continued access.";
+
+"已完成应用归属检查，未发现对应应用；此残留默认加入推荐清理" = "Application ownership checks found no installed owner; this leftover is selected for recommended cleanup by default";
+
+"应用扫描不完整或属于共享容器，暂不默认选择此残留" = "The app inventory is incomplete or this is a shared container; this leftover is not selected by default";
+
+"部分应用或扩展的共享数据声明未完成检查，暂不默认选择此残留" = "Shared data declarations could not be fully checked for some apps or extensions; this leftover is not selected by default";
+
+"应用扫描尚未完成，暂不默认选择此残留" = "The app inventory is incomplete; this leftover is not selected by default";
+
+"uv 清理未完成：{0}" = "uv cleanup did not finish: {0}";
+
+"仍有已安装的 Playwright 项目声明使用此浏览器版本" = "An installed Playwright project still declares this browser version";
+
+"原工具仅清理未使用内容；这部分不能从恢复记录撤销。" = "The original tool cleaned unused content; this portion cannot be undone from Recovery.";
+
+"容量未确认" = "Size not confirmed";
+
+"已由 uv 清理未使用内容，缓存目录保留；此操作不能从恢复记录撤销" = "uv pruned unused content and kept the cache directory; this operation cannot be undone from Recovery";
+
+"已由原工具清理" = "Cleaned by the original tool";
+
+"无法读取或核对这些位置；请检查访问权限后重新扫描，容量暂未确认" = "These locations could not be read or verified. Check access permissions and rescan; their sizes are not yet confirmed.";
+
+"未发现已登记项目引用此浏览器版本，可清理旧安装文件" = "No registered project references this browser version; the old installation can be cleaned";
+
+"未找到可用的 uv 工具，无法安全执行缓存清理" = "No usable uv tool was found to manage this cache safely";
+
+"浏览器安装索引或引用信息尚未完整确认" = "The browser installation index or reference information could not be fully verified";
+
+"清理后统计" = "Measured after cleanup";
+
+"由 uv 清理未使用缓存，不移入废纸篓；不能从恢复记录撤销。" = "uv prunes unused cache directly; it does not move items to Trash and cannot be undone from Recovery.";
+
+"通过 uv 清理未使用缓存，保留仍被引用的内容；实际清理量在完成后统计" = "Use uv to prune unused cache while keeping referenced content; the cleaned amount is measured after completion";
+
+"当前项目处理结束后停止，已经完成的操作不会自动撤销。" = "Stop after the current item finishes. Completed operations are not automatically undone.";
+
+"处理完成后会显示实际结果和各项目的恢复方式。" = "Actual results and recovery options for each item will appear when processing finishes.";
+
+"计划动作与清理项目不匹配，请重新扫描" = "The planned action does not match this cleanup item. Scan again.";
+
+"清理工具：{0}" = "Cleanup tool: {0}";
+
+"由原工具管理" = "Managed by the original tool";
+
+"通过原工具清理未使用缓存，保留仍被引用的内容；实际清理量在完成后统计" = "The original tool removes unused cache and preserves referenced content; the freed space is measured afterward.";
+
+"未找到规则指定的清理工具，无法安全执行缓存清理" = "The configured cleanup tool is unavailable; this cache cannot be cleaned safely.";
+
+"由原工具清理未使用缓存，不移入废纸篓；不能从恢复记录撤销。" = "The original tool removes unused cache directly. This action cannot be undone from Recovery.";
+
+"未发现已登记项目引用此版本，可清理旧运行文件" = "No registered project references this version; these unused runtime files can be cleaned.";
+
+"仍有已登记项目声明使用此版本" = "A registered project still requires this version.";
+
+"安装索引或引用信息尚未完整确认" = "The installation index or reference information could not be fully verified.";
+
+"这是运行依赖文件；清理后需重新安装才能运行相关任务" = "These are runtime dependencies. Reinstall them after cleanup to run dependent tasks.";
+
+"已由原工具清理未使用内容，缓存目录保留；此操作不能从恢复记录撤销" = "The original tool removed unused content and preserved the cache directory. This action cannot be undone from Recovery.";
+
+"原工具清理未完成：{0}" = "The original tool could not complete cleanup: {0}";
+
+"内嵌组件：{0}（随主应用卸载，大小已包含）" = "Embedded component: {0} (removed with the app; size already included)";
+
+"完整卸载后会尝试清理对应安装记录。" = "Associated installation receipts are cleaned up when eligible after a complete uninstall.";
+
+"安装记录用于核对安装内容；对应组件完整卸载后会尝试清理记录。" = "Installation receipts identify installed components; eligible receipts are cleaned up after those components are fully uninstalled.";
+
+"请在系统设置中批准后台服务，然后返回继续。" = "Approve the background service in System Settings, then return to continue.";
+
+"本次使用期间复用管理员授权；退出应用、主动关闭或系统撤销后失效。" = "Administrator authorization is reused during this app session until you quit, revoke it, or macOS revokes it.";
+
+"本次使用期间已授权" = "Authorized for this app session";
+
+"扫描前准备权限" = "Prepare Permissions Before Scanning";
+
+"集中准备扫描和后续清理所需的权限；已获得的有效授权会复用。系统设置中的不同权限仍需分别开启。" = "Prepare permissions for scanning and cleanup together. Existing valid authorization is reused. Separate permissions still need to be enabled in System Settings.";
+
+"管理员操作" = "Administrator Operations";
+
+"后台服务" = "Background Service";
+
+"在此准备应用卸载、恢复和安装记录清理所需的管理员授权。" = "Prepare administrator authorization for app uninstall, recovery, and installation receipt cleanup here.";
+
+"当前构建无法启用管理员后台服务；普通扫描和当前权限允许的清理仍可使用。" = "This build cannot enable the administrator service. Scanning and cleanup allowed by your current permissions remain available.";
+
+"授权不会启动删除。后续仍按你确认的清理清单执行；系统撤销权限后需要重新准备。" = "Granting permission does not delete anything. Cleanup uses the list you confirm. If macOS revokes access, permissions need to be prepared again.";
+
+"按当前权限扫描" = "Scan with Current Permissions";
+
+"准备权限并扫描" = "Prepare Permissions and Scan";
+
+"允许扫描访问" = "Allow Scan Access";
+
+"建议一起准备扫描和卸载所需的两项权限。完全磁盘访问用于扫描；App 管理用于之后卸载其他应用。" = "We recommend preparing both permissions together. Full Disk Access is used for scanning; App Management is used later to uninstall other apps.";
+
+"已开启" = "Enabled";
+
+"需要开启" = "Turn On";
+
+"已可扫描受保护位置。" = "Protected locations can now be scanned.";
+
+"打开系统设置，开启 SuperCleaner，然后在系统提示中选择“退出并重新打开”。macOS 会自动重新打开本 App，并继续本次扫描。" = "Open System Settings, turn on SuperCleaner, then choose Quit & Reopen in the macOS prompt. macOS will reopen this app and continue this scan automatically.";
+
+"打开完全磁盘访问" = "Open Full Disk Access";
+
+"建议准备" = "Recommended";
+
+"现在可以打开“隐私与安全性 > App 管理”：若列表中有 SuperCleaner，请开启；若没有，macOS 会在首次真实卸载时登记并请求权限，届时按系统提示允许。此权限不阻止扫描。" = "Open Privacy & Security > App Management now. If SuperCleaner is listed, turn it on. If it is not listed, macOS will register it and request access during the first real uninstall; allow it then. This permission never blocks scanning.";
+
+"查看 App 管理" = "View App Management";
+
+"不开启完全磁盘访问也可以扫描；受保护的位置会安全跳过。扫描不会删除任何内容。" = "You can scan without Full Disk Access; protected locations will be skipped safely. Scanning never deletes anything.";
+
+"按当前权限开始扫描" = "Scan with Current Access";
+
+"开始扫描" = "Start Scan";
+"正在等待扫描 Agent 环境…" = "Waiting to scan Agent Environment…";
+"正在扫描 Agent 环境，发现 Skill 与 MCP 配置…" = "Scanning Agent Environment for Skills and MCP configurations…";
+"正在准备 Agent 列表…" = "Preparing Agent lists…";
+"正在分析 Skill 与 MCP 的能力覆盖关系…" = "Analyzing Skill and MCP capability coverage…";
+"正在生成 Agent 预选建议…" = "Preparing Agent selection suggestions…";
+
+
+
+
+
+
+"系统保护" = "Protected";
+
+"始终保护" = "Always protected";
+
+"{0}，始终保护" = "{0}, always protected";
+"已删除 {0} 项" = "Deleted {0} items";
+"已移入废纸篓 {0}/{1} 项" = "Moved to Trash {0}/{1} items";
+"正在保存清理和恢复记录…" = "Saving cleanup and recovery records…";
+"正在移入系统废纸篓" = "Moving items to Trash";
