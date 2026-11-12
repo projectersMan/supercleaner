@@ -36,7 +36,7 @@ actor RejectEmbedding: AgentEmbeddingProvider {
         precondition(!preserved.contains(retained))
         let cache = inputs[1].id
         let cacheOnly = AgentOverlapAnalyzer.preselectedSourceIDs(index: .init(), activeIDs: [cache], eligibleIDs: [cache], cacheIDs: [cache], manuallySelectedIDs: [], retainedIDs: [], threshold: 0.85)
-        precondition(cacheOnly == [cache], "Eligible cache does not require containment or a loaded index")
+        precondition(cacheOnly.isEmpty, "A unique cache without verified retained coverage is not preselected")
         let cacheKept = AgentOverlapAnalyzer.preselectedSourceIDs(index: .init(), activeIDs: [cache], eligibleIDs: [cache], cacheIDs: [cache], manuallySelectedIDs: [], retainedIDs: [cache], threshold: 0.85)
         precondition(cacheKept.isEmpty, "An explicit keep overrides cache preselection")
         let protectedCache = AgentOverlapAnalyzer.preselectedSourceIDs(index: .init(), activeIDs: [cache], eligibleIDs: [], cacheIDs: [cache], manuallySelectedIDs: [], retainedIDs: [], threshold: 0.85)
@@ -53,6 +53,6 @@ actor RejectEmbedding: AgentEmbeddingProvider {
         try await store.save(result.index)
         let restored = try await store.load(resetAnalysis: false)
         precondition(restored.entries.count == 9)
-        print("PASS: real Gemma embeddings; Top 3; retained shared source; eligible cache without containment; cache cannot provide retained coverage; explicit keep, protection and zero-new-work reuse")
+        print("PASS: real Gemma embeddings; Top 3; retained shared source; unique caches kept; cache cannot provide retained coverage; explicit keep, protection and zero-new-work reuse")
     }
 }

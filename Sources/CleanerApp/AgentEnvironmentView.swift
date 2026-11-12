@@ -3,7 +3,7 @@ import SwiftUI
 
 struct AgentEnvironmentView: View {
     @ObservedObject var model: AppModel
-    @State private var selectedSection: AgentEnvironmentSection = .skills
+    private var selectedSection: AgentEnvironmentSection { model.agentEnvironmentSection }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,8 +36,9 @@ struct AgentEnvironmentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("Agent 环境"))
                     .font(.largeTitle.bold())
-                Text(L10n.text("按平台呈现本机 Agent 的 Skill 与 MCP 配置。官方路径由独立规则表维护，项目目录会识别 Codex 与 Claude 的仓库级资源；MCP 仅提取服务器名称和传输方式，不保存或展示密钥、环境变量与请求头。Skill 与 MCP 按相同阈值生成预选建议，最终清理仍由你手动确认。"))
+                Text(L10n.text("按平台查看 Skill 和 MCP，保留全局资源，审阅重复项后确认清理。"))
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
         }
@@ -48,7 +49,7 @@ struct AgentEnvironmentView: View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text(L10n.text("类型")).foregroundColor(.secondary)
-                Picker(L10n.text("类型"), selection: $selectedSection) {
+                Picker(L10n.text("类型"), selection: $model.agentEnvironmentSection) {
                     ForEach(AgentEnvironmentSection.allCases, id: \.self) { section in
                         Text(section.displayTitle).tag(section)
                     }

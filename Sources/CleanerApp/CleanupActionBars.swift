@@ -90,7 +90,8 @@ struct DimensionActionBar: View {
         let bytes = selected.reduce(UInt64(0)) { $0 + $1.bytes }
         return SelectionActionBar(
             hasSelection: !selected.isEmpty,
-            title: selected.isEmpty ? L10n.text("尚未选择清理内容") : L10n.text("已选 {0} 项", String(describing: selected.count)),
+            title: selected.isEmpty ? L10n.text("尚未选择清理内容")
+                : L10n.text(model.selection == .agentEnvironment ? "已选 {0} 个清理单元" : "已选 {0} 项", String(describing: selected.count)),
             detail: detail(count: selected.count, bytes: bytes)
         ) {
             if model.canResumeCurrentModuleScan {

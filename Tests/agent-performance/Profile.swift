@@ -45,9 +45,14 @@ func measure<T>(_ label: String, _ work: () async throws -> T) async rethrows ->
             let original = try await store.load(resetAnalysis: false)
             let active = original.completeIDs ?? Set(original.entries.keys)
             var hydrated = try await store.hydrating(original, ids: active)
-            let inputs = active.sorted().map { id in
+            let inputs = active.sorted().compactMap { id -> AgentOverlapInput? in
                 let entry = hydrated.entries[id]!
-                return AgentOverlapInput(id: id, kind: entry.kind, title: entry.title, description: "", features: entry.featureTexts)
+                guard let platform = entry.platform else { return nil }
+                return AgentOverlapInput(id: id, kind: entry.kind, title: entry.title, description: "", features: entry.featureTexts, platform: platform)
+            }
+            guard inputs.count == active.count else {
+                report("matrix_requires_platform_metadata: migrate an isolated copy with current discovery metadata first")
+                throw CocoaError(.fileReadCorruptFile)
             }
             // Use the original extracted texts/vectors unchanged; only replace the
             // synthetic fingerprint so this exercises comparisons without inference.
@@ -57,7 +62,11 @@ func measure<T>(_ label: String, _ work: () async throws -> T) async rethrows ->
             report("matrix_start: objects=\(inputs.count) vectors=\(hydrated.entries.values.reduce(0) { $0 + $1.featureVectors.count })")
             let analyzer = AgentOverlapAnalyzer(provider: NoInference(), modelVersion: original.modelVersion!, policy: try .load())
             let result = try await measure("matrix_all_pairs") { try await analyzer.analyze(inputs: inputs, index: hydrated) }
-            let expected = original.matches.filter { active.contains($0.value.firstID) && active.contains($0.value.secondID) }
+            let expected = original.matches.filter {
+                guard active.contains($0.value.firstID), active.contains($0.value.secondID),
+                      let first = original.entries[$0.value.firstID], let second = original.entries[$0.value.secondID] else { return false }
+                return first.canCompare(with: second)
+            }
             let encoder = PropertyListEncoder(); encoder.outputFormat = .binary
             try encoder.encode(result.index.matches).write(to: destination.deletingLastPathComponent().appendingPathComponent("matrix-result.plist"), options: .atomic)
             let mismatches = Set(result.index.matches.keys).union(expected.keys).filter { key in
@@ -104,7 +113,7 @@ func measure<T>(_ label: String, _ work: () async throws -> T) async rethrows ->
                     let version = String(data: try JSONEncoder().encode([skill.tags, skill.triggers, skill.tools,
                         [skill.pluginVersion ?? "", skill.parseStatus.rawValue]]), encoding: .utf8)
                     let input = AgentOverlapInput(id: "skill|" + skill.id, kind: .skill, title: skill.displayName,
-                        description: skill.summary ?? "", features: skill.functionalSections, contentVersion: version)
+                        description: skill.summary ?? "", features: skill.functionalSections, contentVersion: version, platform: skill.provider)
                     return skill.displayName + "|" + input.fingerprint
                 }
                 let earlySkills = try Dictionary(uniqueKeysWithValues: catalog.skills.map { ($0.id, try signature($0)) })

@@ -36,9 +36,11 @@ public struct AgentOverlapInput: Sendable {
     public let description: String
     public let features: [String]
     public let contentVersion: String?
+    public let platform: AgentProvider
 
-    public init(id: String, kind: AgentOverlapKind, title: String, description: String, features: [String], contentVersion: String? = nil) {
+    public init(id: String, kind: AgentOverlapKind, title: String, description: String, features: [String], contentVersion: String? = nil, platform: AgentProvider = .shared) {
         self.id = id; self.kind = kind; self.title = title; self.description = description; self.features = features; self.contentVersion = contentVersion
+        self.platform = platform
     }
 }
 
@@ -50,12 +52,19 @@ public struct AgentOverlapMemoryEntry: Codable, Sendable, Equatable {
     public let featureTexts: [String]
     public var featureVectors: [[Float]]
     public var inputFingerprint: String? = nil
+    /// Missing in legacy indexes. Never use an unclassified entry as coverage.
+    public var platform: AgentProvider?
 
     public init(id: String, cacheID: Int, kind: AgentOverlapKind, title: String,
-                featureTexts: [String], featureVectors: [[Float]], inputFingerprint: String? = nil) {
+                featureTexts: [String], featureVectors: [[Float]], inputFingerprint: String? = nil, platform: AgentProvider? = .shared) {
         self.id = id; self.cacheID = cacheID; self.kind = kind; self.title = title
         self.featureTexts = featureTexts; self.featureVectors = featureVectors
         self.inputFingerprint = inputFingerprint
+        self.platform = platform
+    }
+
+    public func canCompare(with other: Self) -> Bool {
+        platform != nil && platform == other.platform && kind == other.kind
     }
 }
 
@@ -112,6 +121,7 @@ public struct AgentOverlapIndex: Codable, Sendable {
     public var vectorSlices: [String: AgentVectorSlice]?
     public var recommendationIDs: Set<String>?
     public var cachedRecommendations: [AgentOverlapMatch]?
+    public var comparisonPolicyVersion: Int?
 
     public init() {}
 }

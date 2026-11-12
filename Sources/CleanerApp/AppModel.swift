@@ -121,6 +121,9 @@ private struct ModuleScanSession: Sendable {
     @Published var agentItemsSelectionFilter: AgentItemsSelectionFilter = .selected {
         didSet { invalidateAgentVisibleLists() }
     }
+    @Published var agentEnvironmentSection: AgentEnvironmentSection = .skills {
+        didSet { cachedHiddenSelectedCounts.removeValue(forKey: .agentEnvironment) }
+    }
     @Published var uninstallSelectedIDs = Set<UUID>()
     @Published var statusMessage: String?
     @Published private(set) var recoveryActionReceiptID: UUID?
@@ -437,7 +440,7 @@ private struct ModuleScanSession: Sendable {
                 id: "skill|\(skill.id)", kind: .skill, title: skill.displayName,
                 description: skill.summary ?? "", features: skill.functionalSections,
                 contentVersion: String(data: try JSONEncoder().encode([skill.tags, skill.triggers, skill.tools,
-                    [skill.pluginVersion ?? "", skill.parseStatus.rawValue]]), encoding: .utf8)
+                    [skill.pluginVersion ?? "", skill.parseStatus.rawValue]]), encoding: .utf8), platform: skill.provider
             ))
         }
         for configuration in agentMCPConfigurations {
@@ -449,7 +452,8 @@ private struct ModuleScanSession: Sendable {
             inputs.append(AgentOverlapInput(
                 id: "mcp|\(configuration.id)", kind: .mcp,
                 title: configuration.sourceLabel + " · " + configuration.fileURL.lastPathComponent,
-                description: features.joined(separator: "; "), features: features, contentVersion: configuration.contentFingerprint
+                description: features.joined(separator: "; "), features: features, contentVersion: configuration.contentFingerprint,
+                platform: configuration.provider
             ))
         }
         var metadataChanged = AgentOverlapAnalyzer.refreshMetadata(inputs: inputs, index: &workingIndex, policy: policy)
@@ -540,8 +544,12 @@ private struct ModuleScanSession: Sendable {
 
     private func applyAgentAutoPreselection(from matches: [AgentOverlapMatch]) {
         guard !isScanRunning, phase != .executing, !preparingAgentSkillPresentation else { return }
+        let cacheIDs = agentObjectIDs(under: ".cache")
+        let globalIDs = Set(agentSkills.filter { $0.scope != .project }.map { "skill|\($0.id)" })
+            .union(agentMCPConfigurations.filter { $0.scope != .project }.map { "mcp|\($0.id)" })
+            .subtracting(cacheIDs)
         let retained = Set(UserDefaults.standard.stringArray(forKey: Self.agentOverlapRetainedDefaultsKey) ?? [])
-            .union(agentObjectIDs(under: ".agents"))
+            .union(globalIDs)
         let units = agentContainmentCandidateIDs
         var eligible = Set(agentSkillCatalogPresentation.bindingsByID.values.filter(\.isDeletionAvailable).map { "skill|\($0.id)" })
         for configuration in agentMCPConfigurations {
@@ -550,7 +558,6 @@ private struct ModuleScanSession: Sendable {
         let manual = selectedIDs.subtracting(autoSelectedAgentCandidateIDs)
         let manuallySelectedObjects = Set(units.filter { !$0.value.isDisjoint(with: manual) }.map(\.key))
         let active = Set(units.keys)
-        let cacheIDs = agentObjectIDs(under: ".cache")
         let key = AgentPreselectionKey(revision: overlapIndex.revision, hasMatches: !matches.isEmpty,
             active: active, eligible: eligible, cache: cacheIDs, manual: manuallySelectedObjects,
             retained: retained, threshold: agentOverlapThreshold)
@@ -568,7 +575,7 @@ private struct ModuleScanSession: Sendable {
             let sources = AgentOverlapAnalyzer.preselectedSourceIDs(
                 index: index, activeIDs: active, eligibleIDs: eligible,
                 cacheIDs: cacheIDs, manuallySelectedIDs: manuallySelectedObjects, retainedIDs: retained,
-                threshold: key.threshold, cachedRecommendations: cachedRecommendations)
+                threshold: key.threshold, cachedRecommendations: cachedRecommendations, globalIDs: globalIDs)
             return Task.isCancelled ? nil : sources
         }
         agentPreselectionCalculationTask = calculation
@@ -1044,9 +1051,13 @@ private struct ModuleScanSession: Sendable {
 
     func visibleCandidates(for destination: SidebarDestination) -> [CleanupCandidate] {
         if destination == .agentEnvironment {
-            return currentAgentCleanupPresentation?
-                .filteredGroups(scope: nil, kind: nil)
-                .flatMap(\.assets).map(\.candidate) ?? []
+            let visibleIDs: Set<UUID>
+            if agentEnvironmentSection == .skills {
+                visibleIDs = Set(visibleAgentSkillBindings.flatMap { $0.linkedAssets.map(\.id) })
+            } else {
+                visibleIDs = Set(visibleAgentMCPConfigurations.compactMap { agentMCPCandidate(for: $0)?.id })
+            }
+            return candidates(for: destination).filter { visibleIDs.contains($0.id) }
         }
         let filter = ReviewCandidateFilter(
             query: reviewQuery,
@@ -2958,6 +2969,17 @@ extension AppModel {
         model.overlapAnalysisTask?.cancel()
         model.overlapAnalysisTask = nil
         model.agentOverlapAnalysisIsRunning = false
+        model.selection = .agentEnvironment
+        model.selectedIDs = Set(assets.prefix(3).map(\.id))
+        model.agentItemsSelectionFilter = .selected
+        guard model.hiddenSelectedCount == 0 else { throw Failure() }
+        model.agentEnvironmentSection = .mcp
+        guard model.hiddenSelectedCount == 3 else { throw Failure() }
+        model.agentEnvironmentSection = .skills
+        model.agentProviderFilter = .claude
+        guard model.hiddenSelectedCount == 3 else { throw Failure() }
+        model.agentProviderFilter = nil
+        model.selectedIDs.removeAll()
         var index = AgentOverlapIndex()
         index.revision = "fixture"
         let objectIDs = skills.map { "skill|\($0.id)" }
@@ -2989,10 +3011,12 @@ extension AppModel {
         model.applyAgentAutoPreselection(from: recommendations)
         let schedulingElapsed = Date().timeIntervalSince(schedulingStart)
         guard schedulingElapsed < 0.05, model.agentPreselectionToken != nil else { throw Failure() }
+        let proposed = await model.agentPreselectionCalculationTask?.value
+        guard proposed?.isEmpty == true else { throw Failure() }
         model.agentPreselectionCalculationTask?.cancel()
         model.agentPreselectionCalculationTask = nil
         model.agentPreselectionToken = nil
-        print("PASS: Agent presentation 1,000 Skills x 100 reads: \(elapsed)s; preselection scheduled off-main in \(schedulingElapsed)s")
+        print("PASS: Agent presentation 1,000 Skills x 100 reads: \(elapsed)s; preselection scheduled off-main in \(schedulingElapsed)s; global resources kept and visible unit counts match filters")
     }
 
     static func checkScanPermissionPresentation() throws {

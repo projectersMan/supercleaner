@@ -2,6 +2,7 @@ import Accelerate
 import Foundation
 
 public actor AgentOverlapAnalyzer {
+    public static let comparisonPolicyVersion = 1
     public let provider: any AgentEmbeddingProvider
     public let modelVersion: String
     public let policy: AgentOverlapPolicy
@@ -17,6 +18,7 @@ public actor AgentOverlapAnalyzer {
                 throw AgentOverlapError.requiresFullRecalculation
             }
         }
+        _ = Self.refreshMetadata(inputs: inputs, index: &index, policy: policy)
         var added = Set<String>()
         var changed = Set<String>()
         var dirty = Set<String>()
@@ -24,7 +26,7 @@ public actor AgentOverlapAnalyzer {
         for input in inputs {
             try Task.checkCancellation()
             if var known = index.entries[input.id] {
-                let unchanged = known.kind == input.kind && (known.inputFingerprint == input.fingerprint
+                let unchanged = known.platform == input.platform && known.kind == input.kind && (known.inputFingerprint == input.fingerprint
                     || (known.inputFingerprint == nil && known.featureTexts == AgentCapabilityExtraction.candidates(for: input, policy: policy)))
                 if unchanged {
                     known.title = input.title
@@ -47,7 +49,7 @@ public actor AgentOverlapAnalyzer {
         let activeIDs = inputs.map(\.id).sorted()
         var calculatedPairs = 0
         // A completed cohort certifies old-old pairs; only dirty/new edges need visiting.
-        let certified = original.completeIDs ?? []
+        let certified = index.completeIDs ?? []
         let incremental = original.completeIDs != nil
         let sources = incremental ? activeIDs.filter { dirty.contains($0) || !certified.contains($0) } : activeIDs
         let sourceSet = Set(sources)
@@ -57,7 +59,7 @@ public actor AgentOverlapAnalyzer {
             for targetID in activeIDs where sourceID != targetID {
                 try Task.checkCancellation()
                 let target = index.entries[targetID]!
-                guard source.kind == target.kind else { continue }
+                guard source.canCompare(with: target) else { continue }
                 if sourceSet.contains(targetID) && sourceID > targetID { continue }
                 let key = Self.pairKey(source, target)
                 guard index.matches[key] == nil else { continue }
@@ -79,6 +81,7 @@ public actor AgentOverlapAnalyzer {
         }
         index.modelVersion = modelVersion
         index.analysisVersion = policy.fingerprint
+        index.comparisonPolicyVersion = Self.comparisonPolicyVersion
         index.completeIDs = Set(activeIDs)
         index.revision = UUID().uuidString
         index.cachedRecommendations = nil
@@ -99,7 +102,7 @@ public actor AgentOverlapAnalyzer {
         let entries = activeIDs.sorted().compactMap { index.entries[$0] }
         guard entries.count == activeIDs.count else { return false }
         for (position, source) in entries.enumerated() {
-            for target in entries.dropFirst(position + 1) where source.kind == target.kind {
+            for target in entries.dropFirst(position + 1) where source.canCompare(with: target) {
                 guard index.matches[pairKey(source, target)] != nil else { return false }
             }
         }
@@ -112,6 +115,16 @@ public actor AgentOverlapAnalyzer {
         for input in inputs {
             guard var entry = index.entries[input.id] else { continue }
             var entryChanged = false
+            if entry.platform != input.platform {
+                if entry.platform != nil {
+                    // A known object moved to a different cohort. Old zero-edge
+                    // certification cannot establish relationships in the new one.
+                    index.completeIDs?.remove(input.id)
+                    index.matches = index.matches.filter { $0.value.firstID != input.id && $0.value.secondID != input.id }
+                }
+                entry.platform = input.platform
+                entryChanged = true
+            }
             if entry.title != input.title { entry.title = input.title; entryChanged = true }
             if entry.inputFingerprint == nil, entry.kind == input.kind,
                entry.featureTexts == AgentCapabilityExtraction.candidates(for: input, policy: policy) {
@@ -119,26 +132,37 @@ public actor AgentOverlapAnalyzer {
             }
             if entryChanged { index.entries[input.id] = entry; updated = true }
         }
+        if updated || index.comparisonPolicyVersion != comparisonPolicyVersion {
+            index.matches = index.matches.filter {
+                guard let first = index.entries[$0.value.firstID], let second = index.entries[$0.value.secondID] else { return false }
+                return first.canCompare(with: second)
+            }
+            index.cachedRecommendations = nil
+            index.recommendationIDs = nil
+            index.comparisonPolicyVersion = comparisonPolicyVersion
+            index.revision = UUID().uuidString
+            updated = true
+        }
         return updated
     }
 
     public static func canReuse(inputs: [AgentOverlapInput], index: AgentOverlapIndex) -> Bool {
         inputs.allSatisfy { input in
             guard let entry = index.entries[input.id] else { return false }
-            return entry.kind == input.kind && entry.inputFingerprint == input.fingerprint && entry.title == input.title
+            return entry.platform == input.platform && entry.kind == input.kind && entry.inputFingerprint == input.fingerprint && entry.title == input.title
         } && hasCompleteRelationships(in: index, activeIDs: Set(inputs.map(\.id)))
     }
 
     private func makeEntry(_ input: AgentOverlapInput, cacheID: Int) async throws -> AgentOverlapMemoryEntry {
         let candidates = AgentCapabilityExtraction.candidates(for: input, policy: policy)
         guard !candidates.isEmpty else {
-            return AgentOverlapMemoryEntry(id: input.id, cacheID: cacheID, kind: input.kind, title: input.title, featureTexts: [], featureVectors: [], inputFingerprint: input.fingerprint)
+            return AgentOverlapMemoryEntry(id: input.id, cacheID: cacheID, kind: input.kind, title: input.title, featureTexts: [], featureVectors: [], inputFingerprint: input.fingerprint, platform: input.platform)
         }
         let vectors = try await provider.embed(candidates)
         try Self.validate(vectors, expectedCount: candidates.count)
         return AgentOverlapMemoryEntry(
             id: input.id, cacheID: cacheID, kind: input.kind, title: input.title,
-            featureTexts: candidates, featureVectors: vectors, inputFingerprint: input.fingerprint
+            featureTexts: candidates, featureVectors: vectors, inputFingerprint: input.fingerprint, platform: input.platform
         )
     }
 
@@ -194,7 +218,7 @@ public actor AgentOverlapAnalyzer {
     }
 
     public static func recommendations(in index: AgentOverlapIndex, activeIDs: Set<String>) -> [AgentOverlapMatch] {
-        if index.recommendationIDs == activeIDs, let cached = index.cachedRecommendations {
+        if index.comparisonPolicyVersion == comparisonPolicyVersion, index.recommendationIDs == activeIDs, let cached = index.cachedRecommendations {
             return cached.map { match in
                 AgentOverlapMatch(sourceID: match.sourceID, targets: match.targets.map {
                     AgentOverlapTarget(targetID: $0.targetID, title: index.entries[$0.targetID]?.title ?? $0.title, coverage: $0.coverage)
@@ -209,6 +233,7 @@ public actor AgentOverlapAnalyzer {
         }
         for pair in index.matches.values where pair.firstID != pair.secondID && activeIDs.contains(pair.firstID) && activeIDs.contains(pair.secondID) {
             if Task.isCancelled { return [] }
+            guard let first = index.entries[pair.firstID], let second = index.entries[pair.secondID], first.canCompare(with: second) else { continue }
             accumulate(sourceID: pair.firstID, targetID: pair.secondID, mask: pair.firstCovered, index: index, unions: &unions, targets: &targets)
             accumulate(sourceID: pair.secondID, targetID: pair.firstID, mask: pair.secondCovered, index: index, unions: &unions, targets: &targets)
         }
@@ -243,7 +268,7 @@ public actor AgentOverlapAnalyzer {
         var candidates = [(id: String, mask: Data)]()
         let targetIDs = allowedIDs.intersection(preferredIDs).sorted() + allowedIDs.subtracting(preferredIDs).sorted()
         for targetID in targetIDs where targetID != sourceID {
-            guard let target = index.entries[targetID], source.kind == target.kind,
+            guard let target = index.entries[targetID], source.canCompare(with: target),
                   let pair = index.matches[pairKey(source, target)] else { continue }
             candidates.append((targetID, pair.firstID == sourceID ? pair.firstCovered : pair.secondCovered))
         }
@@ -270,17 +295,21 @@ public actor AgentOverlapAnalyzer {
         return lhs.sourceID < rhs.sourceID
     }
 
-    public static func preselectedSourceIDs(index: AgentOverlapIndex, activeIDs: Set<String>, eligibleIDs: Set<String>, cacheIDs: Set<String>, manuallySelectedIDs: Set<String>, retainedIDs: Set<String>, threshold: Double, cachedRecommendations: [AgentOverlapMatch]? = nil) -> Set<String> {
-        var selected = cacheIDs.intersection(activeIDs).intersection(eligibleIDs)
-            .subtracting(retainedIDs).subtracting(manuallySelectedIDs)
+    public static func preselectedSourceIDs(index: AgentOverlapIndex, activeIDs: Set<String>, eligibleIDs: Set<String>, cacheIDs: Set<String>, manuallySelectedIDs: Set<String>, retainedIDs: Set<String>, threshold: Double, cachedRecommendations: [AgentOverlapMatch]? = nil, globalIDs: Set<String> = []) -> Set<String> {
+        guard threshold.isFinite, (0.5...1).contains(threshold) else { return [] }
+        let retained = retainedIDs.union(globalIDs)
+        var selected = Set<String>()
         var keepers = Set<String>()
-        let candidates = (cachedRecommendations ?? recommendations(in: index, activeIDs: activeIDs)).sorted(by: comparePreselectionPriority)
+        let candidates = (cachedRecommendations ?? recommendations(in: index, activeIDs: activeIDs)).sorted {
+            if cacheIDs.contains($0.sourceID) != cacheIDs.contains($1.sourceID) { return cacheIDs.contains($0.sourceID) }
+            return comparePreselectionPriority($0, $1)
+        }
         for item in candidates where item.coverage >= threshold {
-            guard eligibleIDs.contains(item.sourceID), !retainedIDs.contains(item.sourceID),
+            guard activeIDs.contains(item.sourceID), eligibleIDs.contains(item.sourceID), !retained.contains(item.sourceID),
                   !manuallySelectedIDs.contains(item.sourceID), !selected.contains(item.sourceID), !keepers.contains(item.sourceID) else { continue }
             let references = activeIDs.subtracting(manuallySelectedIDs).subtracting(selected)
-            let support = supportingTargets(for: item.sourceID, allowedIDs: references.intersection(retainedIDs), preferredIDs: retainedIDs, threshold: threshold, index: index)
-                ?? supportingTargets(for: item.sourceID, allowedIDs: references, preferredIDs: retainedIDs, threshold: threshold, index: index)
+            let support = supportingTargets(for: item.sourceID, allowedIDs: references.intersection(retained), preferredIDs: retained, threshold: threshold, index: index)
+                ?? supportingTargets(for: item.sourceID, allowedIDs: references, preferredIDs: retained.union(references.subtracting(cacheIDs)), threshold: threshold, index: index)
             guard let support else { continue }
             selected.insert(item.sourceID)
             keepers.formUnion(support)
