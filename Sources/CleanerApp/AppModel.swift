@@ -248,6 +248,9 @@ private struct ModuleScanSession: Sendable {
     private var cachedDefaultCleanupSelection: DefaultCleanupSelection?
     private var cachedRecommendationBreakdowns: [SidebarDestination: CleanupRecommendationBreakdown] = [:]
     private var cachedApplicationUninstallPlans: [UninstallPlan]?
+    private var cachedApplicationUninstallPlansByPath: [String: UninstallPlan]?
+    private var cachedApplicationAnalysesByPath: [String: ApplicationUninstallAnalysis]?
+    private var cachedProtectedUninstallPlans: [UUID: UninstallPlan] = [:]
     private var cachedAgentSkillPresentation: AgentSkillCatalogPresentation?
     private var agentSkillPresentationTask: Task<Void, Never>?
     private var agentSkillPresentationToken: UUID?
@@ -1020,12 +1023,32 @@ private struct ModuleScanSession: Sendable {
         let plans = available.filter {
             runningApplicationIDs?.contains($0.application.bundleIdentifier) != true
         }.map { plan in
-            UninstallPlan(id: plan.id, application: plan.application, items: plan.items.map {
+            // A process starting or quitting changes availability, not the
+            // scanned items or protection policy. Reuse their checked results.
+            if let cached = cachedProtectedUninstallPlans[plan.id] { return cached }
+            let checked = UninstallPlan(id: plan.id, application: plan.application, items: plan.items.map {
                 UninstallItem(candidate: protectionPolicy.applying(to: $0.candidate), containsUserData: $0.containsUserData, isShared: $0.isShared)
             })
+            cachedProtectedUninstallPlans[plan.id] = checked
+            return checked
         }
         cachedApplicationUninstallPlans = plans
+        cachedApplicationUninstallPlansByPath = plans.reduce(into: [:]) { result, plan in
+            let path = plan.application.id.standardizedFileURL.path
+            if result[path] == nil { result[path] = plan }
+        }
         return plans
+    }
+
+    private func scannedApplicationAnalysis(for applicationID: URL) -> ApplicationUninstallAnalysis? {
+        if cachedApplicationAnalysesByPath == nil {
+            cachedApplicationAnalysesByPath = (systemReport?.applicationUninstallInventory.analyses ?? [])
+                .reduce(into: [:]) { result, analysis in
+                    let path = analysis.id.standardizedFileURL.path
+                    if result[path] == nil { result[path] = analysis }
+                }
+        }
+        return cachedApplicationAnalysesByPath?[applicationID.standardizedFileURL.path]
     }
     var uninstallBatchSummary: UninstallBatchSummary {
         uninstallSelectionState.summary(plans: applicationUninstallPlans)
@@ -1047,7 +1070,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     func uninstallAnalysis(for application: InstalledApplication) -> ApplicationUninstallAnalysis? {
-        guard let analysis = systemReport?.applicationUninstallInventory.analysis(for: application.id) else { return nil }
+        guard let analysis = scannedApplicationAnalysis(for: application.id) else { return nil }
         if application.isRunning && !application.isSystem {
             return ApplicationUninstallAnalysis(application: application, plan: nil, state: .protected,
                 message: L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。"),
@@ -1055,8 +1078,9 @@ private struct ModuleScanSession: Sendable {
         }
         if analysis.application.isRunning && analysis.preparedState == nil && !application.isSystem { return nil }
         let available = analysis.withRunningState(application.isRunning)
+        if cachedApplicationUninstallPlansByPath == nil { _ = applicationUninstallPlans }
         return ApplicationUninstallAnalysis(application: application,
-            plan: applicationUninstallPlans.first { $0.application.id == application.id }, state: available.state,
+            plan: cachedApplicationUninstallPlansByPath?[application.id.standardizedFileURL.path], state: available.state,
             message: available.message, limitations: available.limitations, ownership: available.ownership, runtimeObservation: available.runtimeObservation)
     }
 
@@ -1084,7 +1108,7 @@ private struct ModuleScanSession: Sendable {
 
     func uninstallReceiptItems(for application: InstalledApplication) -> [URL] {
         PackageReceiptCleanupSelection.selectableReceipts(
-            for: systemReport?.applicationUninstallInventory.analysis(for: application.id)?.ownership?.installation)
+            for: scannedApplicationAnalysis(for: application.id)?.ownership?.installation)
     }
 
     func isUninstallItemSelected(_ item: UninstallItem) -> Bool {
@@ -2125,6 +2149,7 @@ private struct ModuleScanSession: Sendable {
         runningApplicationIDs = identifiers
         quitSelectedApplicationIDs.formIntersection(Set(applications.filter(\.isRunning).map(\.id)))
         cachedApplicationUninstallPlans = nil
+        cachedApplicationUninstallPlansByPath = nil
         var selection = uninstallSelectionState
         selection.reconcile(plans: applicationUninstallPlans)
         uninstallSelectedIDs = selection.selectedItemIDs
@@ -2947,6 +2972,9 @@ private struct ModuleScanSession: Sendable {
         cachedCandidatesByDestination.removeAll()
         cachedRecommendationBreakdowns.removeAll()
         cachedApplicationUninstallPlans = nil
+        cachedApplicationUninstallPlansByPath = nil
+        cachedApplicationAnalysesByPath = nil
+        cachedProtectedUninstallPlans.removeAll()
     }
 
 }
@@ -3345,6 +3373,59 @@ extension AppModel {
             throw Failure(message: "completed workspace snapshot was not installed")
         }
         print("PASS: slow workspace polling leaves navigation/search available, coalesces requests and installs the completed snapshot")
+        try checkStoppedApplicationPresentationPerformance()
+    }
+
+    private static func checkStoppedApplicationPresentationPerformance() throws {
+        struct Failure: Error { let message: String }
+        let model = AppModel(home: ApplicationPresentationFixture.home, readRunningApplicationIDs: { [] })
+        let report = ApplicationPresentationFixture.report()
+        model.isScanRunning = true
+        model.systemReport = report
+        model.scanProgressByModule = report.modules
+        model.isScanRunning = false
+        model.selection = .applications
+        let applications = report.applicationInventory.applications
+        model.updateRunningApplicationIDs(Set(applications.prefix(2).map(\.bundleIdentifier)))
+        model.applicationScope = .running
+        guard model.visibleApplications.count == 2 else { throw Failure(message: "fixture must start with two running apps") }
+        let retainedSelection = model.applicationUninstallPlans[0]
+        model.toggleUninstall(retainedSelection)
+        let selected = model.uninstallSelectedIDs
+
+        let start = Date()
+        model.updateRunningApplicationIDs([])
+        model.applicationScope = .uninstallable
+        let visible = model.visibleApplications
+        for application in visible {
+            _ = model.uninstallAnalysis(for: application)
+            _ = model.uninstallReceiptItems(for: application)
+        }
+        let summary = model.uninstallBatchSummary
+        let elapsed = Date().timeIntervalSince(start)
+        print("Stopped apps presentation: two exits, 114 apps / 4,560 items, switch and row lookups = \(elapsed)s")
+        guard visible.count == 114, model.uninstallSelectedIDs == selected, summary.itemCount == 40,
+              model.applicationIDsAwaitingQuitAnalysis.isEmpty else {
+            throw Failure(message: "prepared plans must become available without losing unrelated checkbox choices or rediscovering apps")
+        }
+        guard elapsed < 0.15 else { throw Failure(message: "stopped-app refresh blocks the UI for \(elapsed)s") }
+
+        model.updateRunningApplicationIDs([applications[0].bundleIdentifier])
+        guard model.applicationUninstallPlans.allSatisfy({ $0.application.id != applications[0].id }) else {
+            throw Failure(message: "a restarted app must immediately lose its actionable plan")
+        }
+        let protectedURL = retainedSelection.items[0].candidate.url
+        model.protectionPolicy = .init(entries: [.init(url: protectedURL)], homeDirectory: ApplicationPresentationFixture.home)
+        guard model.applicationUninstallPlans.flatMap(\.items).first(where: { $0.candidate.url == protectedURL })?.candidate.risk == .blocked else {
+            throw Failure(message: "changed protection must invalidate cached plan safety")
+        }
+        model.systemReport = report.replacing(module: .applications,
+            payload: .applications(.init(applicationInventory: .init(applications: [], coverage: .init(), scannedAt: Date()), analyses: [])),
+            completedAt: Date())
+        guard model.applicationUninstallPlans.isEmpty, model.uninstallAnalysis(for: applications[0]) == nil else {
+            throw Failure(message: "a replacement scan must invalidate plan and analysis lookups")
+        }
+        print("PASS: prepared stopped-app plans, selection preservation, restarted-app protection and scan/policy invalidation")
     }
 
     #if DEBUG
