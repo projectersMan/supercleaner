@@ -164,7 +164,7 @@ public actor QuarantineMaintenanceCoordinator {
             let pendingResolution = try await resolutionJournalStore.entries().first {
                 $0.action == resolutionAction && $0.receipt.id == receipt.id
             }
-            let resolutionEntry: ResolutionJournalEntry
+            var resolutionEntry: ResolutionJournalEntry
             if let pendingResolution {
                 resolutionEntry = pendingResolution
             } else {
@@ -178,6 +178,12 @@ public actor QuarantineMaintenanceCoordinator {
             }
             let rawResolutionResults = await executor.resolve(resolutionEntry, progress: progress)
             progress(.init(completed: rawResolutionResults.count, total: resolutionEntry.items.count, currentURL: nil, phase: .savingResults))
+            if Task.isCancelled, resolutionEntry.cancellationResults == nil {
+                resolutionEntry = resolutionEntry.stopping(with: rawResolutionResults)
+                // Commit the stop intent and completed destinations before
+                // history so a failed save cannot restart abandoned moves.
+                try await resolutionJournalStore.upsert(resolutionEntry)
+            }
             let resolutionResults = rawResolutionResults.map { result in
                 guard result.status == .sourceMissing else { return result }
                 return OperationResult(
@@ -209,18 +215,26 @@ public actor QuarantineMaintenanceCoordinator {
                 throw QuarantineMaintenanceError.receiptNotFound
             }
             let updatedReceipt = latestReceipt.applying(resolutionResults: resolutionResults)
+            if resolutionEntry.cancellationResults != nil {
+                try await register(receipt: updatedReceipt, policy: .manual, at: date)
+            }
             let persistenceFailureReason = AutomaticCleanupFailureReason(
                 code: .historyPersistenceFailed,
                 message: L10n.text("文件处理已完成，但恢复记录尚未持久化"),
                 failedItemCount: failures.count
             )
 
-            try await scheduleStore.upsert(schedule.recordingAttempt(
-                at: date,
-                failureReason: persistenceFailureReason
-            ))
-            try await historyStore.upsert(updatedReceipt)
-            if updatedReceipt.hasQuarantinedContent {
+            do {
+                try await historyStore.upsert(updatedReceipt)
+            } catch {
+                // The resolution journal already protects the completed moves.
+                // Write failure/backoff state only when saving actually fails.
+                if resolutionEntry.cancellationResults == nil {
+                    try await scheduleStore.upsert(schedule.recordingAttempt(at: date, failureReason: persistenceFailureReason))
+                }
+                throw error
+            }
+            if updatedReceipt.hasQuarantinedContent, resolutionEntry.cancellationResults == nil {
                 let failureReason = AutomaticCleanupFailureReason(
                     code: .itemDeletionFailed,
                     message: failures.compactMap(\.message).first ?? L10n.text("部分已删除项目未能彻底删除"),
@@ -230,7 +244,7 @@ public actor QuarantineMaintenanceCoordinator {
                     at: date,
                     failureReason: failureReason
                 ))
-            } else {
+            } else if !updatedReceipt.hasQuarantinedContent {
                 try await scheduleStore.remove(receiptID: receipt.id)
             }
             if resolutionEntry.isFullyResolved(by: resolutionResults) {

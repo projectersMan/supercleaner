@@ -35,22 +35,33 @@ public struct ResolutionJournalEntry: Identifiable, Codable, Hashable, Sendable 
     public let receipt: OperationReceipt
     public let startedAt: Date
     public let items: [ResolutionJournalItem]
+    /// Non-nil means the user stopped this resolution. Replay only these
+    /// completed results; never start the remaining system moves on recovery.
+    public let cancellationResults: [OperationResult]?
 
     public init(
         id: UUID,
         action: ResolutionAction,
         receipt: OperationReceipt,
         startedAt: Date,
-        items: [ResolutionJournalItem]
+        items: [ResolutionJournalItem],
+        cancellationResults: [OperationResult]? = nil
     ) {
         self.id = id
         self.action = action
         self.receipt = receipt
         self.startedAt = startedAt
         self.items = items
+        self.cancellationResults = cancellationResults
+    }
+
+    func stopping(with results: [OperationResult]) -> ResolutionJournalEntry {
+        .init(id: id, action: action, receipt: receipt, startedAt: startedAt,
+              items: items, cancellationResults: results)
     }
 
     func isFullyResolved(by results: [OperationResult]) -> Bool {
+        if cancellationResults != nil { return true }
         let expectedCandidateIDs = Set(
             receipt.results.filter { $0.disposition == .quarantined }.map(\.candidateID)
         )

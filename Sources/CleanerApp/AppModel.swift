@@ -622,6 +622,7 @@ private struct ModuleScanSession: Sendable {
     var hasCompletedScan: Bool { systemReport?.isCommitEligible == true }
 
     var isDeletionInProgress: Bool { phase == .executing || oneClickCleanupIsRunning }
+    var canStopDeletion: Bool { isDeletionInProgress && !isStoppingDeletion }
     var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult?.results.contains(where: { DeletionResultPresentation.outcome(for: $0) == .deleted }) == true }
 
     func dismissDeletionSheet() {
@@ -1626,10 +1627,13 @@ private struct ModuleScanSession: Sendable {
         } else {
             if selection == .agentEnvironment {
                 let clearingIDs = Set(selected.map(\.id))
-                for (objectID, candidateIDs) in agentContainmentCandidateIDs where !candidateIDs.isDisjoint(with: clearingIDs) {
-                    rememberAgentObjectDecision(objectID, selected: false)
-                }
-                autoSelectedAgentCandidateIDs.subtract(selected.map(\.id))
+                let objectIDs = Set(agentContainmentCandidateIDs.compactMap { objectID, candidateIDs in
+                    candidateIDs.isDisjoint(with: clearingIDs) ? nil : objectID
+                })
+                // One user action writes the retained-object list once, rather
+                // than reading, sorting and saving the growing list per Skill.
+                rememberAgentObjectDecisions(objectIDs, selected: false)
+                autoSelectedAgentCandidateIDs.subtract(clearingIDs)
             }
             selectedIDs.subtract(selected.map(\.id))
             reconcileFocus()
@@ -1803,7 +1807,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     func cancelExecution() {
-        guard isDeletionInProgress, !isStoppingDeletion else { return }
+        guard canStopDeletion else { return }
         isStoppingDeletion = true
         executionTask?.cancel()
         oneClickExecutionTask?.cancel()
@@ -3115,13 +3119,14 @@ extension AppModel {
         model.agentPreselectionToken = nil
         print("PASS: Agent presentation 1,000 Skills x 100 reads: \(elapsed)s; preselection scheduled off-main in \(schedulingElapsed)s; global resources kept and visible unit counts match filters")
         try checkAgentSelectAll()
+        try checkAgentClearSelectionPerformance()
     }
 
-    private static func makeAgentSelectionFixture() -> AppModel {
+    private static func makeAgentSelectionFixture(report: SystemScanReport = AgentSelectionFixture.report()) -> AppModel {
         let model = AppModel(home: AgentSelectionFixture.home, readRunningApplicationIDs: { [] })
         // Do not start inference or read real Agent resources for a selection check.
         model.isScanRunning = true
-        model.systemReport = AgentSelectionFixture.report()
+        model.systemReport = report
         model.isScanRunning = false
         model.agentOverlapNeedsScanAnalysis = false
         model.invalidateAgentEnvironmentCaches()
@@ -3194,6 +3199,45 @@ extension AppModel {
         model.setAllVisibleAgentItemsSelected(false)
         try check(!model.canSelectAllVisibleAgentItems && model.selectedIDs == selected, "scanning must freeze bulk selection")
         print("PASS: Agent Skills/MCP filtered select-all, binary master state, stable deselection, global manual choices, protected items and execution/scan gates")
+    }
+
+    private static func checkAgentClearSelectionPerformance() throws {
+        struct Failure: Error { let message: String }
+        let retained = UserDefaults.standard.object(forKey: agentOverlapRetainedDefaultsKey)
+        let model = makeAgentSelectionFixture(report: AgentSelectionFixture.report(additionalSkillCount: 3_200))
+        defer {
+            model.agentPreselectionCalculationTask?.cancel()
+            model.agentPreselectionToken = nil
+            UserDefaults.standard.set(retained, forKey: agentOverlapRetainedDefaultsKey)
+        }
+        let unrelated = UUID()
+        model.selectedIDs = [unrelated]
+        model.setAllVisibleAgentItemsSelected(true)
+        let selected = model.selectedCandidates
+        guard selected.count == 3_203 else { throw Failure(message: "bulk selection fixture must select 3,203 Skills") }
+        let selectedIDs = Set(selected.map(\.id))
+        let previouslyRetained = Set(UserDefaults.standard.stringArray(forKey: agentOverlapRetainedDefaultsKey) ?? [])
+        let expectedRetained = Set(model.agentContainmentCandidateIDs.compactMap { objectID, ids in
+            ids.isDisjoint(with: selectedIDs) ? nil : objectID
+        })
+        let start = Date()
+        model.clearCurrentSelection()
+        // Include the same derived state consumed by the list and action bar.
+        let remaining = model.executionSelectionCandidates
+        let checked = model.areAllVisibleAgentItemsSelected
+        let visible = model.visibleAgentSkillBindings.count
+        let elapsed = Date().timeIntervalSince(start)
+        print("Agent Clear Selection: 3,203 selected Skills / \(visible) visible = \(elapsed)s")
+        guard model.selectedIDs == [unrelated], remaining.isEmpty, !checked,
+              visible == 3_204,
+              previouslyRetained.union(expectedRetained) == Set(UserDefaults.standard.stringArray(forKey: agentOverlapRetainedDefaultsKey) ?? [])
+        else { throw Failure(message: "clear must preserve unrelated choices, retain every cleared Skill and update list/button state") }
+        guard elapsed < 0.2 else { throw Failure(message: "Clear Selection blocks the UI for \(elapsed)s") }
+        model.agentItemsSelectionFilter = .selected
+        guard model.visibleAgentSkillBindings.isEmpty, !model.canSelectAllVisibleAgentItems else {
+            throw Failure(message: "Selected filter and its master checkbox must empty after clearing")
+        }
+        print("PASS: large Agent select-all/clear preserves unrelated choices and retained decisions, refreshes filters, and completes within 200 ms")
     }
 
     static func checkScanPermissionPresentation() throws {
@@ -3637,9 +3681,14 @@ extension AppModel {
         try check(model.applications.map(\.id) == [app.id] && model.uninstallSelectedIDs == [item.id]
             && model.uninstallSelectionState(for: model.applicationUninstallPlans[0]) == .all,
             "partial deletion removes completed rows but keeps the app and remaining item checked")
+        for progressPhase in [ExecutionProgress.Phase.processing, .movingToTrash, .savingResults] {
+            model.updateExecutionProgress(.init(completed: 0, total: 2, currentURL: support.url, phase: progressPhase))
+            try check(model.canStopDeletion, "Stop stays enabled during validation, system Trash moves and result saving")
+        }
         model.cancelExecution()
         try check(model.isStoppingDeletion && model.isDeletionInProgress && model.showsDeletionSheet,
             "stop request keeps progress visible until the batch actually settles")
+        try check(!model.canStopDeletion, "a pending stop request disables repeated clicks")
         let receipt = OperationReceipt(planID: deletionPlan.id, startedAt: Date(), completedAt: Date(), results: presentationEffects, overallStatus: .completed)
         model.updateExecutionProgress(.init(completed: 0, total: 2, currentURL: support.url, phase: .movingToTrash))
         let itemStarted = model.executionItemStartedAt

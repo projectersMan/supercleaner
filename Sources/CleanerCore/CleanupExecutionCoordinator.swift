@@ -103,7 +103,7 @@ public actor CleanupExecutionCoordinator {
         let plan = try await refreshPlan(plan)
         let effectiveRetention: QuarantineRetentionPolicy = plan.selectedItems.contains { $0.candidate.largeFileProof != nil }
             ? .manual : retentionPolicy
-        let entry = ExecutionJournalEntry(
+        var entry = ExecutionJournalEntry(
             id: UUID(),
             plan: plan,
             startedAt: now(),
@@ -121,8 +121,12 @@ public actor CleanupExecutionCoordinator {
             startedAt: entry.startedAt,
             progress: progress
         )
-        if let dockPreparationWarning { receipt = receipt.addingIntegrationWarning(dockPreparationWarning) }
         progress(.init(completed: receipt.results.count, total: plan.selectedItems.count, currentURL: nil, phase: .savingResults))
+        if Task.isCancelled, entry.retentionPolicy != .manual {
+            entry = ExecutionJournalEntry(id: entry.id, plan: entry.plan, startedAt: entry.startedAt, retentionPolicy: .manual)
+            try await journalStore.upsert(entry)
+        }
+        if let dockPreparationWarning { receipt = receipt.addingIntegrationWarning(dockPreparationWarning) }
         receipt = try await finalize(receipt: receipt, entry: entry)
         await packageReceipts?.finish(proofs: receiptProofs, receipt: receipt)
         return try await applyImmediateRetentionIfNeeded(
@@ -316,6 +320,10 @@ public actor CleanupExecutionCoordinator {
         policy: QuarantineRetentionPolicy,
         progress: CleanupExecutor.ProgressHandler = { _ in }
     ) async throws -> OperationReceipt {
+        if Task.isCancelled {
+            try await maintenanceCoordinator.register(receipt: receipt, policy: .manual, at: now())
+            return receipt
+        }
         guard policy == .immediate,
               receipt.hasQuarantinedContent,
               !receipt.results.contains(where: { $0.verificationNotBefore != nil })
@@ -347,7 +355,8 @@ public actor CleanupExecutionCoordinator {
                     action: entry.action,
                     receipt: latestReceipt,
                     startedAt: entry.startedAt,
-                    items: entry.items
+                    items: entry.items,
+                    cancellationResults: entry.cancellationResults
                 )
                 let results = await executor.resolve(refreshedEntry)
                 try await finalizeResolution(entry: refreshedEntry, results: results)
@@ -368,6 +377,9 @@ public actor CleanupExecutionCoordinator {
             throw CleanupExecutionCoordinatorError.receiptNotFound(entry.receipt.id)
         }
         var updatedReceipt = currentReceipt.applying(resolutionResults: results)
+        if entry.cancellationResults != nil {
+            try await maintenanceCoordinator.register(receipt: updatedReceipt, policy: .manual, at: now())
+        }
         try await historyStore.upsert(updatedReceipt)
         var warnings = [String]()
         do { try await dockService?.synchronize(receipt: updatedReceipt) }

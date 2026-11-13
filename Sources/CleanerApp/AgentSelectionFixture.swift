@@ -5,7 +5,7 @@ import Foundation
 enum AgentSelectionFixture {
     static let home = URL(fileURLWithPath: "/tmp/SuperCleaner-Agent-Selection-Fixture")
 
-    static func report() -> SystemScanReport {
+    static func report(additionalSkillCount: Int = 0) -> SystemScanReport {
         let specifications: [(String, AgentProvider, AgentScope, RiskLevel)] = [
             ("Global Skill", .shared, .shared, .review),
             ("Codex Skill", .codex, .project, .review),
@@ -14,7 +14,10 @@ enum AgentSelectionFixture {
         ]
         var skills = [SkillCatalogEntry]()
         var assets = [AgentAssetRecord]()
-        for (index, specification) in specifications.enumerated() {
+        let skillSpecifications = specifications + (0..<additionalSkillCount).map { index in
+            ("Bulk Skill \(index)", AgentProvider.codex, AgentScope.project, RiskLevel.review)
+        }
+        for (index, specification) in skillSpecifications.enumerated() {
             let (name, provider, scope, risk) = specification
             let root = home.appendingPathComponent("skills/skill-\(index)")
             skills.append(.init(id: root.path, logicalID: "skill-\(index)", provider: provider, scope: scope,

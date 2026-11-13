@@ -482,6 +482,7 @@ public actor CleanupExecutor {
     }
 
     public func resolve(_ entry: ResolutionJournalEntry, progress: ProgressHandler = { _ in }) async -> [OperationResult] {
+        if let completed = entry.cancellationResults { return completed }
         switch entry.action {
         case .restore:
             return await restore(entry: entry)
@@ -587,6 +588,7 @@ public actor CleanupExecutor {
         let items = Dictionary(uniqueKeysWithValues: entry.items.map { ($0.candidateID, $0) })
         let total = entry.receipt.results.filter { $0.disposition == .quarantined }.count
         for result in entry.receipt.results where result.disposition == .quarantined {
+            if Task.isCancelled { break }
             progress(.init(completed: trashed.count, total: total, currentURL: result.originalURL, phase: .movingToTrash))
             defer { progress(.init(completed: trashed.count, total: total, currentURL: nil, phase: .movingToTrash)) }
             guard let item = items[result.candidateID],
@@ -619,6 +621,9 @@ public actor CleanupExecutor {
                 continue
             }
             do {
+                // Stop can arrive while publishing progress or checking the
+                // source. Once macOS starts a move, finish and record that item.
+                if Task.isCancelled { break }
                 let trashURL = try await fileSystem.trash(source)
                 guard !(await fileSystem.fileExists(source)) else {
                     throw FileSystemError.trashUnavailable(source)

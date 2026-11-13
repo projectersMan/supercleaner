@@ -73,7 +73,7 @@ struct DeletionOperationSheet: View {
                 Button(model.isStoppingDeletion ? L10n.text("正在停止…") : L10n.text("停止后续项目")) {
                     model.cancelExecution()
                 }
-                .disabled(model.isStoppingDeletion || model.executionProgress.phase != .processing)
+                .disabled(!model.canStopDeletion)
             }
         }
         .padding(28)
