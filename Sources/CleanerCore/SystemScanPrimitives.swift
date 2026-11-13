@@ -99,6 +99,18 @@ public struct CoverageSummary: Codable, Hashable, Sendable {
         self.budgetLimitedModules = budgetLimitedModules
     }
 
+    /// Removing entries cannot change the order or uniqueness of normalized roots.
+    func removingScannedRoots(_ paths: Set<String>) -> CoverageSummary {
+        CoverageSummary(normalizedRoots: scannedRoots.filter { !paths.contains($0.path) },
+            unavailableRoots: unavailableRoots, budgetLimitedModules: budgetLimitedModules)
+    }
+
+    private init(normalizedRoots: [URL], unavailableRoots: [URL], budgetLimitedModules: Set<ScanModuleID>) {
+        scannedRoots = normalizedRoots
+        self.unavailableRoots = unavailableRoots
+        self.budgetLimitedModules = budgetLimitedModules
+    }
+
     private static func normalized(_ urls: [URL]) -> [URL] {
         var seen = Set<String>()
         return urls

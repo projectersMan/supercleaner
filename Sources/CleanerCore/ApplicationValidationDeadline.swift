@@ -1,6 +1,9 @@
 import Foundation
 
-enum ApplicationValidationDeadlineError: Error, Sendable { case timedOut }
+enum ApplicationValidationDeadlineError: Error, Sendable, CustomStringConvertible {
+    case timedOut
+    var description: String { L10n.text("安全校验超时，未执行删除；可稍后重试。") }
+}
 
 /// One allowance for all associated-data checks, including the check immediately
 /// before each move. The source app keeps a separate allowance afterward.

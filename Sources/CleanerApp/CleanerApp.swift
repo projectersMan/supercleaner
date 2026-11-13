@@ -5,6 +5,21 @@ import SwiftUI
 
 @main enum CleanerMain {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--uninstall-permission-self-check") {
+            Task { @MainActor in
+                do {
+                    try await AppModel.checkUninstallPermissionRecovery()
+                    try await AppModel.checkProtectedApplicationClassification()
+                    exit(0)
+                }
+                catch { FileHandle.standardError.write(Data("FAIL: uninstall permission recovery \(error)\n".utf8)); exit(1) }
+            }
+            dispatchMain()
+        }
+        if CommandLine.arguments.contains("--cleanup-completion-self-check") {
+            do { try AppModel.checkCleanupCompletionPerformance(); exit(0) }
+            catch { FileHandle.standardError.write(Data("FAIL: cleanup completion \(error)\n".utf8)); exit(1) }
+        }
         if CommandLine.arguments.contains("--activation-self-check") {
             Task { @MainActor in
                 do { try await HelperSettingsModel.checkActivationRefresh(); exit(0) }

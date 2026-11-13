@@ -55,7 +55,7 @@ import XCTest
         let proof = manifest([app, app.appendingPathComponent("Contents/Library/LoginItems/Worker.app/Contents/Info.plist")]).proof(selectedApplications: [app])
         XCTAssertEqual(proof?.applications, [app])
     }
-    func testFailedPartialAndPendingUninstallNeverForgetAndCleanupFailureIsSilent() async throws {
+    func testFailedPartialAndPendingUninstallNeverForgetAndCleanupFailureIsReported() async throws {
         let calls = ReceiptCalls()
         let input = manifest([app, other])
         let service = PackageReceiptCleanupService(load: { _ in input }, forget: { proof, _ in
@@ -79,17 +79,133 @@ import XCTest
         let before = await calls.ids
         XCTAssertTrue(before.isEmpty)
         let success = receipt([result(0), result(1)])
-        await service.finish(proofs: proofs, receipt: success)
+        let metadata = await service.finish(proofs: proofs, receipt: success)
+        XCTAssertEqual(metadata.count, 2)
+        XCTAssertTrue(metadata.allSatisfy { $0.status == .failed && $0.message != nil })
         let after = await calls.ids
         XCTAssertEqual(after, ["org.example.product"])
         XCTAssertEqual(success.overallStatus, .completed)
         XCTAssertNil(success.integrationWarnings)
     }
+    func testReceiptAuthorizationResumesOnlyMetadataCleanup() async throws {
+        let input = manifest([app])
+        let gate = ReceiptPermissionGate()
+        let service = PackageReceiptCleanupService(load: { _ in input }, forget: { _, _ in try await gate.forget() })
+        let body = candidate(app)
+        let plan = try PlanBuilder().build(candidates: [body], selectedIDs: [body.id])
+        let proofs = await service.prepare(plan: plan)
+        let files = [OperationResult(candidateID: body.id, originalURL: app, disposition: .quarantined, bytes: 1)]
+        let receipt = OperationReceipt(planID: plan.id, startedAt: Date(), completedAt: Date(), results: files)
+        let metadata = await service.finish(proofs: proofs, receipt: receipt, permissionRecovery: { request in
+            XCTAssertEqual(request.resource, .installationReceipts)
+            XCTAssertEqual(request.attempt, 1)
+            await gate.authorize()
+            return .retry
+        })
+        XCTAssertEqual(metadata.count, 2)
+        XCTAssertTrue(metadata.allSatisfy { $0.status == .succeeded })
+        let calls = await gate.calls
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(receipt.results, files)
+    }
+
+    func testStopDuringReceiptAuthorizationKeepsBothReceiptRows() async throws {
+        let input = manifest([app])
+        let gate = ReceiptPermissionGate()
+        let service = PackageReceiptCleanupService(load: { _ in input }, forget: { _, _ in try await gate.forget() })
+        let body = candidate(app)
+        let plan = try PlanBuilder().build(candidates: [body], selectedIDs: [body.id])
+        let proofs = await service.prepare(plan: plan)
+        let receipt = OperationReceipt(planID: plan.id, startedAt: Date(), completedAt: Date(),
+            results: [.init(candidateID: body.id, originalURL: app, disposition: .quarantined, bytes: 1)])
+        let metadata = await Task {
+            await service.finish(proofs: proofs, receipt: receipt, permissionRecovery: { _ in .stop })
+        }.value
+        XCTAssertEqual(metadata.count, 2)
+        XCTAssertTrue(metadata.allSatisfy { $0.status == .skippedCancelled })
+        let calls = await gate.calls
+        XCTAssertEqual(calls, 1)
+    }
+
     func testInvalidPackageIDsCannotBecomeCommandOptionsOrPaths() {
         for id in ["", "-v", "../other", "one/two", "hello\nworld", ".", ".."] {
             XCTAssertFalse(PackageReceiptStore.validIdentifier(id))
         }
         XCTAssertTrue(PackageReceiptStore.validIdentifier("org.example.product-1_2"))
+    }
+
+    func testSevenSelectedRowsKeepTheSameTotalThroughTrashAndHistory() async throws {
+        let result = try await runSevenRowUninstall(failing: false)
+        XCTAssertEqual(result.receipt.results.count, 5, "installer metadata must stay outside generic file deletion")
+        XCTAssertEqual(result.receipt.installationReceiptResults?.count, 2)
+        XCTAssertEqual(result.receipt.displayResults.count, 7)
+        XCTAssertTrue(result.receipt.displayResults.allSatisfy { $0.status == .succeeded })
+        XCTAssertEqual(result.receipt.overallStatus, .completed)
+        XCTAssertTrue(result.progress.allSatisfy { $0.total == 7 }, "never change the denominator from seven visible rows to five file moves")
+        XCTAssertEqual(result.progress.last?.completed, 7)
+        XCTAssertEqual(result.forgetCount, 1, "both receipt rows must use one verified pkgutil operation")
+        XCTAssertEqual(result.persisted, result.receipt, "Trash resolution must preserve the installer outcomes")
+    }
+
+    func testFailedBundleAndTimedOutContainerReportAllFourRetainedRows() async throws {
+        let result = try await runSevenRowUninstall(failing: true)
+        let presentation = DeletionResultPresentation(receipt: result.receipt)
+        XCTAssertEqual(result.receipt.displayResults.count, 7)
+        XCTAssertEqual(presentation.deletedCount, 3)
+        XCTAssertEqual(presentation.incompleteCount, 4)
+        XCTAssertFalse(presentation.isComplete)
+        XCTAssertEqual(result.receipt.overallStatus, .partial)
+        XCTAssertEqual(result.forgetCount, 0, "receipt cleanup must not run when the app bundle failed to move")
+        XCTAssertTrue(result.receipt.installationReceiptResults?.allSatisfy { $0.status == .skippedProtected && $0.message != nil } == true)
+        XCTAssertTrue(result.receipt.results.contains { $0.originalURL == app && $0.message == L10n.text("权限不足，应用本体仍在原位。请检查 App 管理权限，或在 Finder 中完成需要管理员确认的移除。") })
+        XCTAssertTrue(result.progress.allSatisfy { $0.total == 7 })
+        XCTAssertEqual(result.persisted, result.receipt)
+    }
+
+    func testMetadataFailureAndLegacyReceiptsRemainVisibleAndDecodable() throws {
+        let failed = OperationResult(candidateID: UUID(), originalURL: app, disposition: .failed, status: .failed, bytes: 1)
+        let original = OperationReceipt(planID: UUID(), startedAt: Date(), completedAt: Date(), results: [failed], overallStatus: .failed)
+        let legacy = try JSONDecoder().decode(OperationReceipt.self, from: JSONEncoder().encode(original))
+        XCTAssertNil(legacy.installationReceiptResults)
+        let metadata = OperationResult(candidateID: UUID(), originalURL: URL(fileURLWithPath: "/private/var/db/receipts/org.example.product.plist"),
+            disposition: .skipped, status: .skippedProtected, bytes: 0, message: "retained")
+        let receipt = original.recordingInstallationReceipts([metadata]).addingIntegrationWarning("warning")
+        XCTAssertEqual(receipt.applying(resolutionResults: []).installationReceiptResults, [metadata])
+        XCTAssertEqual(try JSONDecoder().decode(OperationReceipt.self, from: JSONEncoder().encode(receipt)), receipt)
+        XCTAssertEqual(DeletionResultPresentation(receipt: receipt).incompleteCount, 2)
+    }
+
+    private func runSevenRowUninstall(failing: Bool) async throws -> (receipt: OperationReceipt, persisted: OperationReceipt?, progress: [ExecutionProgress], forgetCount: Int) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("seven-row-uninstall-\(UUID())").resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let body = candidate(app)
+        let associated = (1...4).map { index in
+            CleanupCandidate(url: root.appendingPathComponent("data-\(index)"), displayName: "data", category: .applicationSupport,
+                bytes: 1, risk: .review, evidence: [], identity: body.identity, source: .application, lastAccessDate: nil, isActive: false)
+        }
+        let candidates = [body] + associated
+        let plan = try PlanBuilder(ruleVersion: "fixture").build(candidates: candidates, selectedIDs: Set(candidates.map(\.id)))
+        XCTAssertEqual(plan.selectedDisplayItemCount, 7)
+        let fs = ReceiptProgressFileSystem(candidates: candidates, failingBody: failing ? app : nil)
+        let executor = CleanupExecutor(fileSystem: fs, quarantineRoot: root.appendingPathComponent("Quarantine"), currentRuleVersion: "fixture",
+            validateCandidate: { candidate in
+                if failing && candidate.url.lastPathComponent == "data-4" { throw ApplicationValidationDeadlineError.timedOut }
+            })
+        let history = HistoryStore(url: root.appendingPathComponent("history.json"))
+        let schedules = QuarantineScheduleStore(url: root.appendingPathComponent("schedules.json"))
+        let resolutions = ResolutionJournalStore(url: root.appendingPathComponent("resolutions.json"))
+        let maintenance = QuarantineMaintenanceCoordinator(historyStore: history, scheduleStore: schedules,
+            executor: executor, resolutionJournalStore: resolutions)
+        let calls = ReceiptCalls()
+        let manifest = self.manifest([app])
+        let service = PackageReceiptCleanupService(load: { _ in manifest }, forget: { proof, _ in await calls.record(proof.packageID) })
+        let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history,
+            journalStore: ExecutionJournalStore(url: root.appendingPathComponent("execution.json")),
+            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: Date.init,
+            packageReceipts: service)
+        let captured = ReceiptProgressCapture()
+        let receipt = try await coordinator.execute(plan: plan, retentionPolicy: .immediate) { captured.append($0) }
+        return (receipt, try await history.receipt(id: receipt.id), captured.values, await calls.ids.count)
     }
     func testReceiptHelperRequiresAuthorizationBeforeReadingOrExecuting() async throws {
         let proof = PackageReceiptCleanupProof(packageID: "org.example.absent", fingerprint: "not-real", applications: [app])
@@ -140,4 +256,49 @@ import XCTest
 private actor ReceiptCalls {
     private(set) var ids = [String]()
     func record(_ id: String) { ids.append(id) }
+}
+
+private actor ReceiptProgressFileSystem: FileSystemAccess {
+    private var entries: [URL: FileIdentity]
+    private let failingBody: URL?
+    init(candidates: [CleanupCandidate], failingBody: URL?) {
+        entries = Dictionary(uniqueKeysWithValues: candidates.map { ($0.url, $0.identity) })
+        self.failingBody = failingBody
+    }
+    func identity(at url: URL) throws -> FileIdentity {
+        guard let value = entries[url] else { throw FileSystemError.missing(url) }; return value
+    }
+    func children(of url: URL) -> [URL] { [] }
+    func isReadable(_ url: URL) -> Bool { true }
+    func isWritable(_ url: URL) -> Bool { true }
+    func fileExists(_ url: URL) -> Bool { entries[url] != nil }
+    func move(_ source: URL, to destination: URL) throws {
+        if source == failingBody { throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError) }
+        entries[destination] = try identity(at: source)
+        entries.removeValue(forKey: source)
+    }
+    func createDirectory(_ url: URL) {}
+    func removeEmptyDirectory(_ url: URL) {}
+    func trash(_ url: URL) throws -> URL {
+        _ = try identity(at: url)
+        entries.removeValue(forKey: url)
+        return URL(fileURLWithPath: "/fixture-trash/\(url.lastPathComponent)")
+    }
+}
+
+private final class ReceiptProgressCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [ExecutionProgress] = []
+    var values: [ExecutionProgress] { lock.withLock { storage } }
+    func append(_ value: ExecutionProgress) { lock.withLock { storage.append(value) } }
+}
+
+private actor ReceiptPermissionGate {
+    private var authorized = false
+    private(set) var calls = 0
+    func authorize() { authorized = true }
+    func forget() throws {
+        calls += 1
+        if !authorized { throw HelperClientError.notAuthorized }
+    }
 }

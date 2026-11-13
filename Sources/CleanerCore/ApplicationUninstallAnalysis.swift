@@ -47,6 +47,11 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
     /// Toggle availability without rediscovery, size traversal, or new item IDs.
     public func withRunningState(_ running: Bool) -> Self {
         guard !application.isSystem else { return self }
+        if application.uninstallRequiresAdministrator == true {
+            return Self(application: application.withRunningState(running), plan: nil, state: .protected,
+                message: application.uninstallProtectionReason, limitations: limitations,
+                ownership: ownership, runtimeObservation: runtimeObservation)
+        }
         let availablePlan = preparedPlan ?? plan
         let availableState = preparedState ?? state
         let availableMessage = preparedState == nil ? message : preparedMessage
@@ -64,6 +69,7 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         case .limited: return L10n.text("可卸载 · 部分未统计")
         case .unavailable: return L10n.text("无法分析")
         case .protected:
+            if application.uninstallRequiresAdministrator == true { return L10n.text("需要管理员权限 · 已保护") }
             return application.isRunning ? L10n.text("运行中 · 暂不可卸载") : L10n.text("当前应用没有可选择的卸载项目")
         }
     }
@@ -230,9 +236,11 @@ public struct ApplicationUninstallAnalyzer: Sendable {
         let applications = inventory.applications
         // Runtime availability is applied separately; ownership/shared-resource checks remain intact.
         let associationIndex = await scanner.associationIndex(for: applications.map { $0.withRunningState(false) }, context: context)
+        let analyses = await analyze(applications, using: associationIndex, context: context)
         return ApplicationUninstallInventory(
-            applicationInventory: inventory,
-            analyses: await analyze(applications, using: associationIndex, context: context),
+            applicationInventory: ApplicationInventory(applications: analyses.map(\.application),
+                coverage: inventory.coverage, scannedAt: inventory.scannedAt),
+            analyses: analyses,
             associationCoverage: associationIndex.coverage,
             ownershipGraph: associationIndex.ownershipGraph, associationIndex: associationIndex
         )
@@ -242,7 +250,7 @@ public struct ApplicationUninstallAnalyzer: Sendable {
         _ ids: Set<URL>, in applications: [InstalledApplication], context: ScanContext,
         cachedIndex: ApplicationAssociationIndex? = nil
     ) async -> [ApplicationUninstallAnalysis] {
-        let targets = applications.filter { ids.contains($0.id) && !$0.isRunning && !$0.isSystem }
+        let targets = applications.filter { ids.contains($0.id) && !$0.isRunning && !$0.isUninstallProtected }
         guard !targets.isEmpty else { return [] }
         // Reuse the shared ownership index; a quit must never restart discovery.
         guard let cachedIndex else {
@@ -284,17 +292,23 @@ public struct ApplicationUninstallAnalyzer: Sendable {
     }
 
     private func analyze(
-        _ application: InstalledApplication,
+        _ scannedApplication: InstalledApplication,
         associations: [ApplicationAssociation],
         context: ScanContext,
         ownership: ApplicationOwnershipNode?
     ) async -> ApplicationUninstallAnalysis {
-        if application.isSystem {
+        let application: InstalledApplication
+        if !scannedApplication.isSystem && scannedApplication.uninstallRequiresAdministrator == nil,
+           (try? await context.fileSystem.identity(at: scannedApplication.bundleURL))?.kind == .directory {
+            application = scannedApplication.withUninstallAdministratorRequirement(
+                !(await context.fileSystem.canMoveDirectory(scannedApplication.bundleURL)))
+        } else { application = scannedApplication }
+        if application.isUninstallProtected {
             return ApplicationUninstallAnalysis(
                 application: application,
                 plan: nil,
                 state: .protected,
-                message: L10n.text("这是由 macOS 管理的系统应用，无论是否运行都不会提供卸载操作。"), ownership: ownership
+                message: application.uninstallProtectionReason, ownership: ownership
             )
         }
 
@@ -319,6 +333,10 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 limitations: result.limitations,
                 ownership: ownership
             ).withRunningState(application.isRunning)
+        } catch UninstallPlanningError.administratorRequired {
+            let protected = application.withUninstallAdministratorRequirement(true)
+            return ApplicationUninstallAnalysis(application: protected, plan: nil, state: .protected,
+                message: protected.uninstallProtectionReason, ownership: ownership)
         } catch {
             return ApplicationUninstallAnalysis(
                 application: application,

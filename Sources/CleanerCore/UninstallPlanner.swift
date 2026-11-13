@@ -1,5 +1,10 @@
 import Foundation
 
+public enum UninstallPlanningError: Error, CustomStringConvertible {
+    case administratorRequired
+    public var description: String { L10n.text("应用本体需要管理员权限，已保护，不生成卸载计划。") }
+}
+
 public struct UninstallPlanner: Sendable {
     private let scanner: ApplicationScanner
     public init(scanner: ApplicationScanner = ApplicationScanner()) { self.scanner = scanner }
@@ -32,6 +37,12 @@ public struct UninstallPlanner: Sendable {
         var reachedSizeBudget = false
         var limitations: [ScanLimitation] = []
         let bundleIdentity = try await context.fileSystem.identity(at: application.bundleURL)
+        if !application.isSystem {
+            guard application.uninstallRequiresAdministrator != true,
+                  await context.fileSystem.canMoveDirectory(application.bundleURL) else {
+                throw UninstallPlanningError.administratorRequired
+            }
+        }
         let bundleBytes = try await measuredBytes(
             at: application.bundleURL,
             identity: bundleIdentity,

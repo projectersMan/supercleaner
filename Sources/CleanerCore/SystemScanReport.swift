@@ -141,11 +141,54 @@ public struct SystemScanReport: Sendable {
             materializedCandidates.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let generalLimitations = modules[.general]?.limitations ?? []
-        let generalCoverage = CoverageSummary(scannedRoots: generalCandidates.map(\.url),
-            unavailableRoots: generalLimitations.compactMap(\.path),
-            budgetLimitedModules: generalLimitations.contains { $0.reason == .budget } ? [.general] : [])
-        coverage = Self.combinedCoverage(Self.combinedCoverage(applicationInventory.coverage, diskUsageTree.coverage, agentScanCoverage), generalCoverage, CoverageSummary())
+        coverage = Self.snapshotCoverage(generalCandidates: generalCandidates, modules: modules,
+            applications: applicationInventory, disk: diskUsageTree, agents: agentScanCoverage)
+    }
+
+    /// Snapshot-only edits retain the existing path order. Callers supply a
+    /// filtered candidate list when removing items; no filesystem reads or sort
+    /// of unrelated modules belongs in cleanup completion or status updates.
+    init(
+        snapshot: SystemScanReport,
+        modules: [ScanModuleID: ScanModuleStatus]? = nil,
+        generalCandidates: [CleanupCandidate]? = nil,
+        applicationInventory: ApplicationInventory? = nil,
+        applicationUninstallInventory: ApplicationUninstallInventory? = nil,
+        diskUsageTree: DiskUsageTree? = nil,
+        largeFileCandidates: [CleanupCandidate]? = nil,
+        agentAssets: [AgentAssetRecord]? = nil,
+        agentSkills: [SkillCatalogEntry]? = nil,
+        candidates: [CleanupCandidate]? = nil,
+        coverage: CoverageSummary? = nil
+    ) {
+        metadata = snapshot.metadata
+        self.modules = modules ?? snapshot.modules
+        self.generalCandidates = generalCandidates ?? snapshot.generalCandidates
+        self.applicationInventory = applicationInventory ?? snapshot.applicationInventory
+        self.applicationUninstallInventory = applicationUninstallInventory ?? snapshot.applicationUninstallInventory
+        self.diskUsageTree = diskUsageTree ?? snapshot.diskUsageTree
+        self.largeFileCandidates = largeFileCandidates ?? snapshot.largeFileCandidates
+        self.agentAssets = agentAssets ?? snapshot.agentAssets
+        self.agentSkills = agentSkills ?? snapshot.agentSkills
+        agentMCPConfigurations = snapshot.agentMCPConfigurations
+        agentProviderCoverage = snapshot.agentProviderCoverage
+        agentSkillDuplicatesCollapsedCount = snapshot.agentSkillDuplicatesCollapsedCount
+        agentScanCoverage = snapshot.agentScanCoverage
+        self.candidates = candidates ?? snapshot.candidates
+        candidatesByID = candidates.map { values in
+            Dictionary(values.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        } ?? snapshot.candidatesByID
+        self.coverage = coverage ?? Self.snapshotCoverage(generalCandidates: self.generalCandidates, modules: self.modules,
+            applications: self.applicationInventory, disk: self.diskUsageTree, agents: agentScanCoverage)
+    }
+
+    private static func snapshotCoverage(generalCandidates: [CleanupCandidate], modules: [ScanModuleID: ScanModuleStatus],
+                                         applications: ApplicationInventory, disk: DiskUsageTree, agents: CoverageSummary) -> CoverageSummary {
+        let limitations = modules[.general]?.limitations ?? []
+        let general = CoverageSummary(scannedRoots: generalCandidates.map(\.url),
+            unavailableRoots: limitations.compactMap(\.path),
+            budgetLimitedModules: limitations.contains { $0.reason == .budget } ? [.general] : [])
+        return combinedCoverage(combinedCoverage(applications.coverage, disk.coverage, agents), general, CoverageSummary())
     }
 
     public func replacing(
@@ -282,14 +325,8 @@ public struct SystemScanReport: Sendable {
     }
 
     public func updatingModuleStatuses(_ statuses: [ScanModuleID: ScanModuleStatus]) -> SystemScanReport {
-        SystemScanReport(
-            metadata: metadata, modules: statuses, generalCandidates: generalCandidates,
-            applicationInventory: applicationInventory, applicationUninstallInventory: applicationUninstallInventory,
-            diskUsageTree: diskUsageTree, largeFileCandidates: largeFileCandidates,
-            agentAssets: agentAssets, agentSkills: agentSkills, agentMCPConfigurations: agentMCPConfigurations,
-            agentProviderCoverage: agentProviderCoverage, agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount,
-            agentScanCoverage: agentScanCoverage
-        )
+        guard statuses != modules else { return self }
+        return SystemScanReport(snapshot: self, modules: statuses)
     }
 
     private static func combinedCoverage(_ values: CoverageSummary...) -> CoverageSummary {

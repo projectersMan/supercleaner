@@ -21,6 +21,7 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
 
     public func selectionState(for plan: UninstallPlan, receipts: [URL] = [],
                                receiptSelection: PackageReceiptCleanupSelection = .init()) -> SelectionTriState {
+        guard !plan.application.isUninstallProtected else { return .none }
         let selectable = plan.selectableItemIDs
         let packageIDs = Set(receipts.compactMap(PackageReceiptCleanupSelection.packageID))
         let total = selectable.count + packageIDs.count
@@ -39,6 +40,7 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
     /// options. Receipt files remain outside the generic file deletion plan.
     public mutating func toggle(plan: UninstallPlan, receipts: [URL],
                                 receiptSelection: inout PackageReceiptCleanupSelection) {
+        guard !plan.application.isUninstallProtected else { return }
         let selected = selectionState(for: plan, receipts: receipts, receiptSelection: receiptSelection) != .all
         setSelected(selected, plan: plan)
         for packageID in Set(receipts.compactMap(PackageReceiptCleanupSelection.packageID)) {
@@ -63,13 +65,14 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
     }
 
     public mutating func reconcile(plans: [UninstallPlan]) {
-        let validIDs = Set(plans.flatMap(\.items).filter(Self.isSelectable).map(\.id))
+        let validIDs = Set(plans.filter { !$0.application.isUninstallProtected }.flatMap(\.items).filter(Self.isSelectable).map(\.id))
         selectedItemIDs.formIntersection(validIDs)
     }
 
     public func selectedItems(in plans: [UninstallPlan]) -> [UninstallItem] {
         var seenPaths = Set<String>()
         return plans
+            .filter { !$0.application.isUninstallProtected }
             .flatMap(\.items)
             .filter { item in
                 selectedItemIDs.contains(item.id)
@@ -83,7 +86,7 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
         let items = selectedItems(in: plans)
         let operations = CleanupSelection.executionCandidates(from: items.map(\.candidate))
         let applicationCount = plans.filter { plan in
-            !selectedItemIDs.intersection(Set(plan.items.map(\.id))).isEmpty
+            !selectedItemIDs.intersection(plan.selectableItemIDs).isEmpty
         }.count
         return UninstallBatchSummary(
             applicationCount: applicationCount,

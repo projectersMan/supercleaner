@@ -6,17 +6,19 @@ struct DeletionResultSheet: View {
     let receipt: OperationReceipt
 
     var body: some View {
-        let presentation = DeletionResultPresentation(results: receipt.results)
+        let presentation = DeletionResultPresentation(receipt: receipt)
         VStack(alignment: .leading, spacing: 18) {
-            Label(L10n.text("删除结果"), systemImage: "checkmark.circle.fill")
-                .font(.title.bold())
-            Text(L10n.text("已删除 {0} 项", String(describing: presentation.deletedCount)))
+            Label(presentation.isComplete ? L10n.text("删除结果") : L10n.text("删除未完成"),
+                  systemImage: presentation.isComplete ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.title.bold()).foregroundColor(presentation.isComplete ? .primary : .orange)
+            Text(presentation.isComplete ? L10n.text("已删除 {0} 项", String(presentation.deletedCount))
+                 : L10n.text("已删除 {0} 项 · 未完成 {1} 项", String(presentation.deletedCount), String(presentation.incompleteCount)))
                 .font(.headline)
             ForEach(presentation.recoveryMessages, id: \.self) { message in
                 Text(message).foregroundColor(.secondary)
             }
             Divider()
-            List(receipt.results.filter { DeletionResultPresentation.outcome(for: $0) == .deleted }) { result in
+            List(receipt.displayResults) { result in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(result.originalURL.lastPathComponent).fontWeight(.medium)

@@ -89,25 +89,49 @@ extension SystemScanReport {
                 ApplicationAssociationIndex(associations: index.associations.filter { !isRemoved($0.key) }
                     .mapValues { $0.filter { !isRemoved($0.url) } }, coverage: index.coverage, ownershipGraph: index.ownershipGraph)
             })
-        return SystemScanReport(metadata: metadata, modules: modules,
-            generalCandidates: generalCandidates.filter { !isRemoved($0.url) },
+        func updatingProof(_ candidate: CleanupCandidate) -> CleanupCandidate {
+            guard let proof = candidate.largeFileProof,
+                  changed.contains(candidate.id) || proof.retained.contains(where: { $0.isWithin(any: removed) })
+            else { return candidate }
+            return candidate.withLargeFileProof(nil)
+        }
+        let general = generalCandidates.filter { !isRemoved($0.url) }
+        let removedGeneralRoots = Set(generalCandidates.filter { isRemoved($0.url) }.map { $0.url.standardizedFileURL.path })
+        let otherScannedRoots = Set((applicationInventory.coverage.scannedRoots + diskUsageTree.coverage.scannedRoots
+            + agentScanCoverage.scannedRoots).map(\.path))
+        return SystemScanReport(snapshot: self,
+            generalCandidates: general,
             applicationInventory: apps, applicationUninstallInventory: uninstall, diskUsageTree: disk,
-            largeFileCandidates: largeFileCandidates.filter { !isRemoved($0.url) }.map { candidate in
-                guard let proof = candidate.largeFileProof,
-                      changed.contains(candidate.id) || proof.retained.contains(where: { $0.isWithin(any: removed) })
-                else { return candidate }
-                return candidate.withLargeFileProof(nil)
-            },
+            largeFileCandidates: largeFileCandidates.filter { !isRemoved($0.url) }.map(updatingProof),
             agentAssets: agentAssets.filter { !isRemoved($0.candidate.url) },
             agentSkills: agentSkills.filter { !isRemoved($0.skillRootURL) },
-            agentMCPConfigurations: agentMCPConfigurations, agentProviderCoverage: agentProviderCoverage,
-            agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount, agentScanCoverage: agentScanCoverage)
+            candidates: candidates.filter { !isRemoved($0.url) }.map(updatingProof),
+            coverage: coverage.removingScannedRoots(removedGeneralRoots.subtracting(otherScannedRoots)))
     }
 }
 
 /// Snapshot reconciliation is lexical: it must never query paths that have just been removed.
 struct CleanupPathIndex {
-    let paths: Set<String>
+    private final class Node {
+        var removesSubtree = false
+        var children: [Substring: Node] = [:]
+    }
+    private let root = Node()
+
+    init(paths: Set<String>) {
+        for path in paths {
+            var node = root
+            for part in path.split(separator: "/") {
+                if let child = node.children[part] { node = child }
+                else {
+                    let child = Node()
+                    node.children[part] = child
+                    node = child
+                }
+            }
+            node.removesSubtree = true
+        }
+    }
     static func path(_ url: URL) -> String {
         var components: [Substring] = []
         for part in url.path.split(separator: "/") {
@@ -118,11 +142,20 @@ struct CleanupPathIndex {
         return "/" + components.joined(separator: "/")
     }
     func contains(_ url: URL) -> Bool {
-        var path = Self.path(url)
-        while true {
-            if paths.contains(path) { return true }
-            guard path != "/", let slash = path.lastIndex(of: "/") else { return false }
-            path = slash == path.startIndex ? "/" : String(path[..<slash])
+        let parts = url.path.split(separator: "/")
+        var components = [Substring]()
+        for part in parts {
+            if part == "." { continue }
+            if part == ".." { if !components.isEmpty { components.removeLast() } }
+            else { components.append(part) }
         }
+        var node = root
+        if node.removesSubtree { return true }
+        for part in components {
+            guard let child = node.children[part] else { return false }
+            node = child
+            if node.removesSubtree { return true }
+        }
+        return false
     }
 }

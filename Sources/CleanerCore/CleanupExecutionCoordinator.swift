@@ -87,7 +87,8 @@ public actor CleanupExecutionCoordinator {
     public func execute(
         plan: CleanupPlan,
         retentionPolicy: QuarantineRetentionPolicy,
-        progress: CleanupExecutor.ProgressHandler
+        progress: CleanupExecutor.ProgressHandler,
+        permissionRecovery: CleanupExecutor.PermissionRecoveryHandler? = nil
     ) async throws -> OperationReceipt {
         let pendingEntries = try await journalStore.entries()
         let persistedReceipts = try await historyStore.receipts()
@@ -101,6 +102,13 @@ public actor CleanupExecutionCoordinator {
         activePlanIDs.insert(plan.id)
         defer { activePlanIDs.remove(plan.id) }
         let plan = try await refreshPlan(plan)
+        let receiptURLs = PackageReceiptCleanupSelection.requestedReceiptURLs(in: plan)
+        let total = plan.selectedDisplayItemCount
+        let fileProgress: CleanupExecutor.ProgressHandler = { update in
+            guard !receiptURLs.isEmpty else { progress(update); return }
+            progress(.init(completed: update.completed, total: total, currentURL: update.currentURL,
+                result: update.result, phase: update.phase))
+        }
         let effectiveRetention: QuarantineRetentionPolicy = plan.selectedItems.contains { $0.candidate.largeFileProof != nil }
             ? .manual : retentionPolicy
         var entry = ExecutionJournalEntry(
@@ -119,20 +127,36 @@ public actor CleanupExecutionCoordinator {
             plan: plan,
             receiptID: entry.id,
             startedAt: entry.startedAt,
-            progress: progress
+            progress: fileProgress,
+            permissionRecovery: permissionRecovery
         )
-        progress(.init(completed: receipt.results.count, total: plan.selectedItems.count, currentURL: nil, phase: .savingResults))
+        progress(.init(completed: receipt.results.count, total: total, currentURL: nil, phase: .savingResults))
         if Task.isCancelled, entry.retentionPolicy != .manual {
             entry = ExecutionJournalEntry(id: entry.id, plan: entry.plan, startedAt: entry.startedAt, retentionPolicy: .manual)
             try await journalStore.upsert(entry)
         }
         if let dockPreparationWarning { receipt = receipt.addingIntegrationWarning(dockPreparationWarning) }
         receipt = try await finalize(receipt: receipt, entry: entry)
-        await packageReceipts?.finish(proofs: receiptProofs, receipt: receipt)
+        if !receiptURLs.isEmpty {
+            let filesCompleted = receipt.results.count
+            let service = packageReceipts ?? PackageReceiptCleanupService(forget: { _, _ in throw HelperClientError.unavailable })
+            let metadata = await service.finish(proofs: receiptProofs, receipt: receipt, requestedReceiptURLs: receiptURLs,
+                permissionRecovery: permissionRecovery, expiresAt: plan.expiresAt, now: now) { count, url in
+                progress(.init(completed: filesCompleted + count, total: total, currentURL: url))
+            }
+            receipt = receipt.recordingInstallationReceipts(metadata)
+            progress(.init(completed: receipt.displayResults.count, total: total, currentURL: nil, phase: .savingResults))
+            try await historyStore.upsert(receipt)
+        }
+        let retentionProgress: CleanupExecutor.ProgressHandler = { update in
+            guard !receiptURLs.isEmpty else { progress(update); return }
+            progress(.init(completed: max(0, total - update.total) + update.completed, total: total,
+                currentURL: update.currentURL, result: update.result, phase: update.phase))
+        }
         return try await applyImmediateRetentionIfNeeded(
             to: receipt,
             policy: effectiveRetention,
-            progress: progress
+            progress: retentionProgress
         )
     }
 

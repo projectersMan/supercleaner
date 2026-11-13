@@ -180,12 +180,15 @@ private struct ApplicationUninstallRow: View {
                     Text(application.bundleIdentifier).font(.caption.monospaced()).foregroundColor(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 16)
-                if plan != nil {
+                if application.uninstallRequiresAdministrator == true {
+                    Label(L10n.text("需要管理员权限 · 已保护"), systemImage: "lock.shield")
+                        .font(.callout.weight(.medium)).foregroundColor(.secondary)
+                } else if plan != nil {
                     Text(L10n.text("可卸载 {0} 项 · {1}", String(describing: selectableItems.count + receiptItems.count), String(describing: selectableSizeDescription)))
                         .font(.callout.weight(.medium))
                         .frame(minWidth: 150, alignment: .trailing)
                 }
-                if analysis == nil && !application.isRunning {
+                if analysis == nil && !application.isRunning && !application.isUninstallProtected {
                     Label(L10n.text("正在准备卸载清单…"), systemImage: "clock")
                         .font(.caption).foregroundColor(.secondary)
                 }
@@ -403,6 +406,10 @@ private struct ApplicationUninstallRow: View {
                     .textSelection(.enabled)
             }
             Spacer()
+            if application.uninstallRequiresAdministrator == true {
+                Button(L10n.text("在访达中查看")) { NSWorkspace.shared.activateFileViewerSelecting([application.bundleURL]) }
+                    .font(.caption)
+            }
         }
         .padding(.leading, 54)
         .padding(.trailing, 18)

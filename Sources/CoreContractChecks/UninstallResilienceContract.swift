@@ -25,7 +25,13 @@ func runInstalledUninstallReadOnlyCheck(paths: [String]) async throws {
             require(false, "analysis missing for \(app.name)")
             continue
         }
-        require(analysis.plan != nil, "\(app.name): \(analysis.message ?? "unavailable")")
+        if analysis.application.isUninstallProtected {
+            require(analysis.plan == nil && analysis.state == .protected, "protected applications must not expose uninstall plans")
+            require(ApplicationListFilter(query: "", scope: .uninstallable).apply(to: [analysis.application]).isEmpty,
+                "protected installed app must not appear in Uninstallable")
+            require(ApplicationListFilter(query: "", scope: .systemProtected).apply(to: [analysis.application]).count == 1,
+                "protected installed app remains visible in Protected")
+        } else { require(analysis.plan != nil, "\(app.name): \(analysis.message ?? "unavailable")") }
         print("Read-only uninstall check: \(app.name), state=\(analysis.state.rawValue), planItems=\(analysis.plan?.items.count ?? 0), limitations=\(analysis.limitations.count)")
     }
 }

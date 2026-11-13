@@ -268,7 +268,7 @@ struct PermissionAccessSection: View {
             PermissionRow(
                 icon: "app.badge.checkmark",
                 title: L10n.text("App 管理"),
-                detail: L10n.text("执行卸载时由系统确认"),
+                detail: L10n.text("卸载遇到权限限制时，可打开系统设置授权后继续。"),
                 state: nil,
                 stateColor: .secondary
             ) {

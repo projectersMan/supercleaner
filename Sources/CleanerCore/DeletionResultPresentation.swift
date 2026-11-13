@@ -8,8 +8,14 @@ public struct DeletionResultPresentation: Sendable {
     public let skippedCount: Int
     public let failedCount: Int
     public let recoveryMessages: [String]
+    public var incompleteCount: Int { skippedCount + failedCount }
+    public var isComplete: Bool { incompleteCount == 0 }
 
-    public init(results: [OperationResult]) {
+    public init(receipt: OperationReceipt) {
+        self.init(results: receipt.displayResults, recoveryResults: receipt.results)
+    }
+
+    public init(results: [OperationResult], recoveryResults: [OperationResult]? = nil) {
         var deleted = 0, skipped = 0, failed = 0
         for result in results {
             switch Self.outcome(for: result) {
@@ -22,7 +28,7 @@ public struct DeletionResultPresentation: Sendable {
         skippedCount = skipped
         failedCount = failed
 
-        let completed = Set(results.filter(\.countsAsCleanedContent).map(\.disposition))
+        let completed = Set((recoveryResults ?? results).filter(\.countsAsCleanedContent).map(\.disposition))
         var messages: [String] = []
         if completed.contains(.quarantined) {
             messages.append(L10n.text("已删除项目可在保留期内从恢复记录找回；保留期间仍占用磁盘空间。"))

@@ -75,6 +75,20 @@ private struct ReceiptRow: View {
                     if let reason = receipt.rejectionReason {
                         Text(reason).font(.caption).foregroundColor(.orange).lineLimit(2)
                     }
+                    let incomplete = receipt.displayResults.filter {
+                        [.failed, .skipped].contains($0.disposition) || $0.status == .failed
+                    }
+                    if !incomplete.isEmpty {
+                        DisclosureGroup(L10n.text("未完成 {0} 项", String(incomplete.count))) {
+                            ForEach(incomplete) { result in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(result.originalURL.path).font(.caption).textSelection(.enabled)
+                                    Text(result.message ?? DeletionResultPresentation.statusTitle(for: result))
+                                        .font(.caption).foregroundColor(.orange).textSelection(.enabled)
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer()
                 if isWorking {
@@ -110,6 +124,10 @@ private struct ReceiptRow: View {
         if !trashed.isEmpty { parts.append(L10n.text("已移入系统废纸篓 {0} 项", String(describing: trashed.count))) }
         if !deleted.isEmpty { parts.append(L10n.text("已彻底删除 {0} 项 · 释放约 {1}", String(describing: deleted.count), String(describing: ByteCountFormatter.cleanerString(bytes: deletedBytes)))) }
         if !unavailable.isEmpty { parts.append(L10n.text("保留内容已不存在 {0} 项", String(describing: unavailable.count))) }
+        if let metadata = receipt.installationReceiptResults, !metadata.isEmpty {
+            let cleared = metadata.filter { $0.status == .succeeded }.count
+            parts.append(L10n.text("安装凭据：已清理 {0} 项，保留 {1} 项", String(cleared), String(metadata.count - cleared)))
+        }
         if parts.isEmpty { parts.append(L10n.text("未移动任何内容")) }
         return parts.joined(separator: " · ")
     }

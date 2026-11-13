@@ -1285,6 +1285,64 @@
 "仅手动选择；会删除本机聊天文件，请确认已备份，并先退出微信。" = "Select manually; local chat files will be removed. Confirm your backup and quit WeChat first.";
 "默认保留，可手动选择清理；应用后续运行时可能重新生成这些缓存或日志。" = "Kept by default; select manually to clean. The app may regenerate these caches or logs later.";
 "正在保存清理和恢复记录…" = "Saving cleanup and recovery records…";
+"正在更新清理清单…" = "Updating cleanup lists…";
 "正在移入系统废纸篓" = "Moving items to Trash";
 "全选" = "Select All";
 "仅影响当前类型、平台和显示筛选下的可选项目。" = "Applies only to selectable items in the current type, platform, and display filters.";
+"已通过系统安装服务清理安装凭据" = "Installation receipts cleared by the system installer service";
+"安装凭据未清理：{0}" = "Installation receipts were not cleared: {0}";
+"应用本体未删除，安装凭据已保留。" = "The application bundle was not removed; installation receipts were retained.";
+"未能验证安装凭据，已保留。" = "Installation receipts could not be verified and were retained.";
+"已删除 {0} 项 · 未完成 {1} 项" = "Deleted {0} items · {1} items incomplete";
+"未完成 {0} 项" = "{0} items incomplete";
+"安装凭据：已清理 {0} 项，保留 {1} 项" = "Installation receipts: {0} cleared, {1} retained";
+"安全校验超时，未执行删除；可稍后重试。" = "Safety validation timed out. Nothing was removed for this item; try again later.";
+"权限不足，应用本体仍在原位。请检查 App 管理权限，或在 Finder 中完成需要管理员确认的移除。" = "Permission was denied and the application bundle is still in its original location. Check App Management access, or use Finder to remove it with administrator approval.";
+
+"卸载已暂停，需要权限" = "Uninstall paused: permission required";
+
+"请在系统设置的“隐私与安全性 → App 管理”中允许 SuperCleaner 修改其他应用，然后返回继续。" = "In System Settings → Privacy & Security → App Management, allow SuperCleaner to modify other apps, then return to continue.";
+
+"请检查系统设置的“隐私与安全性 → 完全磁盘访问权限”，允许 SuperCleaner 后返回继续。" = "Check System Settings → Privacy & Security → Full Disk Access, allow SuperCleaner, then return to continue.";
+
+"重试仍被拒绝。请确认授权的是当前版本；App 管理权限不能替代管理员权限。" = "The retry was denied. Check that permission is granted to this version; App Management does not replace administrator authorization.";
+
+"已完成的项目会保留；继续时会重新验证并重试当前项目，再处理剩余项目。" = "Completed items are preserved. Continuing revalidates and retries the current item before processing the remaining items.";
+
+"当前版本无法启用管理员服务。如果开启 App 管理后仍失败，请停止任务，并在 Finder 中完成需要管理员确认的移除。" = "This version cannot enable the administrator service. If App Management does not resolve the failure, stop the task and use Finder for removal that requires administrator confirmation.";
+
+"当前版本无法启用管理员服务；应用文件的处理结果已保留，安装凭据会保留并记录为未完成。" = "This version cannot enable the administrator service. App file results are preserved; installation receipts will be retained and recorded as incomplete.";
+
+"清理系统安装凭据需要管理员服务授权。完成授权后继续，只会重试安装凭据，不会重复删除应用文件。" = "Removing system installation receipts requires administrator service authorization. After authorizing, continue to retry only the receipts; app files will not be removed again.";
+
+"管理员授权…" = "Authorize Administrator Access…";
+
+"已修改，继续卸载" = "Continue Uninstall";
+
+"卸载遇到权限限制时，可打开系统设置授权后继续。" = "If uninstalling is blocked by permissions, open System Settings to grant access, then continue.";
+
+"卸载已暂停，需要管理员权限" = "Uninstall paused: administrator access required";
+
+"系统仍拒绝访问。如果相关隐私权限已经开启，可能存在其他系统保护限制，请勿反复开启同一开关。" = "The system still denies access. If the relevant privacy permissions are already enabled, another system protection may be blocking the operation; toggling the same permission repeatedly will not help.";
+
+"此类关联文件不通过管理员服务删除。可停止任务后在 Finder 中检查文件权限；已完成的结果会保留。" = "The administrator service does not remove this type of associated file. Stop the task and inspect its file permissions in Finder; completed results are preserved.";
+
+"当前构建没有可用的管理员服务，无法在 App 内继续此项操作。可停止任务并在 Finder 中显示应用，由你完成需要管理员确认的移除。" = "This build has no available administrator service and cannot continue this operation in the app. Stop the task and reveal the app in Finder to complete removal with administrator confirmation.";
+
+"停止并在 Finder 中显示" = "Stop and Show in Finder";
+
+"管理员授权并继续…" = "Authorize and Continue…";
+
+"系统文件权限拒绝移动此项目（EACCES，13）。开启 App 管理不会提升文件权限，需要管理员操作后才能继续。" = "File system permissions prevent moving this item (EACCES, 13). App Management does not elevate file permissions; administrator action is required to continue.";
+
+"管理员操作尚未授权，或授权已过期。请完成管理员授权后继续卸载。" = "Administrator access is not authorized or has expired. Authorize administrator access to continue uninstalling.";
+
+"文件系统权限不足，需要管理员操作；App 管理开关不能解决此限制。" = "File system permissions require administrator action; enabling App Management cannot resolve this restriction.";
+
+"受保护" = "Protected";
+
+"当前用户无法直接移动应用本体，需要管理员权限；此应用已归入受保护列表，不提供卸载操作。" = "The current user cannot move this app bundle without administrator access. The app is listed under Protected and cannot be selected for uninstall.";
+
+"应用本体需要管理员权限，已保护，不生成卸载计划。" = "The app bundle requires administrator access. It is protected and no uninstall plan is created.";
+
+"需要管理员权限 · 已保护" = "Administrator access required · Protected";

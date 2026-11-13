@@ -17,12 +17,15 @@ public struct ApplicationScanner: Sendable {
     func installedApplication(at url: URL, context: ScanContext) async -> InstalledApplication? {
         guard (try? await context.fileSystem.identity(at: url))?.kind == .directory,
               let metadata = metadataProvider.metadata(for: url) else { return nil }
+        let isSystem = url.standardizedFileURL.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory)
+        let requiresAdministrator = isSystem ? false : !(await context.fileSystem.canMoveDirectory(url))
         return InstalledApplication(bundleURL: url, bundleIdentifier: metadata.bundleIdentifier,
             name: metadata.name, version: metadata.version,
             isRunning: context.runningBundleIdentifiers.contains(metadata.bundleIdentifier),
-            isSystem: url.standardizedFileURL.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory),
+            isSystem: isSystem,
             teamIdentifier: metadata.teamIdentifier, applicationGroups: metadata.applicationGroups,
-            associatedBundleIdentifiers: metadata.associatedBundleIdentifiers, applicationGroupsComplete: metadata.applicationGroupsComplete)
+            associatedBundleIdentifiers: metadata.associatedBundleIdentifiers, applicationGroupsComplete: metadata.applicationGroupsComplete,
+            uninstallRequiresAdministrator: requiresAdministrator)
     }
 
     public func installedApplications(
@@ -109,17 +112,20 @@ public struct ApplicationScanner: Sendable {
 
                     if url.pathExtension.lowercased() == "app" {
                         guard let metadata = metadataProvider.metadata(for: url) else { unavailableRoots.append(url); continue }
+                        let isSystem = url.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory)
+                        let requiresAdministrator = isSystem ? false : !(await context.fileSystem.canMoveDirectory(url))
                         applications.append(InstalledApplication(
                             bundleURL: url,
                             bundleIdentifier: metadata.bundleIdentifier,
                             name: metadata.name,
                             version: metadata.version,
                             isRunning: runningBundleIdentifiers.union(context.runningBundleIdentifiers).contains(metadata.bundleIdentifier),
-                            isSystem: url.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory),
+                            isSystem: isSystem,
                             teamIdentifier: metadata.teamIdentifier,
                             applicationGroups: metadata.applicationGroups,
                             associatedBundleIdentifiers: metadata.associatedBundleIdentifiers,
-                            applicationGroupsComplete: metadata.applicationGroupsComplete
+                            applicationGroupsComplete: metadata.applicationGroupsComplete,
+                            uninstallRequiresAdministrator: requiresAdministrator
                         ))
                         continue
                     }

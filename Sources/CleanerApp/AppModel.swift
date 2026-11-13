@@ -92,6 +92,8 @@ private struct ModuleScanSession: Sendable {
     @Published var deletionResult: OperationReceipt?
     @Published var deletionResultWarning: String?
     @Published private(set) var isStoppingDeletion = false
+    @Published private(set) var uninstallPermissionRequest: UninstallPermissionRequest?
+    private var uninstallPermissionReply: CheckedContinuation<UninstallPermissionRequest.Decision, Never>?
     @Published var selectedApplicationID: URL?
     @Published var selectedDiskNodeURL: URL?
     @Published var largeFileSortOrder: LargeFileSortOrder = .selection
@@ -285,7 +287,7 @@ private struct ModuleScanSession: Sendable {
         overlapStore = infrastructure.overlapStore
         helper.configureAvailability { [weak self] in
             guard let self else { return false }
-            return !updateInProgress && phase != .executing && !isScanRunning
+            return !updateInProgress && (phase != .executing || uninstallPermissionRequest != nil) && !isScanRunning
         }
         Task {
             let state = await overlapModelManager.state()
@@ -626,7 +628,7 @@ private struct ModuleScanSession: Sendable {
 
     var isDeletionInProgress: Bool { phase == .executing || oneClickCleanupIsRunning }
     var canStopDeletion: Bool { isDeletionInProgress && !isStoppingDeletion }
-    var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult?.results.contains(where: { DeletionResultPresentation.outcome(for: $0) == .deleted }) == true }
+    var showsDeletionSheet: Bool { isDeletionInProgress || deletionResult != nil }
 
     func dismissDeletionSheet() {
         guard !isDeletionInProgress else { return }
@@ -891,6 +893,7 @@ private struct ModuleScanSession: Sendable {
     var selectedBytes: UInt64 { executionSelectionCandidates.reduce(0) { $0 + $1.bytes } }
     var executionProgressDescription: String {
         if executionProgress.phase == .savingResults { return L10n.text("正在保存清理和恢复记录…") }
+        if executionProgress.phase == .updatingResults { return L10n.text("正在更新清理清单…") }
         return L10n.text(executionProgress.phase == .movingToTrash ? "废纸篓处理进度 {0}/{1} 项" : "已处理 {0}/{1} 项",
             String(executionProgress.completed), String(executionProgress.total))
     }
@@ -1010,14 +1013,15 @@ private struct ModuleScanSession: Sendable {
         guard let runningApplicationIDs, let inventory = systemReport?.applicationUninstallInventory else { return [] }
         return Set(inventory.analyses.compactMap { analysis in
             let app = analysis.application
-            return app.isRunning && !app.isSystem && analysis.preparedPlan == nil
+            return app.isRunning && !app.isUninstallProtected && analysis.preparedPlan == nil
                 && !runningApplicationIDs.contains(app.bundleIdentifier) ? app.id : nil
         })
     }
     var applicationUninstallPlans: [UninstallPlan] {
         if let cachedApplicationUninstallPlans { return cachedApplicationUninstallPlans }
-        let available = systemReport?.applicationUninstallInventory.analyses.compactMap { analysis in
-            analysis.withRunningState(runningApplicationIDs?.contains(analysis.application.bundleIdentifier)
+        let available: [UninstallPlan] = systemReport?.applicationUninstallInventory.analyses.compactMap { analysis -> UninstallPlan? in
+            guard !analysis.application.isUninstallProtected else { return nil }
+            return analysis.withRunningState(runningApplicationIDs?.contains(analysis.application.bundleIdentifier)
                 ?? analysis.application.isRunning).plan
         } ?? []
         let plans = available.filter {
@@ -1051,7 +1055,14 @@ private struct ModuleScanSession: Sendable {
         return cachedApplicationAnalysesByPath?[applicationID.standardizedFileURL.path]
     }
     var uninstallBatchSummary: UninstallBatchSummary {
-        uninstallSelectionState.summary(plans: applicationUninstallPlans)
+        let files = uninstallSelectionState.summary(plans: applicationUninstallPlans)
+        let receipts = Set(applicationUninstallPlans.flatMap { plan in
+            uninstallReceiptItems(for: plan.application).filter {
+                PackageReceiptCleanupSelection.packageID(for: $0).map(packageReceiptSelection.isSelected) == true
+            }.map { URL(fileURLWithPath: "/private/var/db/receipts/\($0.lastPathComponent)") }
+        })
+        return UninstallBatchSummary(applicationCount: files.applicationCount,
+            itemCount: files.itemCount + receipts.count, bytes: files.bytes)
     }
     private func canExecuteCleanup(in module: ScanModuleID, hasSelection: Bool) -> Bool {
         hasScanResult(for: module) && hasSelection
@@ -1066,11 +1077,17 @@ private struct ModuleScanSession: Sendable {
     }
 
     var canExecuteUninstallBatch: Bool {
-        canExecuteCleanup(in: .applications, hasSelection: uninstallBatchSummary.itemCount > 0)
+        canExecuteCleanup(in: .applications, hasSelection: !uninstallSelectedIDs.isEmpty && uninstallBatchSummary.itemCount > 0)
     }
 
     func uninstallAnalysis(for application: InstalledApplication) -> ApplicationUninstallAnalysis? {
-        guard let analysis = scannedApplicationAnalysis(for: application.id) else { return nil }
+        let scanned = scannedApplicationAnalysis(for: application.id)
+        if application.isUninstallProtected {
+            return ApplicationUninstallAnalysis(application: application, plan: nil, state: .protected,
+                message: application.uninstallProtectionReason, ownership: scanned?.ownership,
+                runtimeObservation: scanned?.runtimeObservation)
+        }
+        guard let analysis = scanned else { return nil }
         if application.isRunning && !application.isSystem {
             return ApplicationUninstallAnalysis(application: application, plan: nil, state: .protected,
                 message: L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。"),
@@ -1107,7 +1124,8 @@ private struct ModuleScanSession: Sendable {
     }
 
     func uninstallReceiptItems(for application: InstalledApplication) -> [URL] {
-        PackageReceiptCleanupSelection.selectableReceipts(
+        guard !application.isUninstallProtected else { return [] }
+        return PackageReceiptCleanupSelection.selectableReceipts(
             for: scannedApplicationAnalysis(for: application.id)?.ownership?.installation)
     }
 
@@ -1701,7 +1719,8 @@ private struct ModuleScanSession: Sendable {
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
                         retentionPolicy: defaultQuarantineRetentionPolicy,
-                        progress: progress
+                        progress: progress,
+                        permissionRecovery: uninstallPermissionRecoveryHandler()
                     )
                     finishExecutionProgress(receipt)
                     let outcome = recordCleanupOutcome(
@@ -1781,7 +1800,8 @@ private struct ModuleScanSession: Sendable {
                 let receipt = try await cleanupExecutionCoordinator.execute(
                     plan: plan,
                     retentionPolicy: defaultQuarantineRetentionPolicy,
-                    progress: progress
+                    progress: progress,
+                    permissionRecovery: uninstallPermissionRecoveryHandler()
                 )
                 finishExecutionProgress(receipt)
                 let attemptedCandidates = plan.selectedItems.map(\.candidate)
@@ -1818,7 +1838,7 @@ private struct ModuleScanSession: Sendable {
         deletionResultWarning = nil
         isStoppingDeletion = false
         activeCleanupModules = modules
-        let progress = executionProgressHandler(total: plan.selectedItems.count)
+        let progress = executionProgressHandler(total: plan.selectedDisplayItemCount)
         phase = .executing
         if agentOverlapAnalysisIsRunning {
             agentAnalysisDeferredForCleanup = true
@@ -1830,9 +1850,71 @@ private struct ModuleScanSession: Sendable {
         return progress
     }
 
+    private func uninstallPermissionRecoveryHandler() -> CleanupExecutor.PermissionRecoveryHandler {
+        { [weak self] request in
+            guard let self else { return .stop }
+            return await self.waitForUninstallPermission(request)
+        }
+    }
+
+    private func waitForUninstallPermission(_ request: UninstallPermissionRequest) async -> UninstallPermissionRequest.Decision {
+        await withTaskCancellationHandler {
+            guard !Task.isCancelled, !isStoppingDeletion else { return .stop }
+            return await withCheckedContinuation { reply in
+                uninstallPermissionRequest = request
+                uninstallPermissionReply = reply
+                executionItemStartedAt = nil
+            }
+        } onCancel: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard self?.uninstallPermissionRequest?.id == request.id else { return }
+                self?.resolveUninstallPermission(.stop)
+            }
+        }
+    }
+
+    var canContinueUninstallAfterPermissionChange: Bool {
+        guard let request = uninstallPermissionRequest, !isStoppingDeletion, !helper.isChanging else { return false }
+        return !request.requiresAdministrator
+            || (request.supportsPrivilegedHelper && helper.status == .enabled && helper.authorizationActive)
+    }
+
+    func continueUninstallAfterPermissionChange() {
+        guard canContinueUninstallAfterPermissionChange else { return }
+        resolveUninstallPermission(.retry)
+    }
+
+    func authorizeAndContinueUninstall() async {
+        guard let request = uninstallPermissionRequest, request.requiresAdministrator,
+              request.supportsPrivilegedHelper, !isStoppingDeletion else { return }
+        let authorized = await helper.prepareForScan()
+        guard authorized, uninstallPermissionRequest?.id == request.id else { return }
+        continueUninstallAfterPermissionChange()
+    }
+
+    private func resolveUninstallPermission(_ decision: UninstallPermissionRequest.Decision) {
+        let reply = uninstallPermissionReply
+        uninstallPermissionReply = nil
+        uninstallPermissionRequest = nil
+        reply?.resume(returning: decision)
+    }
+
+    func openUninstallPermissionSettings() {
+        guard let settingsURL = uninstallPermissionRequest?.settingsURL else { return }
+        NSWorkspace.shared.open(settingsURL)
+    }
+
+    func stopUninstallAndRevealInFinder() {
+        guard let request = uninstallPermissionRequest, request.resource != .installationReceipts else { return }
+        let url = request.url
+        cancelExecution()
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
     func cancelExecution() {
         guard canStopDeletion else { return }
         isStoppingDeletion = true
+        resolveUninstallPermission(.stop)
         executionTask?.cancel()
         oneClickExecutionTask?.cancel()
         statusMessage = L10n.text("正在完成当前原子移动，尚未开始的项目将停止")
@@ -1890,6 +1972,7 @@ private struct ModuleScanSession: Sendable {
     }
 
     private func finishExecutionProgress(_ receipt: OperationReceipt? = nil) {
+        resolveUninstallPermission(.stop)
         executionResultsTask?.cancel()
         executionProgressToken = nil
         executionItemStartedAt = nil
@@ -1897,8 +1980,8 @@ private struct ModuleScanSession: Sendable {
         else { pendingExecutionResults.removeAll() }
         if let receipt {
             recordScanCleanupEffects(receipt.results)
-            executionProgress = .init(completed: receipt.results.count, total: max(receipt.results.count, executionProgress.total),
-                currentURL: nil, phase: .savingResults)
+            executionProgress = .init(completed: receipt.displayResults.count, total: max(receipt.displayResults.count, executionProgress.total),
+                currentURL: nil, phase: .updatingResults)
         }
     }
 
@@ -2255,8 +2338,14 @@ private struct ModuleScanSession: Sendable {
             return
         }
         do {
+            let receiptsByCandidate = applicationUninstallPlans.reduce(into: [UUID: [URL]]()) { mapping, plan in
+                let receipts = uninstallReceiptItems(for: plan.application)
+                for item in plan.items { mapping[item.id] = receipts }
+            }
             let plan = try planBuilder.build(
-                candidates: selectedItems.map { packageReceiptSelection.applying(to: $0.candidate) },
+                candidates: selectedItems.map {
+                    packageReceiptSelection.applying(to: $0.candidate, receiptURLs: receiptsByCandidate[$0.id] ?? [])
+                },
                 selectedIDs: selection.selectedItemIDs
             )
             let progress = prepareDeletion(plan: plan, modules: [.applications])
@@ -2266,7 +2355,8 @@ private struct ModuleScanSession: Sendable {
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
                         retentionPolicy: defaultQuarantineRetentionPolicy,
-                        progress: progress
+                        progress: progress,
+                        permissionRecovery: uninstallPermissionRecoveryHandler()
                     )
                     finishExecutionProgress(receipt)
                     recordAppManagementObservation(from: receipt, selectedItems: selectedItems)
@@ -3348,6 +3438,37 @@ extension AppModel {
         print("PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: \(elapsed)s; selection, cleanup and scan-state invalidation")
     }
 
+    static func checkCleanupCompletionPerformance() throws {
+        struct Failure: Error { let message: String }
+        let model = AppModel(home: NavigationPresentationFixture.home, readRunningApplicationIDs: { [] })
+        let report = NavigationPresentationFixture.report()
+        model.isScanRunning = true
+        model.systemReport = report
+        model.scanProgressByModule = report.modules
+        model.isScanRunning = false
+        model.selection = .systemCleanup
+        let attempted = Array(report.generalCandidates.prefix(85))
+        model.selectedIDs = Set(attempted.map(\.id))
+        let plan = try model.planBuilder.build(candidates: attempted, selectedIDs: model.selectedIDs)
+        _ = model.prepareDeletion(plan: plan, modules: [.general])
+        let receipt = OperationReceipt(planID: plan.id, startedAt: Date(), completedAt: Date(),
+            results: attempted.map {
+                OperationResult(candidateID: $0.id, originalURL: $0.url, disposition: .trashed, status: .succeeded, bytes: $0.bytes)
+            })
+        let start = Date()
+        model.finishExecutionProgress(receipt)
+        model.recordCompletedCleanup(receipt, attemptedCandidates: attempted)
+        let elapsed = Date().timeIntervalSince(start)
+        print("Cleanup completion: 85 results / 25,000 scanned items = \(elapsed)s")
+        guard model.systemReport?.generalCandidates.count == 4_915,
+              model.systemReport?.agentAssets.count == 20_000,
+              model.selectedIDs.isEmpty, model.sessionCleanupSummary.itemCount == 85 else {
+            throw Failure(message: "completion must reconcile confirmed removals and preserve unrelated scan data")
+        }
+        guard elapsed < 0.4 else { throw Failure(message: "completion blocks the UI for \(elapsed)s") }
+        print("PASS: cleanup completion preserves scan state and finishes within 400 ms")
+    }
+
     static func checkApplicationResponsiveness() async throws {
         struct Failure: Error { let message: String }
         let read = ApplicationRefreshFixture()
@@ -3739,11 +3860,15 @@ extension AppModel {
         try check(model.uninstallSelectedIDs.isEmpty && !model.packageReceiptSelection.isSelected(packageID),
             "Clear Selection must clear receipt options as well as ordinary files")
         model.toggleUninstall(uninstallPlan)
-        let deletionPlan = try model.planBuilder.build(candidates: [item, support], selectedIDs: [item.id, support.id])
+        let deletionPlan = try model.planBuilder.build(candidates: [item, support].map {
+            model.packageReceiptSelection.applying(to: $0, receiptURLs: receipts)
+        }, selectedIDs: [item.id, support.id])
+        try check(model.uninstallBatchSummary.itemCount == 4,
+            "the selected total must include two file rows and both selected installation receipt rows")
         _ = model.prepareDeletion(plan: deletionPlan, modules: [.applications])
         try check(model.isUninstallItemSelected(uninstallPlan.items[0]) && model.uninstallSelectionState(for: uninstallPlan) == .all,
             "starting uninstall must keep app and item checkmarks selected")
-        try check(model.showsDeletionSheet && model.isDeletionInProgress && model.executionProgress.total == 2,
+        try check(model.showsDeletionSheet && model.isDeletionInProgress && model.executionProgress.total == 4,
             "starting uninstall must immediately present determinate progress")
         model.toggleUninstall(uninstallPlan)
         model.toggleUninstall(uninstallPlan.items[0])
@@ -3762,7 +3887,7 @@ extension AppModel {
         try check(model.applications.map(\.id) == [app.id] && model.uninstallSelectedIDs == [item.id]
             && model.uninstallSelectionState(for: model.applicationUninstallPlans[0]) == .all,
             "partial deletion removes completed rows but keeps the app and remaining item checked")
-        for progressPhase in [ExecutionProgress.Phase.processing, .movingToTrash, .savingResults] {
+        for progressPhase in [ExecutionProgress.Phase.processing, .movingToTrash, .savingResults, .updatingResults] {
             model.updateExecutionProgress(.init(completed: 0, total: 2, currentURL: support.url, phase: progressPhase))
             try check(model.canStopDeletion, "Stop stays enabled during validation, system Trash moves and result saving")
         }
@@ -3770,7 +3895,11 @@ extension AppModel {
         try check(model.isStoppingDeletion && model.isDeletionInProgress && model.showsDeletionSheet,
             "stop request keeps progress visible until the batch actually settles")
         try check(!model.canStopDeletion, "a pending stop request disables repeated clicks")
-        let receipt = OperationReceipt(planID: deletionPlan.id, startedAt: Date(), completedAt: Date(), results: presentationEffects, overallStatus: .completed)
+        let receipt = OperationReceipt(planID: deletionPlan.id, startedAt: Date(), completedAt: Date(), results: presentationEffects, overallStatus: .partial,
+            installationReceiptResults: receipts.map {
+                OperationResult(candidateID: UUID(), originalURL: $0, disposition: .skipped, status: .skippedProtected, bytes: 0,
+                    message: L10n.text("应用本体未删除，安装凭据已保留。"))
+            })
         model.updateExecutionProgress(.init(completed: 0, total: 2, currentURL: support.url, phase: .movingToTrash))
         let itemStarted = model.executionItemStartedAt
         try check(itemStarted != nil, "a pending system move has an elapsed-time origin")
@@ -3781,8 +3910,8 @@ extension AppModel {
         try check(model.executionItemStartedAt == nil, "completed movement clears the per-item timer")
         model.executionProgress = .init(completed: 1, total: 1, currentURL: nil, phase: .movingToTrash)
         model.finishExecutionProgress(receipt)
-        try check(model.executionProgress.completed == 2 && model.executionProgress.total == 2
-            && model.executionProgress.phase == .savingResults, "saving results restores the whole batch count after a smaller Trash stage")
+        try check(model.executionProgress.completed == 4 && model.executionProgress.total == 4
+            && model.executionProgress.phase == .updatingResults, "list reconciliation restores the whole batch count after a smaller Trash stage")
         model.recordCompletedCleanup(receipt, attemptedCandidates: [item, support])
         model.phase = .completed
         model.deletionResult = receipt
@@ -3790,6 +3919,10 @@ extension AppModel {
             "completion transitions to results while removing confirmed deleted app rows")
         model.dismissDeletionSheet()
         try check(!model.showsDeletionSheet, "dismissing results closes the operation sheet")
+        model.deletionResult = OperationReceipt(planID: UUID(), startedAt: Date(), completedAt: Date(),
+            results: [.init(candidateID: item.id, originalURL: item.url, disposition: .failed, status: .failed, bytes: item.bytes)], overallStatus: .failed)
+        try check(model.showsDeletionSheet, "a completely failed uninstall must still display its result and reason")
+        model.dismissDeletionSheet()
         _ = model.prepareDeletion(plan: deletionPlan, modules: [.applications])
         try check(!model.isStoppingDeletion && model.deletionResult == nil && model.deletionResultWarning == nil,
             "new batches reset stop state and previous results")
@@ -3809,5 +3942,127 @@ extension AppModel {
 private struct DuplicateFixtureIndex: LargeFileMetadataIndexing {
     func matchingFileURLs(minimumBytes: UInt64, scope: URL) async throws -> [URL] {
         throw LargeFileMetadataIndexError.queryUnavailable
+    }
+}
+
+extension AppModel {
+    static func checkUninstallPermissionRecovery() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        func check(_ condition: Bool, _ message: String) throws {
+            if !condition { throw Failure(description: message) }
+        }
+        let model = AppModel(home: URL(fileURLWithPath: "/tmp/SuperCleaner-UninstallPermission-Fixture"))
+        model.phase = .executing
+        model.executionProgress = .init(completed: 1, total: 7, currentURL: nil)
+        let request = UninstallPermissionRequest(url: URL(fileURLWithPath: "/Applications/Permission-Fixture.app"),
+            resource: .applicationBundle, attempt: 1)
+        func waitForPrompt(_ id: UUID) async throws {
+            let deadline = Date().addingTimeInterval(2)
+            while model.uninstallPermissionRequest?.id != id, Date() < deadline { await Task.yield() }
+            try check(model.uninstallPermissionRequest?.id == id, "permission prompt must appear without blocking the main actor")
+        }
+        let resume = Task { await model.waitForUninstallPermission(request) }
+        try await waitForPrompt(request.id)
+        try check(model.showsDeletionSheet && model.canStopDeletion && model.executionProgress.completed == 1
+            && model.executionProgress.total == 7, "pause retains progress and keeps Stop enabled")
+        model.continueUninstallAfterPermissionChange()
+        let resumed = await resume.value
+        if case .stop = resumed { throw Failure(description: "Continue must resume the waiting operation") }
+        model.continueUninstallAfterPermissionChange() // A double click must not resume twice.
+        try check(model.uninstallPermissionRequest == nil, "Continue clears the prompt")
+
+        let second = UninstallPermissionRequest(url: request.url, resource: .applicationBundle, attempt: 2)
+        let stop = Task { await model.waitForUninstallPermission(second) }
+        try await waitForPrompt(second.id)
+        model.cancelExecution()
+        let stopped = await stop.value
+        if case .retry = stopped { throw Failure(description: "Stop must finish the permission wait") }
+        try check(model.isStoppingDeletion && model.uninstallPermissionRequest == nil, "Stop clears the prompt immediately")
+
+        model.isStoppingDeletion = false
+        let cancel = Task { await model.waitForUninstallPermission(request) }
+        try await waitForPrompt(request.id)
+        cancel.cancel()
+        let cancelled = await cancel.value
+        if case .retry = cancelled { throw Failure(description: "Task cancellation must end permission waiting") }
+        try check(model.uninstallPermissionRequest == nil, "cancellation must not leave a stale prompt")
+        let alreadyCancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await model.waitForUninstallPermission(request)
+        }
+        _ = await alreadyCancelled.value
+        try check(model.uninstallPermissionRequest == nil, "cancellation before registration must not create a prompt")
+        let filePermission = UninstallPermissionRequest(url: request.url, resource: .applicationBundle,
+            cause: .filePermissions, attempt: 1)
+        let requiresAdmin = Task { await model.waitForUninstallPermission(filePermission) }
+        try await waitForPrompt(filePermission.id)
+        try check(filePermission.settingsURL == nil && !model.canContinueUninstallAfterPermissionChange,
+            "file permissions must not suggest App Management or allow retries without an administrator service")
+        model.continueUninstallAfterPermissionChange()
+        try check(model.uninstallPermissionRequest?.id == filePermission.id,
+            "Continue cannot replay an EACCES failure without authorization")
+        model.cancelExecution()
+        _ = await requiresAdmin.value
+        model.finishExecutionProgress()
+        print("PASS: uninstall permission guidance pauses responsively, preserves progress, resumes once and supports Stop and cancellation")
+    }
+}
+
+extension AppModel {
+    static func checkProtectedApplicationClassification() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        func check(_ condition: Bool, _ message: String) throws {
+            if !condition { throw Failure(description: message) }
+        }
+        let original = ApplicationPresentationFixture.report()
+        let restricted = original.applicationInventory.applications[2].withUninstallAdministratorRequirement(true)
+        let stalePlan = original.applicationUninstallInventory.analyses[2].plan!
+        let apps = original.applicationInventory.applications.map { $0.id == restricted.id ? restricted : $0 }
+        let analyses = original.applicationUninstallInventory.analyses.map { analysis in
+            analysis.id == restricted.id
+                ? ApplicationUninstallAnalysis(application: restricted, plan: stalePlan, state: .complete)
+                : analysis
+        }
+        let inventory = ApplicationUninstallInventory(applicationInventory: .init(applications: apps,
+            coverage: original.applicationInventory.coverage, scannedAt: original.applicationInventory.scannedAt), analyses: analyses)
+        let model = AppModel(home: ApplicationPresentationFixture.home)
+        model.systemReport = original.replacing(module: .applications, payload: .applications(inventory), completedAt: Date())
+        model.scanProgressByModule = model.systemReport!.modules
+        model.selection = .applications
+        model.applicationScope = .uninstallable
+        try check(!model.visibleApplications.contains { $0.id == restricted.id }, "administrator apps must be excluded from Uninstallable")
+        model.applicationScope = .systemProtected
+        try check(model.visibleApplications.map(\.id) == [restricted.id], "administrator apps must remain visible in Protected")
+        let analysis = model.uninstallAnalysis(for: restricted)
+        try check(analysis?.plan == nil && analysis?.state == .protected && analysis?.message != nil,
+            "Protected must explain the restriction without checkboxes, even when a stale plan exists")
+        model.applicationScope = .all
+        try check(model.visibleApplications.contains { $0.id == restricted.id }, "All must retain protected apps")
+        model.uninstallSelectedIDs = Set(stalePlan.items.map(\.id))
+        try check(model.uninstallBatchSummary.itemCount == 0 && !model.canExecuteUninstallBatch
+            && model.uninstallReceiptItems(for: restricted).isEmpty, "stale files and installer receipts cannot enter a deletion batch")
+        model.updateRunningApplicationIDs([restricted.bundleIdentifier])
+        try check(model.canQuitApplication(restricted.withRunningState(true)), "administrator protection must not prevent normal quit requests")
+        model.updateRunningApplicationIDs([])
+        model.applicationScope = .systemProtected
+        try check(model.visibleApplications.map(\.id) == [restricted.id] && model.applicationIDsAwaitingQuitAnalysis.isEmpty,
+            "quitting an administrator app must preserve protection without rediscovery")
+
+        // A read-only parent blocks deletion, but must not hide a readable app.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("protected-visibility-\(UUID())")
+        let parent = root.appendingPathComponent("Applications")
+        let app = parent.appendingPathComponent("Fixture.app")
+        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: parent.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: parent.path)
+        let tracker = ScanAccessTrackingFileSystem(base: LocalFileSystem())
+        let movable = await tracker.canMoveDirectory(app)
+        let denied = await tracker.deniedPaths
+        try check(!movable && !ScanAccessPresentation(deniedPaths: denied).skips(app),
+            "a write restriction must not be mistaken for an unreadable scan path")
+        print("PASS: administrator preflight keeps apps in Protected and All, blocks stale selections, preserves normal quitting and keeps readable restricted apps visible")
     }
 }

@@ -6,7 +6,7 @@ private struct PreparedValidationRefusal: Error, Sendable, CustomStringConvertib
 }
 
 public struct ExecutionProgress: Sendable, Equatable {
-    public enum Phase: Sendable, Equatable { case processing, savingResults, movingToTrash }
+    public enum Phase: Sendable, Equatable { case processing, savingResults, movingToTrash, updatingResults }
     public let completed: Int
     public let total: Int
     public let currentURL: URL?
@@ -51,6 +51,7 @@ public struct CleanupValidationBatch: Sendable {
 
 public actor CleanupExecutor {
     public typealias ProgressHandler = @Sendable (ExecutionProgress) -> Void
+    public typealias PermissionRecoveryHandler = @Sendable (UninstallPermissionRequest) async -> UninstallPermissionRequest.Decision
     private let fileSystem: any FileSystemAccess
     private let pathPolicy: PathPolicy
     private let quarantineRoot: URL
@@ -100,12 +101,14 @@ public actor CleanupExecutor {
         self.privilegedApplications = privilegedApplications
     }
 
-    public func execute(plan: CleanupPlan, progress: ProgressHandler = { _ in }) async -> OperationReceipt {
+    public func execute(plan: CleanupPlan, progress: ProgressHandler = { _ in },
+        permissionRecovery: PermissionRecoveryHandler? = nil) async -> OperationReceipt {
         await execute(
             plan: plan,
             receiptID: UUID(),
             startedAt: now(),
-            progress: progress
+            progress: progress,
+            permissionRecovery: permissionRecovery
         )
     }
 
@@ -113,7 +116,8 @@ public actor CleanupExecutor {
         plan: CleanupPlan,
         receiptID: UUID,
         startedAt: Date,
-        progress: ProgressHandler
+        progress: ProgressHandler,
+        permissionRecovery: PermissionRecoveryHandler? = nil
     ) async -> OperationReceipt {
         if plan.isExpired(at: startedAt) {
             return rejected(
@@ -168,9 +172,23 @@ public actor CleanupExecutor {
         let applicationValidationBudget = ApplicationValidationBudget(seconds: applicationValidationTimeout)
         let planDirectory = quarantineRoot.appendingPathComponent(plan.id.uuidString, isDirectory: true)
 
-        for (index, item) in selected.enumerated() {
+        var permissionAttempts: [UUID: Int] = [:]
+        var index = 0
+        while index < selected.count {
+            let item = selected[index]
+            var retryCurrentItem = false
+            defer { if !retryCurrentItem { index += 1 } }
             if Task.isCancelled { stoppedByCancellation = true; break }
             let candidate = item.candidate
+            func requestPermissionRecovery(_ error: any Error, isolation: isolated (any Actor)? = #isolation) async -> UninstallPermissionRequest.Decision? {
+                guard candidate.source == .application, !Task.isCancelled,
+                      let cause = UninstallPermissionRequest.permissionCause(for: error), let permissionRecovery else { return nil }
+                let attempt = (permissionAttempts[candidate.id] ?? 0) + 1
+                permissionAttempts[candidate.id] = attempt
+                return await permissionRecovery(.init(url: candidate.url,
+                    resource: candidate.category == .application ? .applicationBundle : .applicationData,
+                    cause: cause, attempt: attempt))
+            }
             let previousResultCount = results.count
             defer {
                 if results.count > previousResultCount {
@@ -199,6 +217,11 @@ public actor CleanupExecutor {
                 results.append(result(for: candidate, disposition: .skipped, status: .sourceMissing, message: L10n.text("文件已不存在")))
                 continue
             } catch {
+                if let decision = await requestPermissionRecovery(error) {
+                    if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    stoppedByCancellation = true; break
+                }
                 results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("无法重新验证文件身份")))
                 continue
             }
@@ -230,6 +253,11 @@ public actor CleanupExecutor {
                     _ = try pathPolicy.validateCandidate(candidate.url)
                 }
             } catch {
+                if let decision = await requestPermissionRecovery(error) {
+                    if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    stoppedByCancellation = true; break
+                }
                 results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
                 continue
             }
@@ -267,6 +295,11 @@ public actor CleanupExecutor {
                     continue
                 }
             } catch {
+                if let decision = await requestPermissionRecovery(error) {
+                    if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    stoppedByCancellation = true; break
+                }
                 results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged, message: L10n.text("无法重新验证文件身份")))
                 continue
             }
@@ -276,6 +309,7 @@ public actor CleanupExecutor {
             }
 
             if Task.isCancelled { stoppedByCancellation = true; break }
+            var attemptedMove = false
             do {
                 if !quarantineDirectoryCreated {
                     try await fileSystem.createDirectory(planDirectory)
@@ -286,6 +320,7 @@ public actor CleanupExecutor {
                     continue
                 }
                 let destination = uniqueDestination(for: candidate, in: planDirectory)
+                attemptedMove = true
                 let handled = try await privilegedApplications?.moveToQuarantine(candidate: candidate, destination: destination, planID: plan.id) ?? false
                 if !handled {
                     guard !plan.isExpired(at: now()) else {
@@ -305,6 +340,11 @@ public actor CleanupExecutor {
                                 }
                             }
                             catch {
+                                if let decision = await requestPermissionRecovery(error) {
+                                    if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                                    withUnsafeCurrentTask { $0?.cancel() }
+                                    stoppedByCancellation = true; break
+                                }
                                 results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
                                     message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
                                 continue
@@ -342,7 +382,29 @@ public actor CleanupExecutor {
                         destinationURL: uniqueDestination(for: candidate, in: planDirectory), disposition: .failed, status: .failed,
                         bytes: candidate.bytes, message: error.localizedDescription, verificationNotBefore: now().addingTimeInterval(150)))
                 } else {
-                    results.append(result(for: candidate, disposition: .failed, status: .failed, message: String(describing: error)))
+                    let denied = UninstallPermissionRequest.isPermissionDenied(error)
+                    if attemptedMove, candidate.source == .application, denied, permissionRecovery != nil {
+                        // Never replay an ambiguous move or overwrite a partial destination.
+                        let destination = uniqueDestination(for: candidate, in: planDirectory)
+                        let sourceUnchanged = (try? await fileSystem.identity(at: candidate.url))
+                            .map { matchesExecutionIdentity($0, candidate: candidate) } == true
+                        let destinationMissing: Bool
+                        do { _ = try await fileSystem.identity(at: destination); destinationMissing = false }
+                        catch FileSystemError.missing { destinationMissing = true }
+                        catch { destinationMissing = false }
+                        if sourceUnchanged && destinationMissing, let decision = await requestPermissionRecovery(error) {
+                            if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                            withUnsafeCurrentTask { $0?.cancel() }
+                            stoppedByCancellation = true; break
+                        }
+                    }
+                    let message: String
+                    if candidate.category == .application && denied {
+                        message = UninstallPermissionRequest.permissionCause(for: error) == .filePermissions
+                            ? L10n.text("文件系统权限不足，需要管理员操作；App 管理开关不能解决此限制。")
+                            : L10n.text("权限不足，应用本体仍在原位。请检查 App 管理权限，或在 Finder 中完成需要管理员确认的移除。")
+                    } else { message = String(describing: error) }
+                    results.append(result(for: candidate, disposition: .failed, status: .failed, message: message))
                 }
             }
         }
@@ -436,7 +498,7 @@ public actor CleanupExecutor {
         } else {
             status = .failed
         }
-        return OperationReceipt(
+        let recovered = OperationReceipt(
             id: entry.id,
             planID: entry.plan.id,
             startedAt: entry.startedAt,
@@ -444,6 +506,10 @@ public actor CleanupExecutor {
             results: results,
             overallStatus: status
         )
+        if let metadata = previousReceipt?.installationReceiptResults {
+            return recovered.recordingInstallationReceipts(metadata)
+        }
+        return recovered
     }
 
     public func prepareResolution(

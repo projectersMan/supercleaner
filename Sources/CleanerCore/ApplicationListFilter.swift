@@ -11,7 +11,7 @@ public enum ApplicationListScope: String, CaseIterable, Sendable {
         case .all: L10n.text("全部")
         case .uninstallable: L10n.text("可卸载")
         case .running: L10n.text("运行中")
-        case .systemProtected: L10n.text("系统保护")
+        case .systemProtected: L10n.text("受保护")
         }
     }
 }
@@ -35,9 +35,9 @@ public struct ApplicationListFilter: Sendable {
             let matchesScope: Bool
             switch scope {
             case .all: matchesScope = true
-            case .uninstallable: matchesScope = !application.isRunning && !application.isSystem
+            case .uninstallable: matchesScope = !application.isRunning && !application.isUninstallProtected
             case .running: matchesScope = application.isRunning
-            case .systemProtected: matchesScope = application.isSystem
+            case .systemProtected: matchesScope = application.isUninstallProtected
             }
             return matchesQuery && matchesScope
         }

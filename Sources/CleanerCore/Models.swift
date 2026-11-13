@@ -310,6 +310,9 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
     public let overallStatus: OverallStatus
     public let rejectionReason: String?
     public let integrationWarnings: [String]?
+    /// System installer metadata is reported separately from recoverable file moves.
+    public let installationReceiptResults: [OperationResult]?
+    public var displayResults: [OperationResult] { results + (installationReceiptResults ?? []) }
 
     public init(
         id: UUID = UUID(),
@@ -319,7 +322,8 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
         results: [OperationResult],
         overallStatus: OverallStatus = .completed,
         rejectionReason: String? = nil,
-        integrationWarnings: [String]? = nil
+        integrationWarnings: [String]? = nil,
+        installationReceiptResults: [OperationResult]? = nil
     ) {
         self.id = id
         self.planID = planID
@@ -329,13 +333,23 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
         self.overallStatus = overallStatus
         self.rejectionReason = rejectionReason
         self.integrationWarnings = integrationWarnings
+        self.installationReceiptResults = installationReceiptResults
     }
 
     public func addingIntegrationWarning(_ warning: String) -> OperationReceipt {
         let warnings = integrationWarnings ?? []
         return OperationReceipt(id: id, planID: planID, startedAt: startedAt, completedAt: completedAt,
             results: results, overallStatus: overallStatus, rejectionReason: rejectionReason,
-            integrationWarnings: warnings.contains(warning) ? warnings : warnings + [warning])
+            integrationWarnings: warnings.contains(warning) ? warnings : warnings + [warning],
+            installationReceiptResults: installationReceiptResults)
+    }
+
+    public func recordingInstallationReceipts(_ metadata: [OperationResult]) -> OperationReceipt {
+        let status: OverallStatus = overallStatus == .completed && metadata.contains(where: { $0.status != .succeeded })
+            ? .partial : overallStatus
+        return OperationReceipt(id: id, planID: planID, startedAt: startedAt, completedAt: completedAt,
+            results: results, overallStatus: status, rejectionReason: rejectionReason,
+            integrationWarnings: integrationWarnings, installationReceiptResults: metadata)
     }
 
     public var recoveredBytes: UInt64 {
@@ -366,7 +380,8 @@ public struct OperationReceipt: Identifiable, Codable, Hashable, Sendable {
             results: updatedResults,
             overallStatus: overallStatus,
             rejectionReason: rejectionReason,
-            integrationWarnings: integrationWarnings
+            integrationWarnings: integrationWarnings,
+            installationReceiptResults: installationReceiptResults
         )
     }
 }
