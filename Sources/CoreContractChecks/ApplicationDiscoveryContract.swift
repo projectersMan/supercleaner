@@ -64,7 +64,10 @@ func runApplicationDiscoveryContracts() async throws {
     try writeSource(declaration)
     try await ApplicationExecutionValidator(scanner: scanner).validate(item.candidate, context: context)
     let ordered = try PlanBuilder(protectionPolicy: .init(homeDirectory: home)).build(candidates: plan.items.map(\.candidate), selectedIDs: plan.selectableItemIDs)
-    require(ordered.selectedItems.last?.candidate.category == .application, "revalidate declared data before removing its source app")
+    let declaredIndex = ordered.selectedItems.firstIndex { $0.candidate.id == item.id }
+    let bundleIndex = ordered.selectedItems.firstIndex { $0.candidate.category == .application }
+    require(declaredIndex != nil && bundleIndex != nil && declaredIndex! < bundleIndex!,
+            "revalidate declared data before removing its source app")
 
     // A long minified identifier with no declaration used to make the unanchored
     // regular expression try every suffix, blocking uninstall revalidation.

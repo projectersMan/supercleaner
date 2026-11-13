@@ -105,6 +105,10 @@ func runSystemCleanupContracts() async throws {
     let wxLog = try file(wx + "Documents/app_data/log/app.xlog")
     try fm.setAttributes([.modificationDate: Date().addingTimeInterval(-2 * 86_400)], ofItemAtPath: wxLog.path)
     let currentWxLog = try file(wx + "Documents/app_data/log/current.xlog")
+    let manualChatFiles = try [
+        wx + "Documents/xwechat_files/accountA/msg/attach/photo",
+        wx + "Documents/xwechat_files/accountA/msg/file/file.pdf"
+    ].map(file)
     let canaries = try [
         "Library/Application Support/Google/Chrome/Default/Cookies",
         "Library/Application Support/Google/Chrome/Default/Login Data",
@@ -113,8 +117,6 @@ func runSystemCleanupContracts() async throws {
         "Library/Application Support/Google/Chrome/Default/Local Storage/data",
         "Library/Application Support/Trae CN/User/settings.json",
         wx + "Documents/app_data/log/user.txt",
-        wx + "Documents/xwechat_files/accountA/msg/attach/photo",
-        wx + "Documents/xwechat_files/accountA/msg/file/file.pdf",
         wx + "Documents/xwechat_files/accountA/db_storage/message.db",
         wx + "Library/Application Support/com.tencent.xinWeChat/account/Message/image.jpg",
         "Downloads/user.pdf"
@@ -125,14 +127,15 @@ func runSystemCleanupContracts() async throws {
     require(result.failures.isEmpty, "complete fixture discovery must have no silent coverage gaps")
     require(candidate("Library/Caches/com.openai.codex", in: result.candidates)?.cleanupApplication?.name == "ChatGPT", "real bundle ID owns ChatGPT cache")
     require(candidate("Library/Caches/com.openai.codex", in: result.candidates)?.risk == .safe
-        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.defaultSelection == true,
-        "exact application cache becomes a safe default after complete validation, independent of age")
+        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.defaultSelection == false
+        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.requiresExplicitSelection == true,
+        "verified application cache remains manually selectable in the keep group")
     require(candidate("Library/Caches/Google/Chrome/Profile 1/Cache", in: result.candidates) != nil, "Chrome nondefault profiles supported")
     require(candidate("Library/Application Support/Trae CN/Code Cache", in: result.candidates) != nil, "Electron cache leaves supported without deleting user data")
     let weChatAccountCache = candidate(wx + "Documents/xwechat_files/accountB/cache", in: result.candidates)
     require(weChatAccountCache?.risk == .safe
-        && CleanupRecommendationPolicy().disposition(for: weChatAccountCache!) == .recommended,
-        "typed WeChat Message/Thumb derivatives inside the exact account cache remain recommended cleanup")
+        && CleanupRecommendationPolicy().disposition(for: weChatAccountCache!) == .retain,
+        "typed WeChat Message/Thumb derivatives remain available for manual cleanup")
     require(result.candidates.contains { $0.url == wxLog && $0.category == .log }, "WeChat 4 xlog supported")
     let activeWeChatContext = ScanContext(homeDirectory: home, runningBundleIdentifiers: [wechat.bundleIdentifier])
     let activeWeChatDiscovery = await scanner.discover(applications: apps, context: activeWeChatContext)
@@ -140,37 +143,42 @@ func runSystemCleanupContracts() async throws {
     let activeWeChatLog = activeWeChatScan.candidates.first { $0.url == wxLog }!
     let activeCurrentWeChatLog = activeWeChatScan.candidates.first { $0.url == currentWxLog }!
     require(!activeWeChatLog.isActive
-        && CleanupRecommendationPolicy().disposition(for: activeWeChatLog) == .deepClean,
+        && CleanupRecommendationPolicy().disposition(for: activeWeChatLog) == .retain,
         "historical typed WeChat logs remain cleanup candidates while WeChat is running")
     require(!activeCurrentWeChatLog.isActive
-        && CleanupRecommendationPolicy().disposition(for: activeCurrentWeChatLog) == .deepClean,
+        && CleanupRecommendationPolicy().disposition(for: activeCurrentWeChatLog) == .retain,
         "recently modified typed WeChat logs remain cleanup candidates while WeChat is running")
     try await scanner.validateForExecution(activeWeChatLog, context: activeWeChatContext, applications: apps)
     try await scanner.validateForExecution(activeCurrentWeChatLog, context: activeWeChatContext, applications: apps)
     require(result.candidates.contains { $0.cleanupApplication?.bundleIdentifier == lark.bundleIdentifier }, "sandbox cache and log supported")
     require(canaries.allSatisfy { canary in !result.candidates.contains { canary.path == $0.url.path || canary.path.hasPrefix($0.url.path + "/") } }, "chat records, browser state and user files never covered by a removal root")
+    require(manualChatFiles.allSatisfy { file in result.candidates.contains {
+        file.path.hasPrefix($0.url.path + "/") && $0.category == .applicationSupport
+            && $0.requiresExplicitSelection == true && $0.defaultSelection == false
+    } }, "WeChat message files are visible as manual user-data leaves")
     let offline = result.candidates.first { offlinePayload.path.hasPrefix($0.url.path + "/") }!
     let scriptCache = result.candidates.first { scriptCachePayload.path.hasPrefix($0.url.path + "/") }!
     let otherOffline = result.candidates.first { otherOfflinePayload.path.hasPrefix($0.url.path + "/") }!
-    require(offline.requiresExplicitSelection != true && scriptCache.requiresExplicitSelection != true,
-            "Chrome offline storage is included in default cleanup candidates")
+    require(offline.requiresExplicitSelection == true && scriptCache.requiresExplicitSelection == true,
+            "Chrome offline storage remains manually selectable without default preselection")
     require(otherOffline.requiresExplicitSelection == true,
             "offline content from other applications remains individually confirmed")
     let policy = CleanupRecommendationPolicy()
-    require(offline.risk == .safe && offline.defaultSelection == true && PlanItem(candidate: offline).isSelected,
-            "explicitly approved Chrome offline storage is a low-risk default after validation")
-    require(policy.disposition(for: offline) == .recommended,
-            "approved Chrome offline storage is classified consistently with safe defaults")
-    require(policy.selectedIDs(for: result.candidates, mode: .smart, currentSelection: []).contains(offline.id)
-        && policy.selectedIDs(for: result.candidates, mode: .deep, currentSelection: []).contains(offline.id),
-        "approved Chrome offline storage is included in both smart and deep cleanup")
+    require(offline.risk == .safe && offline.defaultSelection == false && !PlanItem(candidate: offline).isSelected,
+            "validated Chrome offline storage still requires an individual selection")
+    require(policy.disposition(for: offline) == .retain,
+            "application-generated offline storage is shown in the keep group")
+    require(!policy.selectedIDs(for: result.candidates, mode: .smart, currentSelection: []).contains(offline.id)
+        && !policy.selectedIDs(for: result.candidates, mode: .deep, currentSelection: []).contains(offline.id),
+        "smart and deep cleanup do not silently select app offline storage")
     var selection = CleanupStrategySelectionState(strategy: .deep, generationID: UUID(), selectedIDs: [], excludedBaseIDs: [])
     selection.toggleCategory(candidates: result.candidates, baseEligibleIDs: [])
-    require(selection.selectedIDs.contains(offline.id), "group selection includes Chrome offline storage")
+    require(!selection.selectedIDs.contains(offline.id), "group selection excludes individually confirmed app data")
+    selection.toggle(offline, baseEligibleIDs: [])
     let custom = policy.selectedIDs(for: result.candidates, mode: .custom, currentSelection: selection.selectedIDs)
-    require(custom.contains(offline.id), "custom mode preserves one-click Chrome offline selection")
+    require(custom.contains(offline.id), "custom mode preserves explicit Chrome offline selection")
     let decoded = try JSONDecoder().decode(CleanupCandidate.self, from: JSONEncoder().encode(offline))
-    require(decoded.requiresExplicitSelection != true && decoded.cleanupApplication == offline.cleanupApplication,
+    require(decoded.requiresExplicitSelection == true && decoded.cleanupApplication == offline.cleanupApplication,
             "Chrome offline cleanup eligibility persists across serialization")
     var legacy = try JSONSerialization.jsonObject(with: JSONEncoder().encode(offline)) as! [String: Any]
     legacy.removeValue(forKey: "requiresExplicitSelection"); legacy.removeValue(forKey: "cleanupApplication")
@@ -194,8 +202,8 @@ func runSystemCleanupContracts() async throws {
         diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()),
         largeFileCandidates: [], agentAssets: [])
     let defaultSelection = DefaultCleanupPolicy().selection(for: systemReport).candidates
-    require(defaultSelection.contains { $0.id == offline.id } && defaultSelection.contains { $0.id == scriptCache.id },
-            "dashboard one-click defaults include Chrome CacheStorage and ScriptCache")
+    require(!defaultSelection.contains { $0.id == offline.id } && !defaultSelection.contains { $0.id == scriptCache.id },
+            "dashboard one-click defaults leave app-generated offline roots for manual selection")
     require(Set(defaultSelection.map(\.id)) == policy.defaultSelectedIDs(for: CleanupScopePolicy().cleanupCenterCandidates(from: result.candidates)),
             "dashboard defaults share the explicit safe-default eligibility policy")
     require(!defaultSelection.contains { $0.id == otherOffline.id },
@@ -243,16 +251,16 @@ func runSystemCleanupContracts() async throws {
     require(!activeOffline.isActive && !activeScript.isActive
         && activeOffline.evidence.contains { $0.code == "active-cleanup" }
         && activeScript.evidence.contains { $0.code == "active-cleanup" },
-        "running Chrome offline caches remain default-eligible with a visible regeneration warning")
+        "running Chrome offline caches remain manually eligible with a visible regeneration warning")
     let activeReport = SystemScanReport(metadata: .init(startedAt: Date(), completedAt: Date(), rulesetVersion: "fixture"),
         modules: [:], generalCandidates: activeScan.candidates,
         applicationInventory: .init(applications: [], coverage: .init(), scannedAt: Date()),
         diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()),
         largeFileCandidates: [], agentAssets: [])
     let activeDefaultSelection = DefaultCleanupPolicy().selection(for: activeReport).systemCleanup
-    require(activeDefaultSelection.contains { $0.url.path == offline.url.path }
-        && activeDefaultSelection.contains { $0.url.path == scriptCache.url.path },
-        "running Chrome offline roots are included in one-click cleanup selection")
+    require(!activeDefaultSelection.contains { $0.url.path == offline.url.path }
+        && !activeDefaultSelection.contains { $0.url.path == scriptCache.url.path },
+        "running Chrome offline roots are excluded from one-click cleanup selection")
     try await scanner.validateForExecution(offline, context: active, applications: apps)
     try await scanner.validateForExecution(scriptCache, context: active, applications: apps)
     let activeOtherApp = ScanContext(homeDirectory: home, runningBundleIdentifiers: [trae.bundleIdentifier])
@@ -270,10 +278,8 @@ func runSystemCleanupContracts() async throws {
     try fm.createSymbolicLink(at: link, withDestinationURL: external)
     let linkedDiscovery = await scanner.discover(applications: apps, context: context)
     require(!linkedDiscovery.targets.contains { $0.url == link } && linkedDiscovery.failures.contains { $0.path == link }, "symlinked cache roots rejected visibly")
-    require(activeChromeCandidates.filter { $0.category == .cache && $0.requiresExplicitSelection != true }.allSatisfy { !$0.isActive },
-            "exact non-shared Chrome cache roots may be cleaned while running")
-    require(activeChromeCandidates.filter { $0.category == .log || $0.requiresExplicitSelection == true }.allSatisfy(\.isActive),
-            "running logs and explicitly protected offline roots stay blocked")
+    require(activeChromeCandidates.allSatisfy { $0.requiresExplicitSelection == true && !$0.isActive },
+            "exact non-shared Chrome cache/log roots are manually selectable while running")
 
     let plan = try PlanBuilder(ruleVersion: "fixture", protectionPolicy: context.protectionPolicy).build(candidates: [offline], selectedIDs: [offline.id])
     let executor = CleanupExecutor(pathPolicy: context.pathPolicy, quarantineRoot: home.appendingPathComponent("quarantine"),
@@ -281,6 +287,6 @@ func runSystemCleanupContracts() async throws {
         validateCandidate: { try await scanner.validateForExecution($0, context: active, applications: apps) })
     let receipt = await executor.execute(plan: plan)
     require(receipt.results.first?.disposition == .quarantined, "offline selection is quarantined while Chrome is running")
-    require(canaries.allSatisfy { fm.fileExists(atPath: $0.path) }, "actual fixture cleanup leaves all user-data canaries intact")
+    require((canaries + manualChatFiles).allSatisfy { fm.fileExists(atPath: $0.path) }, "explicit cache cleanup leaves user-data and manual chat files intact")
     print("PASS: system cleanup partial results, Chrome profiles/offline defaults, application grouping, WeChat, and execution boundaries")
 }

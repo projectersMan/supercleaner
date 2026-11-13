@@ -58,7 +58,7 @@ struct DimensionActionBar: View {
             detail: model.isCurrentModuleScanning
                 ? L10n.text("正在扫描，报告就绪后可确认删除。")
                 : model.phase == .executing
-                    ? L10n.text("正在删除 {0}/{1}", String(describing: model.executionProgress.completed), String(describing: model.executionProgress.total))
+                    ? model.executionProgressDescription
                     : summary.itemCount == 0
                         ? L10n.text("当前没有已选项目。可手动勾选应用，或展开后逐项选择；扫描不会默认选中任何卸载项。")
                         : L10n.text("约 {0}；删除后可在恢复记录中找回。", String(describing: ByteCountFormatter.cleanerString(bytes: summary.bytes)))
@@ -86,7 +86,7 @@ struct DimensionActionBar: View {
     }
 
     private var candidateSelectionBar: some View {
-        let selected = model.selectedCandidates
+        let selected = model.executionSelectionCandidates
         let bytes = selected.reduce(UInt64(0)) { $0 + $1.bytes }
         return SelectionActionBar(
             hasSelection: !selected.isEmpty,
@@ -128,7 +128,7 @@ struct DimensionActionBar: View {
     private func detail(count: Int, bytes: UInt64) -> String {
         if model.isCurrentModuleScanning { return L10n.text("正在扫描，报告就绪后可确认删除。") }
         if model.phase == .executing {
-            return L10n.text("正在删除 {0}/{1}", String(describing: model.executionProgress.completed), String(describing: model.executionProgress.total))
+            return model.executionProgressDescription
         }
         if case .failed = model.phase, let message = model.statusMessage { return message }
         guard count > 0 else { return L10n.text("勾选需要清理的项目，删除后可在恢复记录中找回。") }
@@ -143,8 +143,9 @@ struct OneClickCleanupActionBar: View {
 
     var body: some View {
         let defaults = model.defaultCleanupSelection
-        let candidateCount = defaults?.systemCleanup.count ?? 0
-        let bytes = defaults?.systemCleanup.reduce(UInt64(0)) { $0 + $1.bytes } ?? 0
+        let candidates = CleanupSelection.executionCandidates(from: defaults?.systemCleanup ?? [])
+        let candidateCount = candidates.count
+        let bytes = candidates.reduce(UInt64(0)) { $0 + $1.bytes }
 
         Divider()
         SelectionActionBar(
@@ -169,14 +170,14 @@ struct OneClickCleanupActionBar: View {
         if model.oneClickCleanupIsRunning { return L10n.text("正在执行系统清理") }
         guard model.hasScanResult(for: .general) else { return L10n.text("等待系统清理扫描完成") }
         if candidateCount > 0 {
-            return L10n.text("系统清理已就绪 · 待清理 ") + String(candidateCount) + L10n.text(" 项")
+            return L10n.text("系统清理已就绪 · ") + String(candidateCount) + L10n.text(" 项")
         }
         return L10n.text("当前无需默认系统清理")
     }
 
     private func detail(candidateCount: Int, bytes: UInt64) -> String {
         if model.oneClickCleanupIsRunning {
-            return L10n.text("正在清理 ") + String(model.executionProgress.completed) + "/" + String(model.executionProgress.total) + L10n.text("；系统清理状态会同步更新。")
+            return model.executionProgressDescription
         }
         guard model.hasScanResult(for: .general) else { return L10n.text("系统清理扫描完成后可处理默认勾选项。") }
         guard candidateCount > 0 else {

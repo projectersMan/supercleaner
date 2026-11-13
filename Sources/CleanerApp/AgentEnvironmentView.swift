@@ -91,6 +91,14 @@ struct AgentEnvironmentView: View {
                 .frame(width: 120)
             }
             Spacer()
+            Toggle(L10n.text("全选"), isOn: Binding(
+                get: { model.areAllVisibleAgentItemsSelected },
+                set: { model.setAllVisibleAgentItemsSelected($0) }
+            ))
+            .toggleStyle(.checkbox)
+            .fixedSize()
+            .disabled(!model.canSelectAllVisibleAgentItems)
+            .help(L10n.text("仅影响当前类型、平台和显示筛选下的可选项目。"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .font(.caption)
@@ -709,11 +717,6 @@ private struct AgentEligibilityBadge: View {
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background((activity == .active ? Color.orange : eligibility.color).opacity(0.12), in: Capsule())
     }
-}
-
-private extension SelectionTriState {
-    var icon: String { switch self { case .none: "square"; case .partial: "minus.square.fill"; case .all: "checkmark.square.fill" } }
-    var accessibilityTitle: String { switch self { case .none: L10n.text("未选择"); case .partial: L10n.text("部分选择"); case .all: L10n.text("全部选择") } }
 }
 
 private extension AgentProvider {

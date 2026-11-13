@@ -52,15 +52,24 @@ public struct PlanBuilder: Sendable {
             catch { throw PlanBuilderError.protectedSelection(candidate.id) }
         }
 
+        // Validate every selected entry above before consolidating descendants.
+        // A blocked child must still reject the plan even when its parent is selected.
+        let operations = CleanupSelection.executionCandidates(
+            from: candidates.filter { selectedIDs.contains($0.id) }
+        )
+        let executionByID = Dictionary(uniqueKeysWithValues: operations.map { ($0.id, $0) })
+
         let ordered = candidates.enumerated().sorted { left, right in
-            let leftBody = left.element.source == .application && left.element.category == .application
-            let rightBody = right.element.source == .application && right.element.category == .application
-            return leftBody == rightBody ? left.offset < right.offset : !leftBody
+            // Associated identifiers, app groups and declared data directories
+            // need the source bundle available for live ownership revalidation.
+            let a = left.element.source == .application && left.element.category == .application
+            let b = right.element.source == .application && right.element.category == .application
+            return a == b ? left.offset < right.offset : !a
         }.map(\.element)
         let items = ordered.map { candidate in
             PlanItem(
-                candidate: candidate,
-                isSelected: selectedIDs.contains(candidate.id),
+                candidate: executionByID[candidate.id] ?? candidate,
+                isSelected: executionByID[candidate.id] != nil,
                 action: .quarantine,
                 evidenceDigest: evidenceDigest(for: candidate)
             )

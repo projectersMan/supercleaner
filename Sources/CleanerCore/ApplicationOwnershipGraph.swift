@@ -58,6 +58,13 @@ public struct ApplicationOwnershipNode: Codable, Hashable, Sendable, Identifiabl
     public let configurationReferences: [ApplicationReferenceLocation]
     public let serviceReferences: [ApplicationReferenceLocation]?
     public let ownershipVerified: Bool?
+    public init(applicationURL: URL, copies: [URL] = [], installation: ApplicationInstallation,
+                configurationReferences: [ApplicationReferenceLocation] = [],
+                serviceReferences: [ApplicationReferenceLocation]? = nil, ownershipVerified: Bool? = nil) {
+        self.applicationURL = applicationURL; self.copies = copies; self.installation = installation
+        self.configurationReferences = configurationReferences
+        self.serviceReferences = serviceReferences; self.ownershipVerified = ownershipVerified
+    }
     public var requiresExternalUninstall: Bool { installation.requiresExternalUninstall || serviceReferences?.isEmpty == false }
     public var blocksAssociationDeletion: Bool { installation.requiresExternalUninstall }
     public var guidance: String {

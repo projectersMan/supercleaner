@@ -154,6 +154,11 @@ public struct PackageReceiptCleanupSelection: Equatable, Sendable {
     private var selectedPackageIDs = Set<String>()
     public init() {}
 
+    public static func selectableReceipts(for installation: ApplicationInstallation?) -> [URL] {
+        guard let installation, installation.source == .packageInstaller else { return [] }
+        return installation.receipts.filter { packageID(for: $0) != nil }
+    }
+
     public static func packageID(for receipt: URL) -> String? {
         guard ["/var/db/receipts", "/private/var/db/receipts"].contains(receipt.deletingLastPathComponent().standardizedFileURL.path),
               ["bom", "plist"].contains(receipt.pathExtension) else { return nil }

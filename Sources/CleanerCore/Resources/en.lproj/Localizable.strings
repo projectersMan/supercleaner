@@ -352,7 +352,7 @@
 "仅处理系统清理中默认勾选的项目" = "Processes only items selected by default in System Cleanup";
 "正在执行系统清理" = "Running system cleanup";
 "等待系统清理扫描完成" = "Waiting for the system cleanup scan";
-"系统清理已就绪 · 待清理 " = "System cleanup ready · Pending: ";
+"系统清理已就绪 · " = "System cleanup ready · ";
 " 项" = " items";
 "当前无需默认系统清理" = "No default system cleanup needed";
 "正在清理 " = "Cleaning ";
@@ -1276,5 +1276,15 @@
 "{0}，始终保护" = "{0}, always protected";
 "已删除 {0} 项" = "Deleted {0} items";
 "已移入废纸篓 {0}/{1} 项" = "Moved to Trash {0}/{1} items";
+"废纸篓处理进度 {0}/{1} 项" = "Trash progress {0}/{1} items";
+"当前文件已用 {0} 秒" = "Current item: {0} seconds elapsed";
+"微信聊天附件 · {0}" = "WeChat attachments · {0}";
+"微信聊天文件 · {0}" = "WeChat files · {0}";
+"微信聊天视频 · {0}" = "WeChat videos · {0}";
+"微信迁移文件 · {0}" = "WeChat migration files · {0}";
+"仅手动选择；会删除本机聊天文件，请确认已备份，并先退出微信。" = "Select manually; local chat files will be removed. Confirm your backup and quit WeChat first.";
+"默认保留，可手动选择清理；应用后续运行时可能重新生成这些缓存或日志。" = "Kept by default; select manually to clean. The app may regenerate these caches or logs later.";
 "正在保存清理和恢复记录…" = "Saving cleanup and recovery records…";
 "正在移入系统废纸篓" = "Moving items to Trash";
+"全选" = "Select All";
+"仅影响当前类型、平台和显示筛选下的可选项目。" = "Applies only to selectable items in the current type, platform, and display filters.";

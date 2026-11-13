@@ -19,21 +19,39 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
         self.selectedItemIDs = selectedItemIDs
     }
 
-    public func selectionState(for plan: UninstallPlan) -> SelectionTriState {
+    public func selectionState(for plan: UninstallPlan, receipts: [URL] = [],
+                               receiptSelection: PackageReceiptCleanupSelection = .init()) -> SelectionTriState {
         let selectable = plan.selectableItemIDs
-        guard !selectable.isEmpty else { return .none }
+        let packageIDs = Set(receipts.compactMap(PackageReceiptCleanupSelection.packageID))
+        let total = selectable.count + packageIDs.count
+        guard total > 0 else { return .none }
         let count = selectedItemIDs.intersection(selectable).count
+            + packageIDs.filter { receiptSelection.isSelected($0) }.count
         if count == 0 { return .none }
-        return count == selectable.count ? .all : .partial
+        return count == total ? .all : .partial
     }
 
     public mutating func toggle(plan: UninstallPlan) {
+        setSelected(selectionState(for: plan) != .all, plan: plan)
+    }
+
+    /// A parent checkbox controls every displayed child, including receipt
+    /// options. Receipt files remain outside the generic file deletion plan.
+    public mutating func toggle(plan: UninstallPlan, receipts: [URL],
+                                receiptSelection: inout PackageReceiptCleanupSelection) {
+        let selected = selectionState(for: plan, receipts: receipts, receiptSelection: receiptSelection) != .all
+        setSelected(selected, plan: plan)
+        for packageID in Set(receipts.compactMap(PackageReceiptCleanupSelection.packageID)) {
+            receiptSelection.setSelected(selected, packageID: packageID)
+        }
+    }
+
+    private mutating func setSelected(_ selected: Bool, plan: UninstallPlan) {
         let selectable = plan.selectableItemIDs
-        guard !selectable.isEmpty else { return }
-        if selectionState(for: plan) == .all {
-            selectedItemIDs.subtract(selectable)
-        } else {
+        if selected {
             selectedItemIDs.formUnion(selectable)
+        } else {
+            selectedItemIDs.subtract(selectable)
         }
     }
 
@@ -63,13 +81,14 @@ public struct UninstallBatchSelectionState: Codable, Hashable, Sendable {
 
     public func summary(plans: [UninstallPlan]) -> UninstallBatchSummary {
         let items = selectedItems(in: plans)
+        let operations = CleanupSelection.executionCandidates(from: items.map(\.candidate))
         let applicationCount = plans.filter { plan in
             !selectedItemIDs.intersection(Set(plan.items.map(\.id))).isEmpty
         }.count
         return UninstallBatchSummary(
             applicationCount: applicationCount,
-            itemCount: items.count,
-            bytes: items.reduce(0) { $0 + $1.candidate.bytes }
+            itemCount: operations.count,
+            bytes: operations.reduce(0) { $0 + $1.bytes }
         )
     }
 

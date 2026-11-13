@@ -62,5 +62,6 @@ ${APP}/Contents/MacOS/CleanerApp --update-self-check
 "${APP}/Contents/MacOS/CleanerApp" --scan-cleanup-self-check
 "${APP}/Contents/MacOS/CleanerApp" --scan-permission-presentation-self-check
 "${APP}/Contents/MacOS/CleanerApp" --navigation-presentation-self-check
+"${APP}/Contents/MacOS/CleanerApp" --application-responsiveness-self-check
 "${APP}/Contents/MacOS/CleanerApp" --agent-presentation-self-check
 print "PASS: SuperCleaner.app structure, signature, smoke flow, and concurrent scan cleanup verified"

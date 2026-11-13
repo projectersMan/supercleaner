@@ -62,6 +62,7 @@ public actor CleanupExecutor {
     private let loadRuleVersion: (@Sendable () async throws -> String)?
     private let validateCandidate: @Sendable (CleanupCandidate) async throws -> Void
     private let finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)?
+    private let applicationValidationTimeout: TimeInterval
     private let prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)?
     private let privilegedApplications: (any PrivilegedApplicationOperations)?
 
@@ -78,6 +79,7 @@ public actor CleanupExecutor {
         prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)? = nil,
         privilegedApplications: (any PrivilegedApplicationOperations)? = nil,
         finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)? = nil,
+        applicationValidationTimeout: TimeInterval = 15,
         permanentRemove: @escaping @Sendable (URL) async throws -> Void = { url in
             try FileManager.default.removeItem(at: url)
         }
@@ -93,6 +95,7 @@ public actor CleanupExecutor {
         self.loadRuleVersion = loadRuleVersion
         self.validateCandidate = validateCandidate
         self.finalCandidateCheck = finalCandidateCheck
+        self.applicationValidationTimeout = max(0.01, applicationValidationTimeout)
         self.prepareValidationBatch = prepareValidationBatch
         self.privilegedApplications = privilegedApplications
     }
@@ -162,6 +165,7 @@ public actor CleanupExecutor {
         var stoppedByCancellation = false
         var quarantineDirectoryCreated = false
         var checkedGeneralActivity = false
+        let applicationValidationBudget = ApplicationValidationBudget(seconds: applicationValidationTimeout)
         let planDirectory = quarantineRoot.appendingPathComponent(plan.id.uuidString, isDirectory: true)
 
         for (index, item) in selected.enumerated() {
@@ -178,6 +182,12 @@ public actor CleanupExecutor {
                 continue
             }
             progress(ExecutionProgress(completed: index, total: selected.count, currentURL: candidate.url))
+            if candidate.source == .application, candidate.category != .application,
+               await applicationValidationBudget.associationBudgetExhausted {
+                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                    message: String(describing: ApplicationValidationDeadlineError.timedOut)))
+                continue
+            }
 
             do {
                 let initialIdentity = try await fileSystem.identity(at: candidate.url)
@@ -199,7 +209,12 @@ public actor CleanupExecutor {
                     try await validationBatch.verifyCurrentRuleState()
                     if case let .refused(message) = prepared { throw PreparedValidationRefusal(message: message) }
                 } else {
-                    try await validateCandidate(candidate)
+                    if candidate.source == .application {
+                        let validate = validateCandidate
+                        try await applicationValidationBudget.validate(candidate) {
+                            try await validate(candidate)
+                        }
+                    } else { try await validateCandidate(candidate) }
                     if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
                         results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("清理规则已变化，请重新扫描")))
                         continue
@@ -280,8 +295,10 @@ public actor CleanupExecutor {
                     if allowsContentChanges(candidate) {
                         if candidate.identity.kind == .directory {
                             do {
-                                if let finalCandidateCheck { try await finalCandidateCheck(candidate) }
-                                else { try await validateCandidate(candidate) }
+                                let check = finalCandidateCheck ?? validateCandidate
+                                if candidate.source == .application {
+                                    try await applicationValidationBudget.validate(candidate) { try await check(candidate) }
+                                } else { try await check(candidate) }
                                 if let validationBatch { try await validationBatch.verifyCurrentRuleState() }
                                 else if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
                                     throw RuleScanError.executionRefused(candidate.ruleID ?? "changed-rules")

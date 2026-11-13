@@ -27,6 +27,13 @@ import SwiftUI
             do { try AppModel.checkNavigationPresentation(); exit(0) }
             catch { FileHandle.standardError.write(Data("FAIL: navigation presentation \(error)\n".utf8)); exit(1) }
         }
+        if CommandLine.arguments.contains("--application-responsiveness-self-check") {
+            Task { @MainActor in
+                do { try await AppModel.checkApplicationResponsiveness(); exit(0) }
+                catch { FileHandle.standardError.write(Data("FAIL: application responsiveness \(error)\n".utf8)); exit(1) }
+            }
+            dispatchMain()
+        }
         if CommandLine.arguments.contains("--scan-cleanup-self-check") {
             Task { @MainActor in
                 do {

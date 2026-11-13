@@ -53,7 +53,7 @@ public struct CleanupRuntime: Sendable {
         let activity = includeProcessActivity || includeProjectActivity
             ? await ActivitySnapshot.capture()
             : ActivitySnapshot(processNames: [], isAvailable: false, buildProcessIDs: [])
-        let applications = await MainActor.run { NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier) }
+        let applications = await RunningApplicationSnapshot.identifiers()
         let bundleIDs = runningBundleIdentifiers.union(applications)
         var paths = activePaths.union(bundleIDs.flatMap { id in
             [home.appendingPathComponent("Library/Caches/\(id)")]
@@ -196,7 +196,7 @@ public struct CleanupRuntime: Sendable {
             guard let identifier = candidate.evidence.first(where: { $0.code == "owner-bundle-id" })?.summary else {
                 throw ApplicationExecutionRejection.missingOwnership
             }
-            let running = await MainActor.run { NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == identifier } }
+            let running = await RunningApplicationSnapshot.identifiers().contains(identifier)
             guard !running else { throw ApplicationExecutionRejection.ownershipChanged }
             return
         }

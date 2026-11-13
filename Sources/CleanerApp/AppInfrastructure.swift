@@ -27,12 +27,10 @@ import AgentOverlapAI
         )
         let logsRoot = home.appendingPathComponent("Library/Logs", isDirectory: true).standardizedFileURL.path.lowercased()
         let activeCheck: @Sendable (URL) async -> Bool = { url in
-            await MainActor.run {
-                let path = url.standardizedFileURL.path.lowercased()
-                if path == logsRoot || path.hasPrefix(logsRoot + "/") { return false }
-                return NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier).contains { bundleID in
-                    path.split(separator: "/").contains(Substring(bundleID.lowercased()))
-                }
+            let path = url.standardizedFileURL.path.lowercased()
+            if path == logsRoot || path.hasPrefix(logsRoot + "/") { return false }
+            return await RunningApplicationSnapshot.identifiers().contains { bundleID in
+                path.split(separator: "/").contains(Substring(bundleID.lowercased()))
             }
         }
         let privilegedOperations = helper.authorizedApplicationOperations(fileSystem: fileSystem)

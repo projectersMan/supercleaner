@@ -3,6 +3,36 @@ import XCTest
 @testable import CleanerCore
 
 final class ExecutionTests: XCTestCase {
+    func testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks() async throws {
+        let original = executionFixtureCandidate(path: "/tmp/association-a", inode: 2)
+        func applicationCandidate(_ url: URL) -> CleanupCandidate {
+            .init(url: url, displayName: "association", category: .applicationSupport, bytes: 1, risk: .review,
+                evidence: [], identity: original.identity, source: .application, lastAccessDate: nil, isActive: false)
+        }
+        let candidates = [applicationCandidate(original.url), applicationCandidate(URL(fileURLWithPath: "/tmp/association-b"))]
+        let plan = try PlanBuilder(ruleVersion: "rules-1").build(candidates: candidates, selectedIDs: Set(candidates.map(\.id)))
+        let fileSystem = ExecutionFixtureFileSystem(url: original.url, identity: original.identity)
+        let gate = StalledValidationGate()
+        let release = Task {
+            try? await Task.sleep(for: .seconds(1))
+            await gate.release()
+        }
+        let executor = CleanupExecutor(fileSystem: fileSystem, quarantineRoot: URL(fileURLWithPath: "/tmp/quarantine"),
+            currentRuleVersion: "rules-1", validateCandidate: { _ in await gate.read() }, applicationValidationTimeout: 0.02)
+        let receipt = await executor.execute(plan: plan)
+        let releasedBeforeCompletion = await gate.released
+        let calls = await gate.calls
+        XCTAssertFalse(releasedBeforeCompletion, "A blocked read-only ownership check must not hold the uninstall window open")
+        XCTAssertEqual(calls, 1, "Do not stack more reads behind a stalled system directory")
+        XCTAssertTrue(receipt.results.allSatisfy { $0.status == .skippedProtected })
+        await gate.release()
+        release.cancel()
+        _ = await release.value
+        await Task.yield()
+        let mutations = await fileSystem.mutations()
+        XCTAssertTrue(mutations.isEmpty, "A late successful validation must never perform a move after the batch ended")
+    }
+
     func testChangedIdentityIsSkippedWithoutMutation() async throws {
         let candidate = executionFixtureCandidate(path: "/tmp/item")
         let plan = try PlanBuilder(ruleVersion: "rules-1").build(candidates: [candidate], selectedIDs: [candidate.id], now: Date())
@@ -101,6 +131,22 @@ final class ExecutionTests: XCTestCase {
 
         XCTAssertEqual(receipt.results.first?.status, .skippedProtected)
         XCTAssertTrue(mutations.isEmpty)
+    }
+}
+
+private actor StalledValidationGate {
+    private(set) var released = false
+    private(set) var calls = 0
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    func read() async {
+        calls += 1
+        if released { return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+    func release() {
+        released = true
+        let all = waiting; waiting.removeAll()
+        all.forEach { $0.resume() }
     }
 }
 

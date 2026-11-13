@@ -141,32 +141,23 @@ private struct ApplicationUninstallRow: View {
     @State private var isHovered = false
 
     private var plan: UninstallPlan? { analysis?.plan }
-    private var visibleLimitations: [ScanLimitation] {
-        (analysis?.limitations ?? []).filter(model.applicationScanPresentation.shows)
-    }
-    private var hasOnlyAccessSkips: Bool {
-        analysis?.state == .limited && analysis?.limitations.isEmpty == false && visibleLimitations.isEmpty
-    }
     /// Keep the summary count and size aligned with rows that show an enabled checkbox.
     private var selectableItems: [UninstallItem] {
         guard let plan else { return [] }
         return plan.items.filter(Self.isSelectable)
     }
     private var receiptItems: [URL] {
-        guard let installation = analysis?.ownership?.installation,
-              installation.source == .packageInstaller else { return [] }
-        return installation.receipts.filter { PackageReceiptCleanupSelection.packageID(for: $0) != nil }
+        model.uninstallReceiptItems(for: application)
     }
     private var selectableBytes: UInt64 { selectableItems.reduce(0) { $0 + $1.candidate.bytes } }
     private var selectableSizeDescription: String {
-        let estimated = !receiptItems.isEmpty || selectableItems.contains { $0.candidate.evidence.contains { $0.code == "size-estimate" } }
-        return (estimated ? L10n.text("至少 ") : "") + ByteCountFormatter.cleanerString(bytes: selectableBytes)
+        ByteCountFormatter.cleanerString(bytes: selectableBytes)
     }
     fileprivate static func isSelectable(_ item: UninstallItem) -> Bool {
         item.candidate.risk.isSelectable && !item.candidate.isActive && !item.isShared
     }
     private var hasSelectedItems: Bool {
-        plan?.items.contains(where: { model.uninstallSelectedIDs.contains($0.id) }) == true
+        plan.map { model.uninstallSelectionState(for: $0) != .none } == true
     }
 
     var body: some View {
@@ -198,7 +189,7 @@ private struct ApplicationUninstallRow: View {
                     Label(L10n.text("正在准备卸载清单…"), systemImage: "clock")
                         .font(.caption).foregroundColor(.secondary)
                 }
-                if let analysis, analysis.state != .complete && !hasOnlyAccessSkips {
+                if let analysis, application.isRunning {
                     AnalysisStateBadge(analysis: analysis)
                 }
             }
@@ -306,7 +297,6 @@ private struct ApplicationUninstallRow: View {
     private func ownershipContent(_ ownership: ApplicationOwnershipNode) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(L10n.text("安装来源：{0}", String(describing: ownership.installation.title))).font(.caption.weight(.semibold))
-            Text(ownership.guidance).font(.caption).foregroundColor(.secondary)
             ForEach(ownership.copies, id: \.self) { copy in
                 Label(L10n.text("其他副本：{0}", String(describing: copy.path)), systemImage: "doc.on.doc").font(.caption2).textSelection(.enabled)
             }
@@ -362,15 +352,15 @@ private struct ApplicationUninstallRow: View {
             .help(L10n.text("勾选以退出此应用，不会选择卸载内容"))
             .accessibilityLabel(L10n.text("选择退出 {0}", application.name))
             .accessibilityValue(checked ? L10n.text("已选择") : L10n.text("未选择"))
-        } else if let plan, !plan.selectableItemIDs.isEmpty {
-            let state = model.uninstallSelectionState(for: plan)
+        } else if let plan, !plan.selectableItemIDs.isEmpty || !receiptItems.isEmpty {
+            let checked = model.uninstallSelectionState(for: plan) == .all
             Button { model.toggleUninstall(plan) } label: {
-                Image(systemName: state == .all ? "checkmark.square.fill" : state == .partial ? "minus.square.fill" : "square")
-                    .font(.title3).foregroundColor(state == .none ? .secondary : .accentColor)
+                Image(systemName: checked ? "checkmark.square.fill" : "square")
+                    .font(.title3).foregroundColor(checked ? .accentColor : .secondary)
             }
             .buttonStyle(.plain)
             .disabled(model.isDeletionInProgress)
-            .help(state == .all ? L10n.text("取消选择此应用的可卸载项目") : L10n.text("手动选择此应用的全部可卸载项目"))
+            .help(checked ? L10n.text("取消选择此应用的可卸载项目") : L10n.text("手动选择此应用的全部可卸载项目"))
         } else if analysis != nil {
             Color.clear.frame(width: 18, height: 1)
         } else {
@@ -380,37 +370,6 @@ private struct ApplicationUninstallRow: View {
 
     private func expandedContent(plan: UninstallPlan) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: analysis?.state == .limited && !hasOnlyAccessSkips ? "exclamationmark.triangle" : "info.circle")
-                    .foregroundColor(analysis?.state == .limited && !hasOnlyAccessSkips ? .orange : .secondary)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(application.bundleURL.path).font(.caption.monospaced()).textSelection(.enabled)
-                    Text((hasOnlyAccessSkips ? nil : analysis?.message) ?? L10n.text("可选择移除经确认独占的用户数据和关联文件；共享内容、系统资源及仍有引用的项目继续保护。"))
-                        .font(.caption).foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 54)
-            .padding(.vertical, 10)
-            if !visibleLimitations.isEmpty {
-                let limitations = visibleLimitations
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(limitations.prefix(8)) { limitation in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(limitation.title).font(.caption.weight(.semibold)).foregroundColor(.orange)
-                            if let path = limitation.path {
-                                Text(path.path).font(.caption2.monospaced()).textSelection(.enabled)
-                            }
-                            Text(limitation.impact).font(.caption).foregroundColor(.secondary)
-                        }
-                    }
-                    if limitations.count > 8 {
-                        Text(L10n.text("另有 {0} 个位置未完整统计。", String(describing: limitations.count - 8)))
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 54)
-                .padding(.bottom, 10)
-            }
             ForEach(selectableItems) { item in
                 UninstallItemRow(model: model, item: item).padding(.leading, 52)
                 if item.id != selectableItems.last?.id || !receiptItems.isEmpty { Divider().padding(.leading, 92) }
@@ -457,9 +416,8 @@ private struct UninstallItemRow: View {
     let item: UninstallItem
     private var isSelectable: Bool { ApplicationUninstallRow.isSelectable(item) }
     private var sizeDescription: String {
-        if item.candidate.evidence.contains(where: { $0.code == "size-not-measured" }) { return L10n.text("未统计") }
-        let estimated = item.candidate.evidence.contains { $0.code == "size-estimate" }
-        return (estimated ? L10n.text("至少 ") : "") + ByteCountFormatter.cleanerString(bytes: item.candidate.bytes)
+        if item.candidate.evidence.contains(where: { $0.code == "size-not-measured" }) { return "—" }
+        return ByteCountFormatter.cleanerString(bytes: item.candidate.bytes)
     }
 
     var body: some View {
@@ -515,7 +473,7 @@ private struct UninstallReceiptRow: View {
                 Text(receipt.path).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)
             }
             Spacer()
-            Text(L10n.text("未统计"))
+            Text("—")
                 .font(.caption).foregroundColor(.secondary).frame(minWidth: 72, alignment: .trailing)
         }
         .padding(.horizontal, 14)

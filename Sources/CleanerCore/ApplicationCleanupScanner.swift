@@ -2,7 +2,8 @@ import CryptoKit
 import Foundation
 
 /// Discovery boundaries are independent from uninstall ownership. Only cache
-/// leaves and typed log files become cleanup candidates; user-data roots never do.
+/// leaves, typed log files and explicitly supported manual user-file leaves
+/// become cleanup candidates. Broad user-data roots never do.
 public struct ApplicationCleanupTarget: Sendable {
     public let url: URL
     public let application: InstalledApplication
@@ -11,8 +12,14 @@ public struct ApplicationCleanupTarget: Sendable {
     public let allowOfflineContent: Bool
     public let logExtensions: Set<String>?
     public let allowedSensitiveDirectoryNames: Set<String>
+    public let userFiles: Bool
 
     var allowRuntimeCleanup: Bool { logExtensions == nil && !manualOnly }
+    var manualExplanation: String {
+        if userFiles { return "仅手动选择；会删除本机聊天文件，请确认已备份，并先退出微信。" }
+        if manualOnly || allowOfflineContent { return "必须逐项手动选择；清理后离线内容或共享缓存可能不可用" }
+        return "默认保留，可手动选择清理；应用后续运行时可能重新生成这些缓存或日志。"
+    }
 
     var ruleID: String {
         "system-cleanup.v1." + SHA256.hash(data: Data((application.bundleIdentifier + "|" + url.path).utf8))
@@ -20,19 +27,20 @@ public struct ApplicationCleanupTarget: Sendable {
     }
 
     func rule(home: URL, maximumEntries: Int) -> CleanupRule {
-        CleanupRule(ruleID: ruleID, category: logExtensions == nil ? .cache : .log,
+        CleanupRule(ruleID: ruleID, category: userFiles ? .applicationSupport : logExtensions == nil ? .cache : .log,
             relativePaths: [String(url.path.dropFirst(home.standardizedFileURL.path.count + 1))],
             minimumAgeDays: 0,
             defaultRisk: logExtensions == nil && !manualOnly ? .safe : .review,
             ownershipEvidence: application.bundleIdentifier,
             regenerationEvidence: manualOnly ? nil : "缓存可能需要重新下载，日志将不再保留",
-            defaultSelection: logExtensions == nil && !manualOnly, sourceKind: "platform-convention-and-local-observation",
+            defaultSelection: false, sourceKind: "platform-convention-and-local-observation",
             sourceReference: "SRC-SYSTEM-APP-CLEANUP-001", testFixture: "SystemCleanupContract",
             granularity: logExtensions == nil ? .root : .descendantFiles,
             fileExtensions: logExtensions,
             activeBundleIdentifiers: logExtensions == nil ? [application.bundleIdentifier] : [],
             maximumEntries: maximumEntries,
-            allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames)
+            allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames,
+            requiresExplicitSelection: true, manualExplanation: manualExplanation)
     }
 }
 
@@ -77,7 +85,7 @@ public struct ApplicationCleanupScanner: Sendable {
         }
         func add(_ url: URL, app: InstalledApplication, kind: String, manual: Bool = false,
                  allowOfflineContent: Bool = false, logs: Set<String>? = nil,
-                 allowedSensitiveDirectoryNames: Set<String> = []) async {
+                 allowedSensitiveDirectoryNames: Set<String> = [], userFiles: Bool = false) async {
             guard !Task.isCancelled, url.path.hasPrefix(home.path + "/"), await context.fileSystem.fileExists(url), seen.insert(url.path).inserted else { return }
             // Reserve before inspecting: a failed precise check must not fall
             // through to a broader, less restrictive deletion candidate.
@@ -87,12 +95,34 @@ public struct ApplicationCleanupScanner: Sendable {
                 guard try await context.fileSystem.identity(at: url).kind == .directory else { return }
                 output.targets.append(.init(url: url, application: app, kind: kind, manualOnly: manual,
                     allowOfflineContent: allowOfflineContent, logExtensions: logs,
-                    allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames))
+                    allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames, userFiles: userFiles))
             } catch {
                 output.failures.append(.init(scannerID: "system-cleanup.discovery", message: L10n.text("目录无法完整检查"), path: url, reason: .access))
             }
         }
         let logExtensions: Set<String> = ["log", "xlog", "ips", "crash", "trace"]
+        func addDerivedCaches(_ data: URL, app: InstalledApplication, shared: Bool = false) async {
+            guard !Task.isCancelled, await context.fileSystem.fileExists(data) else { return }
+            var roots = [data]
+            roots += await list(data.appendingPathComponent("Partitions"))
+            for leaf in ["EBWebView", "WebView", "CEF", "User Data/Default"] {
+                let wrapper = data.appendingPathComponent(leaf)
+                if await context.fileSystem.fileExists(wrapper) { roots.append(wrapper) }
+            }
+            for root in roots {
+                for leaf in ["Cache", "Caches", "Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache",
+                             "DawnWebGPUCache", "CachedData", "ShaderCache", "GrShaderCache", "GraphiteDawnCache"] {
+                    await add(root.appendingPathComponent(leaf), app: app, kind: L10n.text("派生缓存"), manual: shared)
+                }
+                for leaf in ["logs", "Logs"] {
+                    await add(root.appendingPathComponent(leaf), app: app, kind: L10n.text("应用日志"), manual: shared, logs: logExtensions)
+                }
+                for leaf in ["CacheStorage", "ScriptCache"] {
+                    await add(root.appendingPathComponent("Service Worker/" + leaf), app: app,
+                        kind: L10n.text("网页离线内容"), manual: true)
+                }
+            }
+        }
         let registry = ApplicationAssociationPathRegistry.roots(home: home).filter {
             !$0.isSystem && [.cache, .log, .applicationSupport].contains($0.kind)
                 && $0.url.deletingLastPathComponent() == home.appendingPathComponent("Library")
@@ -110,14 +140,7 @@ public struct ApplicationCleanupScanner: Sendable {
                 case .cache: await add(entry, app: app, kind: L10n.text("应用缓存"))
                 case .log: await add(entry, app: app, kind: L10n.text("应用日志"), logs: logExtensions)
                 default:
-                    for leaf in ["Cache", "Code Cache", "GPUCache", "DawnCache", "CachedData", "ShaderCache"] {
-                        await add(entry.appendingPathComponent(leaf), app: app, kind: L10n.text("派生缓存"))
-                    }
-                    for leaf in ["logs", "Logs"] {
-                        await add(entry.appendingPathComponent(leaf), app: app, kind: L10n.text("应用日志"), logs: logExtensions)
-                    }
-                    await add(entry.appendingPathComponent("Service Worker/CacheStorage"), app: app,
-                        kind: L10n.text("网页离线内容"), manual: true)
+                    await addDerivedCaches(entry, app: app)
                 }
             }
         }
@@ -128,12 +151,22 @@ public struct ApplicationCleanupScanner: Sendable {
                 let library = home.appendingPathComponent("Library/Containers/\(identifier)/Data/Library")
                 await add(library.appendingPathComponent("Caches"), app: app, kind: L10n.text("沙盒缓存"))
                 await add(library.appendingPathComponent("Logs"), app: app, kind: L10n.text("应用日志"), logs: logExtensions)
+                let support = library.appendingPathComponent("Application Support")
+                await addDerivedCaches(support, app: app)
+                for entry in await list(support) where !entry.lastPathComponent.hasPrefix(".") {
+                    await addDerivedCaches(entry, app: app)
+                }
             }
             for group in app.applicationGroups ?? [] where safeComponent(group) {
                 // Shared caches need individual consent even with exact metadata.
                 let root = home.appendingPathComponent("Library/Group Containers/\(group)/Library")
                 await add(root.appendingPathComponent("Caches"), app: app, kind: L10n.text("共享缓存"), manual: true)
                 await add(root.appendingPathComponent("Logs"), app: app, kind: L10n.text("应用日志"), manual: true, logs: logExtensions)
+                let support = root.appendingPathComponent("Application Support")
+                await addDerivedCaches(support, app: app, shared: true)
+                for entry in await list(support) where !entry.lastPathComponent.hasPrefix(".") {
+                    await addDerivedCaches(entry, app: app, shared: true)
+                }
             }
             if app.bundleIdentifier == "com.google.Chrome" {
                 let cache = home.appendingPathComponent("Library/Caches/Google/Chrome")
@@ -160,17 +193,20 @@ public struct ApplicationCleanupScanner: Sendable {
                 let container = home.appendingPathComponent("Library/Containers/com.tencent.xinWeChat/Data")
                 let documents = container.appendingPathComponent("Documents")
                 // Current account roots are enumerated without opening messages or account files.
-                if (app.version ?? "").hasPrefix("4.") {
-                    for account in await list(documents.appendingPathComponent("xwechat_files")) where !account.lastPathComponent.hasPrefix(".") {
-                        await add(account.appendingPathComponent("cache"), app: app, kind: L10n.text("微信缓存"),
-                            allowedSensitiveDirectoryNames: ["message"])
+                for account in await list(documents.appendingPathComponent("xwechat_files")) where !account.lastPathComponent.hasPrefix(".") {
+                    await add(account.appendingPathComponent("cache"), app: app, kind: L10n.text("微信缓存"),
+                        allowedSensitiveDirectoryNames: ["message"])
+                    for (leaf, label) in [("attach", "微信聊天附件 · {0}"), ("file", "微信聊天文件 · {0}"),
+                                          ("video", "微信聊天视频 · {0}"), ("migrate", "微信迁移文件 · {0}")] {
+                        await add(account.appendingPathComponent("msg/" + leaf), app: app,
+                            kind: L10n.text(label, account.lastPathComponent), manual: true, userFiles: true)
                     }
-                    await add(documents.appendingPathComponent("app_data/log"), app: app, kind: L10n.text("微信日志"), logs: ["xlog"])
                 }
+                await add(documents.appendingPathComponent("app_data/log"), app: app, kind: L10n.text("微信日志"), logs: ["xlog"])
                 // Legacy caches outside the sandbox remain separate from message storage.
                 await add(home.appendingPathComponent("Library/Caches/com.tencent.xinWeChat"), app: app, kind: L10n.text("微信缓存"))
                 await add(home.appendingPathComponent("Library/Logs/com.tencent.xinWeChat"), app: app, kind: L10n.text("微信日志"), logs: logExtensions)
-                // Deliberately no msg, Message, Database, attachment, backup, temp or Downloads roots.
+                // No account/msg/database root: only the four manual message-file leaves above.
             }
         }
         // Shared containers or nested generic targets must never be counted twice.
@@ -198,7 +234,8 @@ public struct ApplicationCleanupScanner: Sendable {
                 rules: [rule], revokedRuleIDs: []),
                 allowOfflineContentRoots: target.allowOfflineContent ? [target.url] : []).scanResult(context: context)
             output.failures += result.failures
-            output.candidates += result.candidates.map { candidate in
+            output.candidates += result.candidates.compactMap { candidate -> CleanupCandidate? in
+                if candidate.bytes == 0 && candidate.risk != .blocked { return nil }
                 var evidence = candidate.evidence
                 evidence.insert(Evidence(code: "application-cleanup", summary: target.application.name + " · " + target.kind,
                     details: target.application.bundleIdentifier), at: 0)
@@ -213,14 +250,14 @@ public struct ApplicationCleanupScanner: Sendable {
                 } else if target.logExtensions != nil && applicationIsRunning {
                     evidence.append(Evidence(code: "active-log-cleanup", summary: L10n.text("应用运行中；日志清理后可能继续生成")))
                 }
-                if target.manualOnly {
-                    evidence.append(Evidence(code: "manual-only", summary: L10n.text("必须逐项手动选择；清理后离线内容或共享缓存可能不可用")))
+                if !evidence.contains(where: { $0.code == "manual-only" }) {
+                    evidence.append(Evidence(code: "manual-only", summary: L10n.text(target.manualExplanation)))
                 }
                 return CleanupCandidate(id: candidate.id, url: candidate.url, displayName: candidate.displayName,
                     category: candidate.category, bytes: candidate.bytes, risk: candidate.risk, evidence: evidence,
                     identity: candidate.identity, source: .general, lastAccessDate: candidate.lastAccessDate,
                     isActive: target.allowRuntimeCleanup || target.logExtensions != nil ? false : appIsActive, ruleID: rule.ruleID,
-                    defaultSelection: candidate.defaultSelection, requiresExplicitSelection: target.manualOnly || candidate.requiresExplicitSelection == true,
+                    defaultSelection: false, requiresExplicitSelection: true,
                     cleanupApplication: CleanupApplication(bundleIdentifier: target.application.bundleIdentifier,
                         name: target.application.name, kind: target.kind, bundleURL: target.application.bundleURL))
             }

@@ -26,10 +26,12 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
 
         for root in caskRoots {
             guard await context.fileSystem.fileExists(root) else { continue }
-            var queue: [(URL, Int)] = [(root, 0)]
+            // Cask ownership comes only from token/.metadata. Installed payload
+            // trees (SDKs, runtimes and unpacked installers) are irrelevant here.
+            var queue: [URL] = [root]
             while !queue.isEmpty {
                 guard hasBudget() else { limited = true; break }
-                let (directory, depth) = queue.removeLast()
+                let directory = queue.removeLast()
                 guard let children = try? await context.fileSystem.children(of: directory) else { unavailable.append(directory); continue }
                 scanned.append(directory)
                 for child in children {
@@ -37,7 +39,18 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
                     if context.enforcesEntryBudgets { remaining -= 1 }
                     guard let identity = try? await context.fileSystem.identity(at: child) else { unavailable.append(child); continue }
                     if identity.kind == .directory, child.pathExtension.lowercased() != "app" {
-                        queue.append((child, depth + 1)); continue
+                        if directory.path == root.path {
+                            guard await context.fileSystem.isReadable(child) else {
+                                unavailable.append(child); continue
+                            }
+                            let metadata = child.appendingPathComponent(".metadata")
+                            if await context.fileSystem.fileExists(metadata) {
+                                do {
+                                    if try await context.fileSystem.identity(at: metadata).kind == .directory { queue.append(metadata) }
+                                } catch { unavailable.append(metadata) }
+                            }
+                        } else { queue.append(child) }
+                        continue
                     }
                     guard identity.kind == .file, child.pathExtension.lowercased() == "json", child.path.contains("/.metadata/") else { continue }
                     do {

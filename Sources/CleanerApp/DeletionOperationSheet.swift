@@ -30,11 +30,16 @@ struct DeletionOperationSheet: View {
                     .font(.title2.bold())
             }
             VStack(alignment: .leading, spacing: 9) {
-                Text(L10n.text(model.executionProgress.phase == .movingToTrash ? "已移入废纸篓 {0}/{1} 项" : "已处理 {0}/{1} 项",
-                    String(model.executionProgress.completed), String(model.executionProgress.total)))
+                Text(model.executionProgressDescription)
                     .font(.headline).monospacedDigit()
-                ProgressView(value: Double(completed), total: Double(total))
-                    .progressViewStyle(ImmediateLinearProgressStyle())
+                if model.executionProgress.phase == .movingToTrash, model.executionProgress.currentURL != nil {
+                    // macOS reports completion per item, not bytes copied within
+                    // a single system Trash operation. Do not invent a fraction.
+                    ProgressView().progressViewStyle(.linear)
+                } else {
+                    ProgressView(value: Double(completed), total: Double(total))
+                        .progressViewStyle(ImmediateLinearProgressStyle())
+                }
             }
             VStack(alignment: .leading, spacing: 5) {
                 if model.isStoppingDeletion {
@@ -49,6 +54,12 @@ struct DeletionOperationSheet: View {
                     Text(url.lastPathComponent).fontWeight(.medium).lineLimit(2)
                     Text(url.path).font(.caption.monospaced()).foregroundColor(.secondary)
                         .textSelection(.enabled).lineLimit(3)
+                    if let started = model.executionItemStartedAt {
+                        TimelineView(.periodic(from: started, by: 1)) { context in
+                            Text(L10n.text("当前文件已用 {0} 秒", String(max(0, Int(context.date.timeIntervalSince(started))))))
+                                .font(.caption).foregroundColor(.secondary).monospacedDigit()
+                        }
+                    }
                 } else {
                     Text(L10n.text("正在准备删除…")).foregroundColor(.secondary)
                 }
