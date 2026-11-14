@@ -20,7 +20,16 @@ final class InputMethodProtectionTests: XCTestCase {
         let scanner = ApplicationScanner(applicationRoots: [inputRoot])
         let inventory = await scanner.installedApplications(context: context)
         XCTAssertEqual(inventory.applications.map(\.bundleIdentifier), ["TEST.INPUT.Example"])
-        XCTAssertEqual(inventory.applications.first?.isSystem, true)
+        XCTAssertEqual(inventory.applications.first?.isSystem, false)
+        XCTAssertEqual(ApplicationListFilter(query: "", scope: .uninstallable).apply(to: inventory.applications).count, 1)
+        let installed = try XCTUnwrap(inventory.applications.first)
+        let plan = try await UninstallPlanner(scanner: scanner).buildPlan(installed, associations: [
+            .init(url: cache, kind: .cache, ownershipEvidence: "fixture", containsUserData: false, isShared: false, risk: .safe)
+        ], context: context).plan
+        let body = try XCTUnwrap(plan.items.first { $0.candidate.url.path == installed.bundleURL.path })
+        XCTAssertEqual(body.candidate.risk, .review)
+        XCTAssertTrue(plan.items.first { $0.candidate.url.path == cache.path }?.candidate.risk.isSelectable == false,
+            "input-method caches rejected at execution must not be selectable in the uninstall plan")
         let report = await SystemCleanupScanner(applicationScanner: scanner).scan(context: context, pack: nil)
         XCTAssertFalse(report.candidates.contains { $0.url.path == cache.path || $0.url.path.hasPrefix(cache.path + "/") })
         XCTAssertTrue(report.candidates.contains { $0.url.path == other.path })

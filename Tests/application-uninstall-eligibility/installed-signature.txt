@@ -1,0 +1,1 @@
+Executable=/Applications/SuperCleaner.app/Contents/MacOS/CleanerApp

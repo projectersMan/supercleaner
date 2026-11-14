@@ -3,6 +3,7 @@ import Foundation
 public enum ApplicationUninstallCoverageState: String, Codable, Hashable, Sendable {
     case complete
     case limited
+    case running
     case protected
     case unavailable
 }
@@ -47,17 +48,12 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
     /// Toggle availability without rediscovery, size traversal, or new item IDs.
     public func withRunningState(_ running: Bool) -> Self {
         guard !application.isSystem else { return self }
-        if application.uninstallRequiresAdministrator == true {
-            return Self(application: application.withRunningState(running), plan: nil, state: .protected,
-                message: application.uninstallProtectionReason, limitations: limitations,
-                ownership: ownership, runtimeObservation: runtimeObservation)
-        }
         let availablePlan = preparedPlan ?? plan
         let availableState = preparedState ?? state
         let availableMessage = preparedState == nil ? message : preparedMessage
         return Self(application: application.withRunningState(running),
             plan: running ? nil : availablePlan,
-            state: running ? .protected : availableState,
+            state: running ? .running : availableState,
             message: running ? L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。") : availableMessage,
             limitations: limitations, ownership: ownership, runtimeObservation: runtimeObservation,
             preparedPlan: availablePlan, preparedState: availableState, preparedMessage: availableMessage)
@@ -68,9 +64,8 @@ public struct ApplicationUninstallAnalysis: Identifiable, Codable, Hashable, Sen
         case .complete: return L10n.text("基础分析完成")
         case .limited: return L10n.text("可卸载 · 部分未统计")
         case .unavailable: return L10n.text("无法分析")
-        case .protected:
-            if application.uninstallRequiresAdministrator == true { return L10n.text("需要管理员权限 · 已保护") }
-            return application.isRunning ? L10n.text("运行中 · 暂不可卸载") : L10n.text("当前应用没有可选择的卸载项目")
+        case .running: return L10n.text("运行中 · 退出后可卸载")
+        case .protected: return L10n.text("受保护")
         }
     }
 }
@@ -292,17 +287,11 @@ public struct ApplicationUninstallAnalyzer: Sendable {
     }
 
     private func analyze(
-        _ scannedApplication: InstalledApplication,
+        _ application: InstalledApplication,
         associations: [ApplicationAssociation],
         context: ScanContext,
         ownership: ApplicationOwnershipNode?
     ) async -> ApplicationUninstallAnalysis {
-        let application: InstalledApplication
-        if !scannedApplication.isSystem && scannedApplication.uninstallRequiresAdministrator == nil,
-           (try? await context.fileSystem.identity(at: scannedApplication.bundleURL))?.kind == .directory {
-            application = scannedApplication.withUninstallAdministratorRequirement(
-                !(await context.fileSystem.canMoveDirectory(scannedApplication.bundleURL)))
-        } else { application = scannedApplication }
         if application.isUninstallProtected {
             return ApplicationUninstallAnalysis(
                 application: application,
@@ -333,10 +322,6 @@ public struct ApplicationUninstallAnalyzer: Sendable {
                 limitations: result.limitations,
                 ownership: ownership
             ).withRunningState(application.isRunning)
-        } catch UninstallPlanningError.administratorRequired {
-            let protected = application.withUninstallAdministratorRequirement(true)
-            return ApplicationUninstallAnalysis(application: protected, plan: nil, state: .protected,
-                message: protected.uninstallProtectionReason, ownership: ownership)
         } catch {
             return ApplicationUninstallAnalysis(
                 application: application,

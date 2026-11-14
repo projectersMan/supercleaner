@@ -1,0 +1,3 @@
+PASS: slow workspace polling leaves navigation/search available, coalesces requests and installs the completed snapshot
+Stopped apps presentation: two exits, 114 apps / 4,560 items, switch and row lookups = 0.0216749906539917s
+PASS: prepared stopped-app plans, selection preservation, restarted-app protection and scan/policy invalidation

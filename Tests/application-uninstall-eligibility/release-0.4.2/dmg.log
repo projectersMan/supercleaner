@@ -1,0 +1,5 @@
+created: /Users/bytedance/code/supercleaner/Tests/application-uninstall-eligibility/release-0.4.2/tmp//supercleaner-dmg-work.xRMpAP/SuperCleaner-rw.dmghdiutil: WARNING: 'hdiutil create -format -volname ...' is deprecated. Please use 'diskutil image create from/blank --format --volumeName ...' instead.
+
+hdiutil: WARNING: 'hdiutil convert -format ...' is deprecated. Please use 'diskutil image create from --format ...' instead.
+hdiutil: WARNING: 'hdiutil imageinfo ...' is deprecated. Please use 'diskutil image info ...' instead.
+PASS: created drag-to-Applications disk image with the app icon at /Users/bytedance/code/supercleaner/build/SuperCleaner-0.4.2.dmg

@@ -1,0 +1,35 @@
+PASS: preferences en, version 0.4.3 (117)
+PASS: preferences zh-Hans, version 0.4.3 (117)
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/MacOS/AgentInference
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/MacOS/AgentInference
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/MacOS/supercleaner
+--validated:/Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/MacOS/supercleaner
+/Users/bytedance/code/supercleaner/build/SuperCleaner.app: valid on disk
+/Users/bytedance/code/supercleaner/build/SuperCleaner.app: satisfies its Designated Requirement
+PASS: smoke cleanup and restore
+PASS: Sparkle 2.10.0 loaded; explicit ready/cancel choices; no update startup, network or Helper operation
+PASS: model cleanup gates, concurrent scans, parent/file/receipt selection, retained uninstall checkmarks, progress/result/error presentation, cancellation, and manual-only offline selection
+Cleanup completion: 85 results / 25,000 scanned items = 0.14875292778015137s
+PASS: cleanup completion preserves scan state and finishes within 400 ms
+PASS: uninstall permission guidance pauses responsively, preserves progress, resumes once and supports Stop and cancellation
+PASS: only system apps are Protected; Running excludes system apps and third-party quit selection remains available
+PASS: starting or continuing a running scan dismisses the permission sheet
+PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: 6.198883056640625e-05s; selection, cleanup and scan-state invalidation
+PASS: slow workspace polling leaves navigation/search available, coalesces requests and installs the completed snapshot
+Stopped apps presentation: two exits, 114 apps / 4,560 items, switch and row lookups = 0.01391899585723877s
+PASS: prepared stopped-app plans, selection preservation, restarted-app protection and scan/policy invalidation
+PASS: Agent presentation 1,000 Skills x 100 reads: 5.0067901611328125e-06s; preselection scheduled off-main in 0.002897024154663086s; global resources kept and visible unit counts match filters
+PASS: Agent Skills/MCP filtered select-all, binary master state, stable deselection, global manual choices, protected items and execution/scan gates
+Agent Clear Selection: 3,203 selected Skills / 3204 visible = 0.02752101421356201s
+PASS: large Agent select-all/clear preserves unrelated choices and retained decisions, refreshes filters, and completes within 200 ms
+PASS: SuperCleaner.app structure, signature, smoke flow, and concurrent scan cleanup verified

@@ -1,0 +1,733 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 1]
+[2 / 22] CleanerCore
+[5 / 25] CleanerCore
+[12 / 27] CleanerCore
+[16 / 22] CoreContractChecks-product
+[18 / 24] CleanerApp-product
+[22 / 30] CleanerCoreTests-product
+[23 / 29] CoreContractChecks-product
+[24 / 30] CoreContractChecks-product
+[26 / 30] CoreContractChecks-product
+[31 / 34] CleanerHelper-product
+[33 / 35] CleanerApp-product
+[35 / 37] CleanerApp-product
+Build complete! (5.85秒)
+Test Suite 'All tests' started at 2026-11-13 21:45:45.588.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 21:45:45.589.
+Test Suite 'AgentAssetGroupingTests' started at 2026-11-13 21:45:45.589.
+Test Case '-[CleanerCoreTests.AgentAssetGroupingTests testHierarchyPreservesProviderScopeAndResourceOwnership]' started.
+Test Case '-[CleanerCoreTests.AgentAssetGroupingTests testHierarchyPreservesProviderScopeAndResourceOwnership]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.AgentAssetGroupingTests testProtectedAssetsAreExcludedFromGroupSelection]' started.
+Test Case '-[CleanerCoreTests.AgentAssetGroupingTests testProtectedAssetsAreExcludedFromGroupSelection]' passed (0.000 seconds).
+Test Suite 'AgentAssetGroupingTests' passed at 2026-11-13 21:45:45.590.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'AgentIncrementalAnalysisTests' started at 2026-11-13 21:45:45.590.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testContentVersionAndModelPolicyInvalidateReuse]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testContentVersionAndModelPolicyInvalidateReuse]' passed (0.006 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testFailedSaveLeavesCommittedSummaryUsableAndResetPreservesDescriptions]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testFailedSaveLeavesCommittedSummaryUsableAndResetPreservesDescriptions]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testLegacyMigrationKeepsOriginalAndAdoptsUnchangedFeatures]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testLegacyMigrationKeepsOriginalAndAdoptsUnchangedFeatures]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testMCPConfigurationChangesFingerprintEvenWithSameServerName]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testMCPConfigurationChangesFingerprintEvenWithSameServerName]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testSplitStoreColdLoadDoesNotReadVectorsAndHydratesForNewPairs]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testSplitStoreColdLoadDoesNotReadVectorsAndHydratesForNewPairs]' passed (0.018 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testSummaryExcludesBulkVectorData]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testSummaryExcludesBulkVectorData]' passed (0.039 seconds).
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testUnchangedAddModifyRemoveAndReadd]' started.
+Test Case '-[CleanerCoreTests.AgentIncrementalAnalysisTests testUnchangedAddModifyRemoveAndReadd]' passed (0.002 seconds).
+Test Suite 'AgentIncrementalAnalysisTests' passed at 2026-11-13 21:45:45.690.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.099 (0.099) seconds
+Test Suite 'AgentOverlapPerformanceTests' started at 2026-11-13 21:45:45.690.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testBulkUnpackRejectsNonFiniteAndNonNormalizedVectors]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testBulkUnpackRejectsNonFiniteAndNonNormalizedVectors]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testIncrementalCommitReusesUnchangedSourcePartitionsAndBlocks]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testIncrementalCommitReusesUnchangedSourcePartitionsAndBlocks]' passed (0.017 seconds).
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testLegacySummaryMigratesWithoutLosingDirectionalCoverage]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testLegacySummaryMigratesWithoutLosingDirectionalCoverage]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testSparseZeroRelationshipsRemainCertifiedAfterRestart]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testSparseZeroRelationshipsRemainCertifiedAfterRestart]' passed (0.047 seconds).
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testTiledMatrixMatchesScalarCoverageAcrossTileBoundaries]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testTiledMatrixMatchesScalarCoverageAcrossTileBoundaries]' passed (0.138 seconds).
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testV1PartitionEnvelopeUpgradesToSourcePartitions]' started.
+Test Case '-[CleanerCoreTests.AgentOverlapPerformanceTests testV1PartitionEnvelopeUpgradesToSourcePartitions]' passed (0.014 seconds).
+Test Suite 'AgentOverlapPerformanceTests' passed at 2026-11-13 21:45:45.926.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.236 (0.236) seconds
+Test Suite 'AgentPlatformIsolationTests' started at 2026-11-13 21:45:45.926.
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testChangingPlatformInvalidatesPreviousCohortCertification]' started.
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testChangingPlatformInvalidatesPreviousCohortCertification]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testLegacyCrossPlatformPairsAndCachedUnionAreRemovedWithoutEmbeddingAgain]' started.
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testLegacyCrossPlatformPairsAndCachedUnionAreRemovedWithoutEmbeddingAgain]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testOnlySamePlatformAndKindAreCalculatedOrRecommended]' started.
+Test Case '-[CleanerCoreTests.AgentPlatformIsolationTests testOnlySamePlatformAndKindAreCalculatedOrRecommended]' passed (0.001 seconds).
+Test Suite 'AgentPlatformIsolationTests' passed at 2026-11-13 21:45:45.939.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'AgentPreselectionTests' started at 2026-11-13 21:45:45.939.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testCacheDuplicatesKeepAtLeastOneActualSource]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testCacheDuplicatesKeepAtLeastOneActualSource]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testCacheNeverBecomesKeeperInsteadOfProjectCopy]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testCacheNeverBecomesKeeperInsteadOfProjectCopy]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testExplicitKeepAndIneligibleCopiesAreNeverSelected]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testExplicitKeepAndIneligibleCopiesAreNeverSelected]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testGlobalResourcesStayAndCacheIsChosenFirst]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testGlobalResourcesStayAndCacheIsChosenFirst]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testManualDeletionCannotSupplyCoverage]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testManualDeletionCannotSupplyCoverage]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testUniqueCacheIsKeptWithoutCoverageOrIndex]' started.
+Test Case '-[CleanerCoreTests.AgentPreselectionTests testUniqueCacheIsKeptWithoutCoverageOrIndex]' passed (0.000 seconds).
+Test Suite 'AgentPreselectionTests' passed at 2026-11-13 21:45:45.941.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'AgentScanAccelerationTests' started at 2026-11-13 21:45:45.941.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testBoundedReadsReuseIdentityAndPreserveInventory]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testBoundedReadsReuseIdentityAndPreserveInventory]' passed (0.114 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCancellationStopsLiveConcurrentScan]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCancellationStopsLiveConcurrentScan]' passed (0.078 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilityPhasePrecedesAndMatchesFullCatalog]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilityPhasePrecedesAndMatchesFullCatalog]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilityPhasePreservesLegacyFileStyleSkillEntries]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilityPhasePreservesLegacyFileStyleSkillEntries]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilitySubtreesReuseParsingAndInvalidateDeepFileChanges]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCapabilitySubtreesReuseParsingAndInvalidateDeepFileChanges]' passed (0.023 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCompiledRuleResolverPreservesSpecificityAndScope]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testCompiledRuleResolverPreservesSpecificityAndScope]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testDirectorySnapshotsInvalidateDeepMutationsAndPermissionChanges]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testDirectorySnapshotsInvalidateDeepMutationsAndPermissionChanges]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testNestedManifestsMergeIntoCanonicalSkillInBothPhases]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testNestedManifestsMergeIntoCanonicalSkillInBothPhases]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testProjectMCPInsideGlobalProviderHasSameResolvedScopeInBothPhases]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testProjectMCPInsideGlobalProviderHasSameResolvedScopeInBothPhases]' passed (0.020 seconds).
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testProjectProvidersShareDirectoryDiscovery]' started.
+Test Case '-[CleanerCoreTests.AgentScanAccelerationTests testProjectProvidersShareDirectoryDiscovery]' passed (0.015 seconds).
+Test Suite 'AgentScanAccelerationTests' passed at 2026-11-13 21:45:46.244.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.303 (0.303) seconds
+Test Suite 'AgentScannerTests' started at 2026-11-13 21:45:46.244.
+Test Case '-[CleanerCoreTests.AgentScannerTests testDefaultScannerHonorsCancellationEvenWhenNoRootsAreDetected]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testDefaultScannerHonorsCancellationEvenWhenNoRootsAreDetected]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testDefaultScannerTraversesPastLegacyAssetAndDepthLimits]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testDefaultScannerTraversesPastLegacyAssetAndDepthLimits]' passed (1.216 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testFinishedSandboxCacheCanBeSafeButSessionIsReview]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testFinishedSandboxCacheCanBeSafeButSessionIsReview]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testKnowledgeIsBlockedAndMCPRequiresReview]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testKnowledgeIsBlockedAndMCPRequiresReview]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testOverlappingProviderRootsProduceOneGloballyOwnedAsset]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testOverlappingProviderRootsProduceOneGloballyOwnedAsset]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testProviderRootAndModelCacheAreNotSafe]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testProviderRootAndModelCacheAreNotSafe]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testSkillCatalogParsesManifestAndCollapsesDuplicateDiscovery]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testSkillCatalogParsesManifestAndCollapsesDuplicateDiscovery]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.AgentScannerTests testSkillCatalogQueryMatchesNameSummaryAndPath]' started.
+Test Case '-[CleanerCoreTests.AgentScannerTests testSkillCatalogQueryMatchesNameSummaryAndPath]' passed (0.003 seconds).
+Test Suite 'AgentScannerTests' passed at 2026-11-13 21:45:47.475.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 1.231 (1.231) seconds
+Test Suite 'AgentSymlinkExclusionTests' started at 2026-11-13 21:45:47.475.
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testCatalogEntriesRejectLinksAndLinkedParents]' started.
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testCatalogEntriesRejectLinksAndLinkedParents]' passed (0.024 seconds).
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testExcludedCachedLinkCannotReceiveNewPairsOrProvideCoverage]' started.
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testExcludedCachedLinkCannotReceiveNewPairsOrProvideCoverage]' passed (0.019 seconds).
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testInventoryKeepsRealTargetsWithoutFollowingAliases]' started.
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testInventoryKeepsRealTargetsWithoutFollowingAliases]' passed (0.029 seconds).
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testReturningRealObjectReceivesMissingRelationshipFromCachedVectors]' started.
+Test Case '-[CleanerCoreTests.AgentSymlinkExclusionTests testReturningRealObjectReceivesMissingRelationshipFromCachedVectors]' passed (0.020 seconds).
+Test Suite 'AgentSymlinkExclusionTests' passed at 2026-11-13 21:45:47.568.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.092 (0.092) seconds
+Test Suite 'ApplicationDockServiceTests' started at 2026-11-13 21:45:47.568.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testConcurrentChangeAndPartialWriteCanRetryWithoutLosingOtherTiles]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testConcurrentChangeAndPartialWriteCanRetryWithoutLosingOtherTiles]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testCoordinatorExecutesAndRestoresDockWithActualFileMove]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testCoordinatorExecutesAndRestoresDockWithActualFileMove]' passed (0.025 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testCoordinatorReportsDockFailureWithoutFailingFileOperationAndRetriesAfterRestart]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testCoordinatorReportsDockFailureWithoutFailingFileOperationAndRetriesAfterRestart]' passed (0.031 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testExactPathOnlyAndFailedOrUnverifiedApplicationsKeepIcons]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testExactPathOnlyAndFailedOrUnverifiedApplicationsKeepIcons]' passed (0.006 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testFailedRestoreAndManuallyRestoredTileAreNotDuplicated]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testFailedRestoreAndManuallyRestoredTileAreNotDuplicated]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testFinderRetargetedTileIsRemovedBySavedIdentityOnly]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testFinderRetargetedTileIsRemovedBySavedIdentityOnly]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testReceiptWarningsAreBackwardCompatibleAndSurviveResolution]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testReceiptWarningsAreBackwardCompatibleAndSurviveResolution]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRelatedFilesOnlyAndReinstalledApplicationDoNotChangeDock]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRelatedFilesOnlyAndReinstalledApplicationDoNotChangeDock]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRestoreAfterRestartMergesCurrentOrderAndDoesNotDuplicate]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRestoreAfterRestartMergesCurrentOrderAndDoesNotDuplicate]' passed (0.006 seconds).
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRestoreConflictRetargetsShortcutAndPreservesExistingCopy]' started.
+Test Case '-[CleanerCoreTests.ApplicationDockServiceTests testRestoreConflictRetargetsShortcutAndPreservesExistingCopy]' passed (0.005 seconds).
+Test Suite 'ApplicationDockServiceTests' passed at 2026-11-13 21:45:47.662.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.093 (0.094) seconds
+Test Suite 'ApplicationGeneratedDataTests' started at 2026-11-13 21:45:47.662.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testChatDatabaseAndLinkedMessageDirectoryAreNotSelectedAsUserFileRoots]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testChatDatabaseAndLinkedMessageDirectoryAreNotSelectedAsUserFileRoots]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testEmptyApplicationCacheDoesNotCreateZeroByteRows]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testEmptyApplicationCacheDoesNotCreateZeroByteRows]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testNestedSandboxAndPartitionCachesAreDiscoveredWithoutUserDataRoots]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testNestedSandboxAndPartitionCachesAreDiscoveredWithoutUserDataRoots]' passed (0.021 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testRegenerableApplicationCacheIsKeptForManualSelection]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testRegenerableApplicationCacheIsKeptForManualSelection]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testWeChatChatFileExecutionRequiresStoppedApplication]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testWeChatChatFileExecutionRequiresStoppedApplication]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testWeChatMessageFilesAreDiscoveredPerAccountAndRemainManual]' started.
+Test Case '-[CleanerCoreTests.ApplicationGeneratedDataTests testWeChatMessageFilesAreDiscoveredPerAccountAndRemainManual]' passed (0.041 seconds).
+Test Suite 'ApplicationGeneratedDataTests' passed at 2026-11-13 21:45:47.758.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.096 (0.097) seconds
+Test Suite 'ApplicationGroupDeclarationTests' started at 2026-11-13 21:45:47.758.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testCoverageSurvivesRunningStateAndLegacyReportsStayUnverified]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testCoverageSurvivesRunningStateAndLegacyReportsStayUnverified]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testExpiredDeclarationBudgetStopsTraversalAndKeepsCoverageIncomplete]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testExpiredDeclarationBudgetStopsTraversalAndKeepsCoverageIncomplete]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testExtensionWithIndependentIdentifierInExtensionsDirectoryStaysOwned]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testExtensionWithIndependentIdentifierInExtensionsDirectoryStaysOwned]' passed (0.172 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testNestedExtensionDeclarationCountsEvenWhenMainAppHasNone]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testNestedExtensionDeclarationCountsEvenWhenMainAppHasNone]' passed (0.175 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testNoSharedContainersDoesNotInspectNestedApplicationCode]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testNoSharedContainersDoesNotInspectNestedApplicationCode]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testUnknownExtensionAndExternalCodeLinkKeepCoverageIncomplete]' started.
+Test Case '-[CleanerCoreTests.ApplicationGroupDeclarationTests testUnknownExtensionAndExternalCodeLinkKeepCoverageIncomplete]' passed (0.018 seconds).
+Test Suite 'ApplicationGroupDeclarationTests' passed at 2026-11-13 21:45:48.137.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.379 (0.379) seconds
+Test Suite 'ApplicationInstallationTraversalTests' started at 2026-11-13 21:45:48.137.
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testCaskDiscoveryReadsMetadataWithoutWalkingInstalledPayload]' started.
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testCaskDiscoveryReadsMetadataWithoutWalkingInstalledPayload]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testLinkedCaskMetadataCannotEstablishManagedInstallation]' started.
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testLinkedCaskMetadataCannotEstablishManagedInstallation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testUnreadableCaskMetadataPreservesLimitedCoverage]' started.
+Test Case '-[CleanerCoreTests.ApplicationInstallationTraversalTests testUnreadableCaskMetadataPreservesLimitedCoverage]' passed (0.000 seconds).
+Test Suite 'ApplicationInstallationTraversalTests' passed at 2026-11-13 21:45:48.140.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'ApplicationMetadataReuseTests' started at 2026-11-13 21:45:48.140.
+Test Case '-[CleanerCoreTests.ApplicationMetadataReuseTests testNewAndRemovedApplicationsRemainVisibleToFreshInventory]' started.
+Test Case '-[CleanerCoreTests.ApplicationMetadataReuseTests testNewAndRemovedApplicationsRemainVisibleToFreshInventory]' passed (0.018 seconds).
+Test Case '-[CleanerCoreTests.ApplicationMetadataReuseTests testReusesUnchangedMetadataAndInvalidatesEveryCodeInput]' started.
+Test Case '-[CleanerCoreTests.ApplicationMetadataReuseTests testReusesUnchangedMetadataAndInvalidatesEveryCodeInput]' passed (0.025 seconds).
+Test Suite 'ApplicationMetadataReuseTests' passed at 2026-11-13 21:45:48.183.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.043 (0.043) seconds
+Test Suite 'ApplicationQuitServiceTests' started at 2026-11-13 21:45:48.183.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testQuitOnlyExactInstalledCopyAndIdentifier]' started.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testQuitOnlyExactInstalledCopyAndIdentifier]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testQuitRequestDoesNotMeanAppHasExited]' started.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testQuitRequestDoesNotMeanAppHasExited]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testRefusalDoesNotRetryOrForceQuit]' started.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testRefusalDoesNotRetryOrForceQuit]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testSelfAndSystemCannotBeQuit]' started.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testSelfAndSystemCannotBeQuit]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testWaitsForActualExitAndHandlesAlreadyExitedProcess]' started.
+Test Case '-[CleanerCoreTests.ApplicationQuitServiceTests testWaitsForActualExitAndHandlesAlreadyExitedProcess]' passed (0.000 seconds).
+Test Suite 'ApplicationQuitServiceTests' passed at 2026-11-13 21:45:48.185.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'ApplicationScannerTests' started at 2026-11-13 21:45:48.185.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testBundleIDAssociationDoesNotMatchPrefixCollision]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testBundleIDAssociationDoesNotMatchPrefixCollision]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultDiscoveryFindsApplicationsBeyondLegacyDepthLimit]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultDiscoveryFindsApplicationsBeyondLegacyDepthLimit]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultUninstallAnalyzerHasNoImplicitSizeCap]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultUninstallAnalyzerHasNoImplicitSizeCap]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultUninstallSizeMeasurementTraversesBeyondLegacyDepthLimit]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testDefaultUninstallSizeMeasurementTraversesBeyondLegacyDepthLimit]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testExplicitEntryLimitReportsLimitedCoverageWhenItTruncatesTraversal]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testExplicitEntryLimitReportsLimitedCoverageWhenItTruncatesTraversal]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testExplicitUninstallSizeEntryLimitReportsIncompleteMeasurement]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testExplicitUninstallSizeEntryLimitReportsIncompleteMeasurement]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testInstallationReceiptsAreMetadataNotProtectedDeletionRows]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testInstallationReceiptsAreMetadataNotProtectedDeletionRows]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testLegacyDepthParameterDoesNotTruncateTraversal]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testLegacyDepthParameterDoesNotTruncateTraversal]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testSharedContentIsBlockedAndOwnedUserContentRequiresReview]' started.
+Test Case '-[CleanerCoreTests.ApplicationScannerTests testSharedContentIsBlockedAndOwnedUserContentRequiresReview]' passed (0.003 seconds).
+Test Suite 'ApplicationScannerTests' passed at 2026-11-13 21:45:48.198.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.012 (0.013) seconds
+Test Suite 'ApplicationUninstallProtectionTests' started at 2026-11-13 21:45:48.198.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' passed (0.569 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsAreSeparatedByRunningState]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsAreSeparatedByRunningState]' passed (0.570 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' passed (0.000 seconds).
+Test Suite 'ApplicationUninstallProtectionTests' passed at 2026-11-13 21:45:49.354.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 1.155 (1.156) seconds
+Test Suite 'ApplicationUpdatePolicyTests' started at 2026-11-13 21:45:49.354.
+Test Case '-[CleanerCoreTests.ApplicationUpdatePolicyTests testBuildNumbersAreStrictAndDowngradesRejected]' started.
+Test Case '-[CleanerCoreTests.ApplicationUpdatePolicyTests testBuildNumbersAreStrictAndDowngradesRejected]' passed (0.000 seconds).
+Test Suite 'ApplicationUpdatePolicyTests' passed at 2026-11-13 21:45:49.354.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'CacheReferenceCleanupTests' started at 2026-11-13 21:45:49.354.
+Test Case '-[CleanerCoreTests.CacheReferenceCleanupTests testCapabilitiesDoNotDependOnSoftwareOrRuleNames]' started.
+Test Case '-[CleanerCoreTests.CacheReferenceCleanupTests testCapabilitiesDoNotDependOnSoftwareOrRuleNames]' passed (0.032 seconds).
+Test Case '-[CleanerCoreTests.CacheReferenceCleanupTests testPlaywrightOnlyPreselectsUnusedVersionsAndRechecksNewReferences]' started.
+Test Case '-[CleanerCoreTests.CacheReferenceCleanupTests testPlaywrightOnlyPreselectsUnusedVersionsAndRechecksNewReferences]' passed (0.027 seconds).
+Test Suite 'CacheReferenceCleanupTests' passed at 2026-11-13 21:45:49.413.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.059 (0.059) seconds
+Test Suite 'CleanupClassificationTests' started at 2026-11-13 21:45:49.413.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testArchivesNeverEnterAutomaticCleanup]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testArchivesNeverEnterAutomaticCleanup]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testConfirmedResidueIsRecommendedAndPreselected]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testConfirmedResidueIsRecommendedAndPreselected]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testContainerLinksDoNotPreventCleanupOrTouchTheirTargets]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testContainerLinksDoNotPreventCleanupOrTouchTheirTargets]' passed (0.018 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testContainerWithIncompleteExtensionOwnershipIsNotPreselected]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testContainerWithIncompleteExtensionOwnershipIsNotPreselected]' passed (0.006 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testInstalledAppPrefSuffixesAndExtensionsAreNotOrphaned]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testInstalledAppPrefSuffixesAndExtensionsAreNotOrphaned]' passed (0.019 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testReinstallableBrowserInternalLinkIsSelectableButNeverAutomatic]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testReinstallableBrowserInternalLinkIsSelectableButNeverAutomatic]' passed (0.023 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testRunningAndProtectedResidueCannotBecomeDefaultSelection]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testRunningAndProtectedResidueCannotBecomeDefaultSelection]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testSharedGroupIdentifiersRequireCompleteDeclarationsAndExcludeOwners]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testSharedGroupIdentifiersRequireCompleteDeclarationsAndExcludeOwners]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUncertainInventoryIsRetainedButConfirmedSharedResidueIsPreselected]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUncertainInventoryIsRetainedButConfirmedSharedResidueIsPreselected]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUnreadablePayloadDoesNotRequireReadingContainerMetadata]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUnreadablePayloadDoesNotRequireReadingContainerMetadata]' passed (0.006 seconds).
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUnrelatedToolProcessesDoNotRetainVerifiedDownloadCaches]' started.
+Test Case '-[CleanerCoreTests.CleanupClassificationTests testUnrelatedToolProcessesDoNotRetainVerifiedDownloadCaches]' passed (0.017 seconds).
+Test Suite 'CleanupClassificationTests' passed at 2026-11-13 21:45:49.558.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.144 (0.145) seconds
+Test Suite 'CleanupCompletionPerformanceTests' started at 2026-11-13 21:45:49.558.
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testDeclarationCacheReusesOnlyExactCurrentSource]' started.
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testDeclarationCacheReusesOnlyExactCurrentSource]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testHistoryReuseSeesOtherWriterAndRejectsCorruption]' started.
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testHistoryReuseSeesOtherWriterAndRejectsCorruption]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testLargeInventoryAliasReconciliationUsesLexicalPaths]' started.
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testLargeInventoryAliasReconciliationUsesLexicalPaths]' passed (0.159 seconds).
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testTrashResolutionPublishesItsOwnStageAndCounts]' started.
+Test Case '-[CleanerCoreTests.CleanupCompletionPerformanceTests testTrashResolutionPublishesItsOwnStageAndCounts]' passed (0.000 seconds).
+Test Suite 'CleanupCompletionPerformanceTests' passed at 2026-11-13 21:45:49.724.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.166 (0.166) seconds
+Test Suite 'CleanupExecutionCoordinatorTests' started at 2026-11-13 21:45:49.724.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testDuplicatePlanIDIsRejectedBeforeFileSystemMutation]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testDuplicatePlanIDIsRejectedBeforeFileSystemMutation]' passed (0.016 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testExecutionPersistsHistoryAndScheduleBeforeClearingJournal]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testExecutionPersistsHistoryAndScheduleBeforeClearingJournal]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testJournalCommitFailurePreventsFileSystemMutation]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testJournalCommitFailurePreventsFileSystemMutation]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testMaintenanceHistoryFailurePersistsAttemptAndOneHourBackoff]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testMaintenanceHistoryFailurePersistsAttemptAndOneHourBackoff]' passed (0.017 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testPurgeJournalCommitFailurePreventsFileSystemMutation]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testPurgeJournalCommitFailurePreventsFileSystemMutation]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testRestoreJournalCommitFailurePreventsFileSystemMutation]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testRestoreJournalCommitFailurePreventsFileSystemMutation]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryFinalizesPurgeAfterHistoryCommitFailure]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryFinalizesPurgeAfterHistoryCommitFailure]' passed (0.020 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryFinalizesRestoreAfterHistoryCommitFailure]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryFinalizesRestoreAfterHistoryCommitFailure]' passed (0.017 seconds).
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryReconstructsMovedItemAndFinalizesJournal]' started.
+Test Case '-[CleanerCoreTests.CleanupExecutionCoordinatorTests testStartupRecoveryReconstructsMovedItemAndFinalizesJournal]' passed (0.008 seconds).
+Test Suite 'CleanupExecutionCoordinatorTests' passed at 2026-11-13 21:45:49.831.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.107 (0.107) seconds
+Test Suite 'CleanupPerformanceTests' started at 2026-11-13 21:45:49.831.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testAppBodyValidationDoesNotRediscoverInstalledApplications]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testAppBodyValidationDoesNotRediscoverInstalledApplications]' passed (0.007 seconds).
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testDeepRegenerableCacheIsRecommendedAndCredentialsStayBlocked]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testDeepRegenerableCacheIsRecommendedAndCredentialsStayBlocked]' passed (0.284 seconds).
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testFullExecutionReusesScanAndPreservesRecovery]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testFullExecutionReusesScanAndPreservesRecovery]' passed (0.492 seconds).
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testReconciliationPerformanceAndPathBoundaries]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testReconciliationPerformanceAndPathBoundaries]' passed (0.043 seconds).
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testRuleEntryLimitDoesNotBlockCompleteCache]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testRuleEntryLimitDoesNotBlockCompleteCache]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testScannedCacheExecutionDoesNotWalkContentsAgain]' started.
+Test Case '-[CleanerCoreTests.CleanupPerformanceTests testScannedCacheExecutionDoesNotWalkContentsAgain]' passed (0.027 seconds).
+Test Suite 'CleanupPerformanceTests' passed at 2026-11-13 21:45:50.696.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.865 (0.865) seconds
+Test Suite 'CleanupRecommendationPolicyTests' started at 2026-11-13 21:45:50.696.
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testCustomModeCannotPreserveBlockedSelection]' started.
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testCustomModeCannotPreserveBlockedSelection]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testDeepModeSelectsOnlyRebuildableInactiveCandidates]' started.
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testDeepModeSelectsOnlyRebuildableInactiveCandidates]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testDefaultSelectionMatchesRecommendedCleanupGroups]' started.
+Test Case '-[CleanerCoreTests.CleanupRecommendationPolicyTests testDefaultSelectionMatchesRecommendedCleanupGroups]' passed (0.000 seconds).
+Test Suite 'CleanupRecommendationPolicyTests' passed at 2026-11-13 21:45:50.697.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'CleanupSnapshotTests' started at 2026-11-13 21:45:50.697.
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalIndexKeepsPathBoundariesAndLexicalNormalization]' started.
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalIndexKeepsPathBoundariesAndLexicalNormalization]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalOfRetainedCopyInvalidatesProofInEveryIndex]' started.
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalOfRetainedCopyInvalidatesProofInEveryIndex]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalPreservesCandidatePrecedenceOrderAndSharedCoverageRoots]' started.
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testRemovalPreservesCandidatePrecedenceOrderAndSharedCoverageRoots]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testStatusChangesRefreshCoverageWithoutChangingTheCandidateIndex]' started.
+Test Case '-[CleanerCoreTests.CleanupSnapshotTests testStatusChangesRefreshCoverageWithoutChangingTheCandidateIndex]' passed (0.000 seconds).
+Test Suite 'CleanupSnapshotTests' passed at 2026-11-13 21:45:50.699.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'CleanupStrategySelectionStateTests' started at 2026-11-13 21:45:50.699.
+Test Case '-[CleanerCoreTests.CleanupStrategySelectionStateTests testBlockedItemCannotEnterSelection]' started.
+Test Case '-[CleanerCoreTests.CleanupStrategySelectionStateTests testBlockedItemCannotEnterSelection]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.CleanupStrategySelectionStateTests testExcludingRecommendedItemKeepsRecommendedStrategy]' started.
+Test Case '-[CleanerCoreTests.CleanupStrategySelectionStateTests testExcludingRecommendedItemKeepsRecommendedStrategy]' passed (0.000 seconds).
+Test Suite 'CleanupStrategySelectionStateTests' passed at 2026-11-13 21:45:50.700.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'ContentChangeCleanupTests' started at 2026-11-13 21:45:50.700.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testApprovedScopesAcceptWritesAndRemainRecoverable]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testApprovedScopesAcceptWritesAndRemainRecoverable]' passed (0.097 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHelperMoveAllowsWritesButRejectsReplacement]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHelperMoveAllowsWritesButRejectsReplacement]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHistoricalResidueValidatorAllowsContentUpdates]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHistoricalResidueValidatorAllowsContentUpdates]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testNonCacheAgentContentStillRequiresUnchangedSnapshot]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testNonCacheAgentContentStillRequiresUnchangedSnapshot]' passed (0.000 seconds).
+Test Suite 'ContentChangeCleanupTests' passed at 2026-11-13 21:45:50.801.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.101 (0.102) seconds
+Test Suite 'DeletionCancellationTests' started at 2026-11-13 21:45:50.801.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testLegacyResolutionJournalStillDecodes]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testLegacyResolutionJournalStillDecodes]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopBeforeTrashDoesNotStartSystemMove]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopBeforeTrashDoesNotStartSystemMove]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopCheckpointSurvivesHistoryCommitFailure]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopCheckpointSurvivesHistoryCommitFailure]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopDuringProcessingDoesNotContinueIntoTrash]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopDuringProcessingDoesNotContinueIntoTrash]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopDuringSystemMoveFinishesCurrentItemAndRetainsRemainderAcrossRestart]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopDuringSystemMoveFinishesCurrentItemAndRetainsRemainderAcrossRestart]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopWhileSavingDoesNotBeginTrashAndSurvivesRestart]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testStopWhileSavingDoesNotBeginTrashAndSurvivesRestart]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testTwoLargeFilesStageTiming]' started.
+Test Case '-[CleanerCoreTests.DeletionCancellationTests testTwoLargeFilesStageTiming]' passed (0.058 seconds).
+Test Suite 'DeletionCancellationTests' passed at 2026-11-13 21:45:50.915.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.113 (0.113) seconds
+Test Suite 'DiskUsageScannerTests' started at 2026-11-13 21:45:50.915.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDefaultScanCoversLargeFilesAnywhereUnderUserHome]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDefaultScanCoversLargeFilesAnywhereUnderUserHome]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDefaultScanHasNoEntryOrDepthLimit]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDefaultScanHasNoEntryOrDepthLimit]' passed (0.485 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDirectoriesAggregateSizeButLargeResultsContainOnlyFiles]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testDirectoriesAggregateSizeButLargeResultsContainOnlyFiles]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testExplicitEntryCapRemainsAvailableAndReportsLimitedCoverage]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testExplicitEntryCapRemainsAvailableAndReportsLimitedCoverage]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testLegacyDepthArgumentDoesNotHideDeepFiles]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testLegacyDepthArgumentDoesNotHideDeepFiles]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testSymbolicLinksAreNotTraversed]' started.
+Test Case '-[CleanerCoreTests.DiskUsageScannerTests testSymbolicLinksAreNotTraversed]' passed (0.000 seconds).
+Test Suite 'DiskUsageScannerTests' passed at 2026-11-13 21:45:51.405.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.490 (0.490) seconds
+Test Suite 'DiskUsageSelectionStateTests' started at 2026-11-13 21:45:51.405.
+Test Case '-[CleanerCoreTests.DiskUsageSelectionStateTests testDirectoriesCannotBecomeSelected]' started.
+Test Case '-[CleanerCoreTests.DiskUsageSelectionStateTests testDirectoriesCannotBecomeSelected]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DiskUsageSelectionStateTests testReadableConcreteFileCanBecomeSelected]' started.
+Test Case '-[CleanerCoreTests.DiskUsageSelectionStateTests testReadableConcreteFileCanBecomeSelected]' passed (0.000 seconds).
+Test Suite 'DiskUsageSelectionStateTests' passed at 2026-11-13 21:45:51.405.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'DuplicateLargeFileTests' started at 2026-11-13 21:45:51.405.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' passed (0.016 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' passed (0.228 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' passed (0.089 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' passed (0.030 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' passed (0.049 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' passed (0.113 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' passed (0.032 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' passed (0.087 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' passed (0.356 seconds).
+Test Suite 'DuplicateLargeFileTests' passed at 2026-11-13 21:45:52.446.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 1.040 (1.041) seconds
+Test Suite 'ExecutionTests' started at 2026-11-13 21:45:52.446.
+Test Case '-[CleanerCoreTests.ExecutionTests testChangedIdentityIsSkippedWithoutMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testChangedIdentityIsSkippedWithoutMutation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRefusalPreventsMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRefusalPreventsMutation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchReusesValidationAndCoalescesGeneralActivityLookup]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchReusesValidationAndCoalescesGeneralActivityLookup]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRuleChangePreventsMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRuleChangePreventsMutation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks]' passed (0.025 seconds).
+Test Suite 'ExecutionTests' passed at 2026-11-13 21:45:52.475.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.028 (0.029) seconds
+Test Suite 'FileIdentityParityTests' started at 2026-11-13 21:45:52.475.
+Test Case '-[CleanerCoreTests.FileIdentityParityTests testNativeIdentityMatchesFoundationForFilesDirectoriesAndLinks]' started.
+Test Case '-[CleanerCoreTests.FileIdentityParityTests testNativeIdentityMatchesFoundationForFilesDirectoriesAndLinks]' passed (0.004 seconds).
+Test Suite 'FileIdentityParityTests' passed at 2026-11-13 21:45:52.479.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'HelperExecutionSafetyTests' started at 2026-11-13 21:45:52.479.
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' started.
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' passed (0.001 seconds).
+Test Suite 'HelperExecutionSafetyTests' passed at 2026-11-13 21:45:52.480.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'HelperProtocolTests' started at 2026-11-13 21:45:52.480.
+Test Case '-[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles]' started.
+Test Case '-[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.HelperProtocolTests testTokenCannotAuthorizeDifferentPathOrReplay]' started.
+Test Case '-[CleanerCoreTests.HelperProtocolTests testTokenCannotAuthorizeDifferentPathOrReplay]' passed (0.000 seconds).
+Test Suite 'HelperProtocolTests' passed at 2026-11-13 21:45:52.481.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'HistoryStoreTests' started at 2026-11-13 21:45:52.481.
+Test Case '-[CleanerCoreTests.HistoryStoreTests testInterruptedWritePreservesPreviousHistoryAndStoreRecovers]' started.
+Test Case '-[CleanerCoreTests.HistoryStoreTests testInterruptedWritePreservesPreviousHistoryAndStoreRecovers]' passed (0.007 seconds).
+Test Case '-[CleanerCoreTests.HistoryStoreTests testUpsertInsertsThenReplacesReceiptWithoutDuplicatingIt]' started.
+Test Case '-[CleanerCoreTests.HistoryStoreTests testUpsertInsertsThenReplacesReceiptWithoutDuplicatingIt]' passed (0.004 seconds).
+Test Suite 'HistoryStoreTests' passed at 2026-11-13 21:45:52.492.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.011 (0.011) seconds
+Test Suite 'InaccessibleCleanupTests' started at 2026-11-13 21:45:52.492.
+Test Case '-[CleanerCoreTests.InaccessibleCleanupTests testDeniedEntriesAreNotCleanupCandidatesAndCannotBePlanned]' started.
+Test Case '-[CleanerCoreTests.InaccessibleCleanupTests testDeniedEntriesAreNotCleanupCandidatesAndCannotBePlanned]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.InaccessibleCleanupTests testUnprovenRuntimeCachesUseTheSameManualRuleForEveryName]' started.
+Test Case '-[CleanerCoreTests.InaccessibleCleanupTests testUnprovenRuntimeCachesUseTheSameManualRuleForEveryName]' passed (0.004 seconds).
+Test Suite 'InaccessibleCleanupTests' passed at 2026-11-13 21:45:52.508.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.016 (0.016) seconds
+Test Suite 'InputMethodProtectionTests' started at 2026-11-13 21:45:52.508.
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' started.
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' passed (0.045 seconds).
+Test Suite 'InputMethodProtectionTests' passed at 2026-11-13 21:45:52.553.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.045 (0.045) seconds
+Test Suite 'LicenseStoreTests' started at 2026-11-13 21:45:52.553.
+Test Case '-[CleanerCoreTests.LicenseStoreTests testExpiredTrialKeepsSafetyRights]' started.
+Test Case '-[CleanerCoreTests.LicenseStoreTests testExpiredTrialKeepsSafetyRights]' passed (0.000 seconds).
+Test Suite 'LicenseStoreTests' passed at 2026-11-13 21:45:52.554.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'ModelsTests' started at 2026-11-13 21:45:52.554.
+Test Case '-[CleanerCoreTests.ModelsTests testCandidateRoundTripPreservesIdentity]' started.
+Test Case '-[CleanerCoreTests.ModelsTests testCandidateRoundTripPreservesIdentity]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ModelsTests testPlanSeparatesSelectedAndBlockedItems]' started.
+Test Case '-[CleanerCoreTests.ModelsTests testPlanSeparatesSelectedAndBlockedItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ModelsTests testRiskDefaults]' started.
+Test Case '-[CleanerCoreTests.ModelsTests testRiskDefaults]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ModelsTests testSelectionDefaultsMatchRiskAndBlockedCannotBeForced]' started.
+Test Case '-[CleanerCoreTests.ModelsTests testSelectionDefaultsMatchRiskAndBlockedCannotBeForced]' passed (0.000 seconds).
+Test Suite 'ModelsTests' passed at 2026-11-13 21:45:52.555.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'MutableCleanupTests' started at 2026-11-13 21:45:52.555.
+Test Case '-[CleanerCoreTests.MutableCleanupTests testApplicationLogAppendUsesActualDiscoveryRule]' started.
+Test Case '-[CleanerCoreTests.MutableCleanupTests testApplicationLogAppendUsesActualDiscoveryRule]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.MutableCleanupTests testAtomicCacheReplacementRefreshesPlanAndRemainsRecoverable]' started.
+Test Case '-[CleanerCoreTests.MutableCleanupTests testAtomicCacheReplacementRefreshesPlanAndRemainsRecoverable]' passed (0.049 seconds).
+Test Suite 'MutableCleanupTests' passed at 2026-11-13 21:45:52.617.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.063 (0.063) seconds
+Test Suite 'OverlappingCleanupSelectionTests' started at 2026-11-13 21:45:52.617.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests test216SelectedEntriesBecomeEightExecutableRoots]' started.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests test216SelectedEntriesBecomeEightExecutableRoots]' passed (0.035 seconds).
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testCoveredBlockedEntryIsStillRejected]' started.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testCoveredBlockedEntryIsStillRejected]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testNestedDirectoriesMoveOnceAndRestoreTheirContents]' started.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testNestedDirectoriesMoveOnceAndRestoreTheirContents]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testSiblingPrefixAndSymbolicLinkDoNotCoverOtherEntries]' started.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testSiblingPrefixAndSymbolicLinkDoNotCoverOtherEntries]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testUnselectedParentNeverBroadensChildSelection]' started.
+Test Case '-[CleanerCoreTests.OverlappingCleanupSelectionTests testUnselectedParentNeverBroadensChildSelection]' passed (0.000 seconds).
+Test Suite 'OverlappingCleanupSelectionTests' passed at 2026-11-13 21:45:52.664.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.046 (0.046) seconds
+Test Suite 'PackageReceiptCleanupTests' started at 2026-11-13 21:45:52.664.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testEmbeddedAppDoesNotBecomeSeparateUninstallRequirement]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testEmbeddedAppDoesNotBecomeSeparateUninstallRequirement]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testFailedBundleAndTimedOutContainerReportAllFourRetainedRows]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testFailedBundleAndTimedOutContainerReportAllFourRetainedRows]' passed (0.024 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testFailedPartialAndPendingUninstallNeverForgetAndCleanupFailureIsReported]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testFailedPartialAndPendingUninstallNeverForgetAndCleanupFailureIsReported]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testInvalidPackageIDsCannotBecomeCommandOptionsOrPaths]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testInvalidPackageIDsCannotBecomeCommandOptionsOrPaths]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testMetadataFailureAndLegacyReceiptsRemainVisibleAndDecodable]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testMetadataFailureAndLegacyReceiptsRemainVisibleAndDecodable]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testRealBOMParsingFingerprintAndReinstalledAppChecks]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testRealBOMParsingFingerprintAndReinstalledAppChecks]' passed (0.071 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptAuthorizationResumesOnlyMetadataCleanup]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptAuthorizationResumesOnlyMetadataCleanup]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptCheckboxesStartUncheckedAndPairSelectionControlsExecution]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptCheckboxesStartUncheckedAndPairSelectionControlsExecution]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptHelperRequiresAuthorizationBeforeReadingOrExecuting]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testReceiptHelperRequiresAuthorizationBeforeReadingOrExecuting]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testSevenSelectedRowsKeepTheSameTotalThroughTrashAndHistory]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testSevenSelectedRowsKeepTheSameTotalThroughTrashAndHistory]' passed (0.023 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testStopDuringReceiptAuthorizationKeepsBothReceiptRows]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testStopDuringReceiptAuthorizationKeepsBothReceiptRows]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testWholePackageRequiredAndStructuralParentsAreAllowed]' started.
+Test Case '-[CleanerCoreTests.PackageReceiptCleanupTests testWholePackageRequiredAndStructuralParentsAreAllowed]' passed (0.000 seconds).
+Test Suite 'PackageReceiptCleanupTests' passed at 2026-11-13 21:45:52.787.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.122 (0.123) seconds
+Test Suite 'PathPolicyTests' started at 2026-11-13 21:45:52.787.
+Test Case '-[CleanerCoreTests.PathPolicyTests testAllowsNarrowCacheDescendant]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testAllowsNarrowCacheDescendant]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testApplicationScopeAllowsFoldersButRejectsEmbeddedAndSystemBundles]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testApplicationScopeAllowsFoldersButRejectsEmbeddedAndSystemBundles]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testNeverAllowsAgentRootOrSensitiveAssets]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testNeverAllowsAgentRootOrSensitiveAssets]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsRootsTraversalAndControlCharacters]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsRootsTraversalAndControlCharacters]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsSymlinkResolvingIntoProtectedRoot]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsSymlinkResolvingIntoProtectedRoot]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly]' passed (0.000 seconds).
+Test Suite 'PathPolicyTests' passed at 2026-11-13 21:45:52.790.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'PermissionStatusTests' started at 2026-11-13 21:45:52.790.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testDeniedFullDiskAccessDegradesWithoutDisablingAllScanning]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testDeniedFullDiskAccessDegradesWithoutDisablingAllScanning]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PermissionStatusTests testExplicitAccessDenialRemainsActionable]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testExplicitAccessDenialRemainsActionable]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PermissionStatusTests testLimitedPermissionStartsScanningInsteadOfOpeningACustomAssistant]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testLimitedPermissionStartsScanningInsteadOfOpeningACustomAssistant]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PermissionStatusTests testMissingAndOtherReadErrorsAreNotReportedAsMissingAuthorization]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testMissingAndOtherReadErrorsAreNotReportedAsMissingAuthorization]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PermissionStatusTests testMissingUserProbeUsesReadableSystemProbe]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testMissingUserProbeUsesReadableSystemProbe]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PermissionStatusTests testProtectedProbeReadableDoesNotRequireOtherAppDirectories]' started.
+Test Case '-[CleanerCoreTests.PermissionStatusTests testProtectedProbeReadableDoesNotRequireOtherAppDirectories]' passed (0.000 seconds).
+Test Suite 'PermissionStatusTests' passed at 2026-11-13 21:45:52.791.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'PlanningTests' started at 2026-11-13 21:45:52.791.
+Test Case '-[CleanerCoreTests.PlanningTests testBlockedCandidateCannotEnterPlan]' started.
+Test Case '-[CleanerCoreTests.PlanningTests testBlockedCandidateCannotEnterPlan]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PlanningTests testPlanBindsVersionsAndExpires]' started.
+Test Case '-[CleanerCoreTests.PlanningTests testPlanBindsVersionsAndExpires]' passed (0.001 seconds).
+Test Suite 'PlanningTests' passed at 2026-11-13 21:45:52.792.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'PreparedUninstallTests' started at 2026-11-13 21:45:52.792.
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testMissingLegacyIndexDoesNotRestartDiscovery]' started.
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testMissingLegacyIndexDoesNotRestartDiscovery]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testRuntimeTransitionsPreserveSelectionIdentityAndProtection]' started.
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testRuntimeTransitionsPreserveSelectionIdentityAndProtection]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testSystemProtectionCannotBeLiftedByQuit]' started.
+Test Case '-[CleanerCoreTests.PreparedUninstallTests testSystemProtectionCannotBeLiftedByQuit]' passed (0.000 seconds).
+Test Suite 'PreparedUninstallTests' passed at 2026-11-13 21:45:52.793.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ReviewCandidateFilterTests' started at 2026-11-13 21:45:52.793.
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testEvidenceDetailsAreSearchable]' started.
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testEvidenceDetailsAreSearchable]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testQueryMatchesNameCaseInsensitively]' started.
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testQueryMatchesNameCaseInsensitively]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testRiskFilterExcludesOtherRisk]' started.
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testRiskFilterExcludesOtherRisk]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testSelectedOnlyUsesSelectionWithoutChangingCandidate]' started.
+Test Case '-[CleanerCoreTests.ReviewCandidateFilterTests testSelectedOnlyUsesSelectionWithoutChangingCandidate]' passed (0.000 seconds).
+Test Suite 'ReviewCandidateFilterTests' passed at 2026-11-13 21:45:52.793.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'ReviewFocusStateTests' started at 2026-11-13 21:45:52.793.
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testEmptyVisibleListClearsFocus]' started.
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testEmptyVisibleListClearsFocus]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testHiddenRequestedFocusFallsBackToFirstVisibleCandidate]' started.
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testHiddenRequestedFocusFallsBackToFirstVisibleCandidate]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testInvisibleFocusMovesToFirstVisibleCandidate]' started.
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testInvisibleFocusMovesToFirstVisibleCandidate]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testVisibleFocusIsPreserved]' started.
+Test Case '-[CleanerCoreTests.ReviewFocusStateTests testVisibleFocusIsPreserved]' passed (0.000 seconds).
+Test Suite 'ReviewFocusStateTests' passed at 2026-11-13 21:45:52.794.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'RuleStoreTests' started at 2026-11-13 21:45:52.794.
+Test Case '-[CleanerCoreTests.RuleStoreTests testExecutionFingerprintChangesWhenRulesAreInstalled]' started.
+Test Case '-[CleanerCoreTests.RuleStoreTests testExecutionFingerprintChangesWhenRulesAreInstalled]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.RuleStoreTests testRejectsInvalidSignatureAndOnDiskTampering]' started.
+Test Case '-[CleanerCoreTests.RuleStoreTests testRejectsInvalidSignatureAndOnDiskTampering]' passed (0.008 seconds).
+Test Suite 'RuleStoreTests' passed at 2026-11-13 21:45:52.806.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'RunningApplicationSnapshotTests' started at 2026-11-13 21:45:52.806.
+Test Case '-[CleanerCoreTests.RunningApplicationSnapshotTests testWorkspacePropertiesAreReadOffTheMainThread]' started.
+Test Case '-[CleanerCoreTests.RunningApplicationSnapshotTests testWorkspacePropertiesAreReadOffTheMainThread]' passed (0.000 seconds).
+Test Suite 'RunningApplicationSnapshotTests' passed at 2026-11-13 21:45:52.807.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'ScanPermissionPreparationTests' started at 2026-11-13 21:45:52.807.
+Test Case '-[CleanerCoreTests.ScanPermissionPreparationTests testFullDiskAccessStartsFullScanWithoutUnrelatedPreparation]' started.
+Test Case '-[CleanerCoreTests.ScanPermissionPreparationTests testFullDiskAccessStartsFullScanWithoutUnrelatedPreparation]' passed (0.000 seconds).
+Test Suite 'ScanPermissionPreparationTests' passed at 2026-11-13 21:45:52.807.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'ScannerTests' started at 2026-11-13 21:45:52.807.
+Test Case '-[CleanerCoreTests.ScannerTests testCoordinatorContainsScannerFailure]' started.
+Test Case '-[CleanerCoreTests.ScannerTests testCoordinatorContainsScannerFailure]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ScannerTests testHistoricalResiduePreselectsConfirmedAppData]' started.
+Test Case '-[CleanerCoreTests.ScannerTests testHistoricalResiduePreselectsConfirmedAppData]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ScannerTests testLargeFilesAreNeverSafeBySizeAlone]' started.
+Test Case '-[CleanerCoreTests.ScannerTests testLargeFilesAreNeverSafeBySizeAlone]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ScannerTests testRecentCacheIsReviewAndOldInactiveCacheIsSafe]' started.
+Test Case '-[CleanerCoreTests.ScannerTests testRecentCacheIsReviewAndOldInactiveCacheIsSafe]' passed (0.000 seconds).
+Test Suite 'ScannerTests' passed at 2026-11-13 21:45:52.810.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+Test Suite 'SessionCleanupMetricTests' started at 2026-11-13 21:45:52.810.
+Test Case '-[CleanerCoreTests.SessionCleanupMetricTests testAccumulatesAllModulesWithoutDuplicatingReceiptsOrCountingFailures]' started.
+Test Case '-[CleanerCoreTests.SessionCleanupMetricTests testAccumulatesAllModulesWithoutDuplicatingReceiptsOrCountingFailures]' passed (0.000 seconds).
+Test Suite 'SessionCleanupMetricTests' passed at 2026-11-13 21:45:52.811.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'SystemScanCoordinatorTests' started at 2026-11-13 21:45:52.811.
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testAllModulesShareOneGenerationAndReachTerminalStates]' started.
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testAllModulesShareOneGenerationAndReachTerminalStates]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testCancelledTaskDoesNotReturnPartialReport]' started.
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testCancelledTaskDoesNotReturnPartialReport]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testModuleReplacementPreservesGenerationAndStartedAt]' started.
+Test Case '-[CleanerCoreTests.SystemScanCoordinatorTests testModuleReplacementPreservesGenerationAndStartedAt]' passed (0.000 seconds).
+Test Suite 'SystemScanCoordinatorTests' passed at 2026-11-13 21:45:52.815.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'SystemScanPrimitivesTests' started at 2026-11-13 21:45:52.815.
+Test Case '-[CleanerCoreTests.SystemScanPrimitivesTests testCoverageStandardizesAndDeduplicatesRoots]' started.
+Test Case '-[CleanerCoreTests.SystemScanPrimitivesTests testCoverageStandardizesAndDeduplicatesRoots]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.SystemScanPrimitivesTests testWaitingAndScanningAreTheOnlyNonTerminalModuleStates]' started.
+Test Case '-[CleanerCoreTests.SystemScanPrimitivesTests testWaitingAndScanningAreTheOnlyNonTerminalModuleStates]' passed (0.000 seconds).
+Test Suite 'SystemScanPrimitivesTests' passed at 2026-11-13 21:45:52.816.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'UninstallAssociationBudgetTests' started at 2026-11-13 21:45:52.816.
+Test Case '-[CleanerCoreTests.UninstallAssociationBudgetTests testAssociatedChecksShareABudgetAndCannotStarveTheSelectedApplication]' started.
+Test Case '-[CleanerCoreTests.UninstallAssociationBudgetTests testAssociatedChecksShareABudgetAndCannotStarveTheSelectedApplication]' passed (0.113 seconds).
+Test Suite 'UninstallAssociationBudgetTests' passed at 2026-11-13 21:45:52.929.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.113 (0.113) seconds
+Test Suite 'UninstallExecutionOrderTests' started at 2026-11-13 21:45:52.929.
+Test Case '-[CleanerCoreTests.UninstallExecutionOrderTests testDeclaredUserDataKeepsItsSourceAvailableForFinalValidation]' started.
+Test Case '-[CleanerCoreTests.UninstallExecutionOrderTests testDeclaredUserDataKeepsItsSourceAvailableForFinalValidation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.UninstallExecutionOrderTests testSourceMetadataRemainsAvailableUntilAssociatedChecksFinish]' started.
+Test Case '-[CleanerCoreTests.UninstallExecutionOrderTests testSourceMetadataRemainsAvailableUntilAssociatedChecksFinish]' passed (0.001 seconds).
+Test Suite 'UninstallExecutionOrderTests' passed at 2026-11-13 21:45:52.931.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'UninstallParentSelectionTests' started at 2026-11-13 21:45:52.931.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testApplicationsWithoutReceiptsKeepTheirExistingSelectAllBehavior]' started.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testApplicationsWithoutReceiptsKeepTheirExistingSelectAllBehavior]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testOnlySystemReceiptRowsForPackageInstallationsAreSelectable]' started.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testOnlySystemReceiptRowsForPackageInstallationsAreSelectable]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testParentSelectsAndClearsFilesAndPairedReceiptsWithoutDeletingReceiptFiles]' started.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testParentSelectsAndClearsFilesAndPairedReceiptsWithoutDeletingReceiptFiles]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testPartialParentRestoresMissingReceiptOrOrdinaryChild]' started.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testPartialParentRestoresMissingReceiptOrOrdinaryChild]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testSelectingOneApplicationLeavesOtherApplicationSelectionsIntact]' started.
+Test Case '-[CleanerCoreTests.UninstallParentSelectionTests testSelectingOneApplicationLeavesOtherApplicationSelectionsIntact]' passed (0.000 seconds).
+Test Suite 'UninstallParentSelectionTests' passed at 2026-11-13 21:45:52.933.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'UninstallPermissionRecoveryTests' started at 2026-11-13 21:45:52.933.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testActualReadOnlyBundleMoveDoesNotSendUserBackToAppManagement]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testActualReadOnlyBundleMoveDoesNotSendUserBackToAppManagement]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testAmbiguousPartialMoveDoesNotOfferRetry]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testAmbiguousPartialMoveDoesNotOfferRetry]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testApplicationStartedWhileSettingsOpenIsNeverDeleted]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testApplicationStartedWhileSettingsOpenIsNeverDeleted]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testExpiredPlanAfterPermissionChangeDoesNotResumeMoves]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testExpiredPlanAfterPermissionChangeDoesNotResumeMoves]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testGrantResumesSamePlanWithoutRepeatingCompletedItems]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testGrantResumesSamePlanWithoutRepeatingCompletedItems]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testNonPermissionErrorsAndHeadlessExecutionNeverWait]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testNonPermissionErrorsAndHeadlessExecutionNeverWait]' passed (0.003 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testPermissionClassificationDoesNotConfusePolicyOrConnectionFailuresWithAuthorization]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testPermissionClassificationDoesNotConfusePolicyOrConnectionFailuresWithAuthorization]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testReplacementWhileSettingsOpenIsNeverDeleted]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testReplacementWhileSettingsOpenIsNeverDeleted]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testStillDeniedWaitsForAnotherUserDecisionThenStopRetainsRemainder]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testStillDeniedWaitsForAnotherUserDecisionThenStopRetainsRemainder]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testStopWhilePromptedPersistsManualRetentionAcrossRestart]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testStopWhilePromptedPersistsManualRetentionAcrossRestart]' passed (0.020 seconds).
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testValidationPermissionDenialCanResumeAndIsRevalidated]' started.
+Test Case '-[CleanerCoreTests.UninstallPermissionRecoveryTests testValidationPermissionDenialCanResumeAndIsRevalidated]' passed (0.002 seconds).
+Test Suite 'UninstallPermissionRecoveryTests' passed at 2026-11-13 21:45:52.981.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.047 (0.048) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-13 21:45:52.981.
+	 Executed 261 tests, with 0 failures (0 unexpected) in 7.374 (7.392) seconds
+Test Suite 'All tests' passed at 2026-11-13 21:45:52.981.
+	 Executed 261 tests, with 0 failures (0 unexpected) in 7.374 (7.393) seconds
+Agent fixture: legacy=328844 bytes, summary=2018 bytes; vectors loaded only for changed relationships
+Completion aliases: 50,000 candidates / one removal = 0.08268404006958008s
+Cleanup reconciliation: 2500 rows / 40 removals = 0.016173958778381348s
+Deletion timing: processing at 0.0007179975509643555s
+Deletion timing: savingResults at 0.0022579431533813477s
+Deletion timing: movingToTrash at 0.005800008773803711s
+Deletion timing: savingResults at 0.05045497417449951s
+Deletion timing: finished at 0.05406689643859863s
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.

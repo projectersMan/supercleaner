@@ -25,8 +25,7 @@ extension ApplicationInventory {
                 inspected.append(InstalledApplication(bundleURL: app.bundleURL, bundleIdentifier: app.bundleIdentifier,
                     name: app.name, version: app.version, isRunning: app.isRunning, isSystem: app.isSystem,
                     teamIdentifier: app.teamIdentifier, applicationGroups: app.applicationGroups ?? [],
-                    associatedBundleIdentifiers: app.associatedBundleIdentifiers, applicationGroupsComplete: false,
-                    uninstallRequiresAdministrator: app.uninstallRequiresAdministrator))
+                    associatedBundleIdentifiers: app.associatedBundleIdentifiers, applicationGroupsComplete: false))
                 continue
             }
             let declarations = ApplicationGroupDeclarationScanner().scan(
@@ -39,8 +38,7 @@ extension ApplicationInventory {
                 teamIdentifier: app.teamIdentifier, applicationGroups: Array(Set((app.applicationGroups ?? []) + declarations.groups)).sorted(),
                 associatedBundleIdentifiers: Array(Set((app.associatedBundleIdentifiers ?? [])
                     + declarations.bundleIdentifiers.filter { $0 != app.bundleIdentifier })).sorted(),
-                applicationGroupsComplete: declarations.complete,
-                uninstallRequiresAdministrator: app.uninstallRequiresAdministrator))
+                applicationGroupsComplete: declarations.complete))
         }
         return .init(applications: inspected, coverage: coverage, scannedAt: scannedAt)
     }

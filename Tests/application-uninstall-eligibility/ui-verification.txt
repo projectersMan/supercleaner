@@ -1,0 +1,14 @@
+Historical UI verification before the exclusive-scope correction; overlapping Uninstallable/Running results below are superseded by exclusive-ui-verification.txt.
+Installed app: /Applications/SuperCleaner.app
+Method: CUA native accessibility observations and reversible checkbox interaction, after rebuilding and completing the application module scan.
+Uninstallable default: 31 / 115 applications.
+Running: 10 / 115 applications, only non-system applications.
+Running + Siri search: 0 / 115 applications.
+Protected + Siri search: 2 / 115 applications (Siri, Siri AI).
+Siri AI expanded: Protected; macOS-managed system application; /System/Applications/Siri AI.app.
+Siri AI operation checkboxes: absent; no Quit App action in Protected.
+DoubaoIme: enabled quit checkbox; changed to Selected and enabled Quit App; then unchecked without requesting quit.
+Google Chrome and SogouInput: visible in default Uninstallable with Running · Quit to uninstall, no Administrator access required · Protected badge.
+Quit/uninstall action: never executed for any real user application.
+Final state: Uninstallable, empty search, no quit or uninstall selections.
+Application scan completed; System Cleanup and Agent modules canceled to keep this verification scoped to Applications. This was not a complete four-module scan acceptance run.

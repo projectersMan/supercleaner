@@ -319,6 +319,36 @@ public actor CleanupExecutor {
                     results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在隔离目录准备期间已过期，请重新扫描")))
                     continue
                 }
+                // Both Helper and local moves must observe the latest running
+                // state and rules, including after a permission-recovery retry.
+                if allowsContentChanges(candidate), candidate.identity.kind == .directory {
+                    do {
+                        let check = finalCandidateCheck ?? validateCandidate
+                        if candidate.source == .application {
+                            try await applicationValidationBudget.validate(candidate) { try await check(candidate) }
+                        } else { try await check(candidate) }
+                        if let validationBatch { try await validationBatch.verifyCurrentRuleState() }
+                        else if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
+                            throw RuleScanError.executionRefused(candidate.ruleID ?? "changed-rules")
+                        }
+                    }
+                    catch {
+                        if let decision = await requestPermissionRecovery(error) {
+                            if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
+                            withUnsafeCurrentTask { $0?.cancel() }
+                            stoppedByCancellation = true; break
+                        }
+                        results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                            message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
+                        continue
+                    }
+                }
+                if Task.isCancelled { stoppedByCancellation = true; break }
+                guard !plan.isExpired(at: now()) else {
+                    results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                        message: L10n.text("计划在安全校验期间已过期，请重新扫描")))
+                    continue
+                }
                 let destination = uniqueDestination(for: candidate, in: planDirectory)
                 attemptedMove = true
                 let handled = try await privilegedApplications?.moveToQuarantine(candidate: candidate, destination: destination, planID: plan.id) ?? false
@@ -328,28 +358,6 @@ public actor CleanupExecutor {
                         continue
                     }
                     if allowsContentChanges(candidate) {
-                        if candidate.identity.kind == .directory {
-                            do {
-                                let check = finalCandidateCheck ?? validateCandidate
-                                if candidate.source == .application {
-                                    try await applicationValidationBudget.validate(candidate) { try await check(candidate) }
-                                } else { try await check(candidate) }
-                                if let validationBatch { try await validationBatch.verifyCurrentRuleState() }
-                                else if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
-                                    throw RuleScanError.executionRefused(candidate.ruleID ?? "changed-rules")
-                                }
-                            }
-                            catch {
-                                if let decision = await requestPermissionRecovery(error) {
-                                    if case .retry = decision, !Task.isCancelled { retryCurrentItem = true; continue }
-                                    withUnsafeCurrentTask { $0?.cancel() }
-                                    stoppedByCancellation = true; break
-                                }
-                                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
-                                    message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
-                                continue
-                            }
-                        }
                         // Preparation/fallback can suspend. Recheck immediately
                         // before moving; rotation is not a content-only change.
                         guard let current = try? await fileSystem.identity(at: candidate.url),

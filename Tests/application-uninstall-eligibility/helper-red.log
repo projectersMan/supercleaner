@@ -1,0 +1,24 @@
+Building for debugging...
+[Pre-planning 1 / 300]
+[Planning 1 / 300]
+[Planning deferred tasks]
+[1 / 1]
+[8 / 19] CleanerCoreTests-product
+[11 / 22] CleanerCoreTests-product
+[17 / 21] CleanerCoreTests-product
+Build complete! (1.95秒)
+Test Suite 'Selected tests' started at 2026-11-13 20:09:23.348.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 20:09:23.350.
+Test Suite 'HelperExecutionSafetyTests' started at 2026-11-13 20:09:23.350.
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/HelperExecutionSafetyTests.swift:19: error: -[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove] : XCTAssertEqual failed: ("[CleanerCore.OperationStatus.succeeded]") is not equal to ("[CleanerCore.OperationStatus.skippedProtected]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/HelperExecutionSafetyTests.swift:21: error: -[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove] : XCTAssertTrue failed - a final runtime refusal must leave the application in place on the Helper path
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' failed (0.302 seconds).
+Test Suite 'HelperExecutionSafetyTests' failed at 2026-11-13 20:09:23.653.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.302 (0.303) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-13 20:09:23.653.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.302 (0.303) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 20:09:23.653.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.302 (0.305) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

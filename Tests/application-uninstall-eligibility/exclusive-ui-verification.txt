@@ -1,0 +1,12 @@
+Historical behavior verification of the corrected code at 0.4.1 (115), before the requested version-only rebuild to 0.4.2 (116).
+Installed application: /Applications/SuperCleaner.app
+Verification: native CUA accessibility observations after the current signed build and application-module scan.
+Scope totals from the same inventory: Uninstallable 21, Running 10, Protected 84, All 115.
+Sum: 21 + 10 + 84 = 115; automated partition regression also verifies disjoint IDs with no omissions.
+Uninstallable + Chrome search: 0 / 115 applications; no Quit App button.
+Running + Chrome search: 1 / 115 applications, Google Chrome, Running · Quit to uninstall.
+Protected + Siri search: 2 / 115 applications, Siri and Siri AI, both Protected, no operation checkboxes.
+Running + Siri search: 0 / 115 applications.
+Final UI: Uninstallable 21 / 115, empty search, no quit/uninstall selections and no Quit App button.
+No real user app was quit or uninstalled. Only SuperCleaner was restarted to apply the update.
+System Cleanup and Agent modules were canceled; only the Applications module was awaited for this validation.

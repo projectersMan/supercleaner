@@ -1,0 +1,30 @@
+Building for debugging...
+[Planning 1 / 95]
+[Planning deferred tasks]
+[1 / 7]
+Build complete! (0.63秒)
+PASS: language defaults, persistence, catalogs, interpolation, and bundle version (en)
+PASS: deletion result totals, successful Trash rows, mixed destinations, skips and verification failures
+PASS: cleanup refresh reconciles app lists, indexed/hierarchical disk rows, counts, bytes and partial/uncertain outcomes
+Agent cached filters: 0.0005469322204589844 seconds for 1,000 updates / 20,000 source assets
+Agent Skill presentation: 0.23096203804016113 seconds for 3100 Skills / 20000 assets
+PASS: application copies, entitlement owners, services, private configuration locations, managed uninstall and stale-plan rejection
+PASS: application declaration discovery, ASAR bounds, ownership revalidation, sharing, symlinks, observation attribution and cancellation
+PASS: unified application roots, empty scripts, ByHost/cookie boundaries, user temp scope, copies/groups, reference-only policy, symlinks and recoverable execution
+PASS: diagnostic records, IPS/legacy headers, retained reports, exact identity, conflicts, copies, symlinks, budgets and execution revalidation
+PASS: growing/open logs, changing caches, 20k+ directory execution, protected/replaced objects, restart reconciliation and recoverable cleanup
+PASS: rule-driven scanning, signed update/rollback and persistent protection contracts
+PASS: system cleanup partial results, Chrome profiles/offline defaults, application grouping, WeChat, and execution boundaries
+PASS: multi-source installers, validated archives, budgets, cancellation and process limits
+PASS: versioned read-only JSON, scoped scans, explicit previews, history and no file effects
+PASS: grouped project artifacts, Git/nested-repo/key/activity protection, roots and recoverable execution
+PASS: helper peer requirements, explicit authorization, uid/path/plan/identity checks, no-follow move/restore/purge and budgets
+PASS: helper execution routing, restore verification, durable uncertain-result journal and late-completion recovery
+PASS: execution reconciliation serializes restore/purge/rescheduling and preserves existing retention
+PASS: Agent JSON depth/read/identity completeness, provider evidence, empty boundary and read-only payload
+PASS: plan expiry after validation/activity/identity/directory preparation/privilege fallback refuses movement
+PASS: streaming HTTPS, credential isolation, real delegate redirects, limits, cancellation and exclusive output
+PASS: signed rule download/import, atomic failure preservation, sticky revocations, replay resistance, activation invalidation and migration
+PASS: application update production policy, downgrade, origin, archive and manual signed-feed settings
+PASS: public-key signed appcast/archive gate; first release, tampering, metadata, DTD and linked archive rejection
+Core contracts passed

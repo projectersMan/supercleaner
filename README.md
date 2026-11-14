@@ -22,6 +22,8 @@ cd supercleaner
 open build/SuperCleaner.app
 ```
 
+The current local build is **0.4.3 (117)**. Open [SuperCleaner.app](build/SuperCleaner.app), or install it from [SuperCleaner-0.4.3.dmg](build/SuperCleaner-0.4.3.dmg).
+
 The Cleanup Center keeps its introduction, four scan scopes, and three safety cards in place before, during, and after scanning. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout.
 
 **Duplicate Large Files** opens in **All Large Files**, sorted **By Selection** so selected items and their folders come first. The same scan preselects one copy per verified identical group, ZIPs verified against sibling folders, and eligible large installer files (`.dmg`, `.pkg`, `.mpkg`, `.xip`, `.iso`). Protected, active, and retained files are excluded from installer preselection. A matching sibling folder must have a total logical file size at least as large as both the current threshold and the ZIP. Individual members can be any size, and every member must match. Review the reason and any retained path before confirming cleanup. See the [scan and cleanup workflow](doc/large-file-duplicates-plan.md).
@@ -50,7 +52,7 @@ Local builds require a fixed signing certificate and private key in the login ke
 
 Clicking the SuperCleaner Dock icon reopens the main window after it was closed with the red close button, and restores it if it was minimized.
 
-The app list initially shows Uninstallable. Running and system apps remain in All and Running/System protected scopes. Search follows the selected scope, and an empty filtered result explains how to search the full list. App names omit the duplicate green Running badge; the right-side status still explains running restrictions. The protected scope and row badge use Protected.
+The app list initially shows Uninstallable. The three scopes are mutually exclusive: macOS system apps appear in Protected regardless of running state; other running apps appear in Running, and other stopped apps appear in Uninstallable. All shows the complete inventory. Third-party apps, including user-installed input methods, are not classified as protected because of static file permissions. In Running, select an app to quit it; after it exits, it moves to Uninstallable, where you can select its uninstall items. Relaunching an app moves it back to Running and clears its uninstall selection. Actual permission denials during uninstall offer the relevant authorization or System Settings guidance. Search follows the selected scope, and an empty filtered result explains how to search the full list.
 
 Application icons use native macOS artwork, resolved through the existing cache for the first rendered row without a placeholder-to-icon task. Embedded helpers with only a generic icon inherit the nearest enclosing application’s icon. Local updates replace `/Applications/SuperCleaner.app`; open that installed copy after an update.
 
@@ -73,6 +75,8 @@ The Uninstall Apps search and filter bar uses the same compact spacing and verti
 3. Choose what to include. Eligible system cleanup items, large files, and Agent analysis findings may be preselected for review. Application uninstall selection is manual. Blocked items cannot be selected.
 4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting. By default, items move to macOS Trash after safety checks and record saving. Choose a retention period in **Settings** to keep items in Recovery first.
 5. Open **Recovery** to review completed operations and restore retained items while they remain available. Recovery and Trash contents are excluded from large-file results and their totals.
+
+When **Cleaned This Session** is greater than zero, closing the main window or quitting shows a reminder to review and empty macOS Trash to free up disk space. Choose **Open Trash** or continue closing, and select **Don't remind me again** to disable future reminders across launches. The same cleanup amount is only acknowledged once per session; more cleanup enables another reminder. Emptying Trash does not remove files retained in Recovery.
 
 To uninstall an app, open **Applications**, select it, review its related items, and confirm the plan. Apps managed by Homebrew, Steam, or another installer should be removed through that source. Add paths to the protection list in **Settings** to exclude them from cleanup plans.
 

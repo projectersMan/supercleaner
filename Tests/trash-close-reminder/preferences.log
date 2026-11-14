@@ -1,0 +1,2 @@
+PASS: first process saves suppression
+PASS: second process honors persisted suppression and removes its test domain

@@ -12,10 +12,8 @@ public struct InstalledApplication: Identifiable, Codable, Hashable, Sendable {
     public let applicationGroups: [String]?
     public let associatedBundleIdentifiers: [String]?
     public let applicationGroupsComplete: Bool?
-    public let uninstallRequiresAdministrator: Bool?
 
-    public init(bundleURL: URL, bundleIdentifier: String, name: String, version: String?, isRunning: Bool, isSystem: Bool, teamIdentifier: String? = nil, applicationGroups: [String]? = nil, associatedBundleIdentifiers: [String]? = nil, applicationGroupsComplete: Bool? = nil, uninstallRequiresAdministrator: Bool? = nil) {
-        self.uninstallRequiresAdministrator = uninstallRequiresAdministrator
+    public init(bundleURL: URL, bundleIdentifier: String, name: String, version: String?, isRunning: Bool, isSystem: Bool, teamIdentifier: String? = nil, applicationGroups: [String]? = nil, associatedBundleIdentifiers: [String]? = nil, applicationGroupsComplete: Bool? = nil) {
         self.associatedBundleIdentifiers = associatedBundleIdentifiers
         self.applicationGroupsComplete = applicationGroupsComplete ?? (applicationGroups != nil)
         self.bundleURL = bundleURL
@@ -33,24 +31,14 @@ public struct InstalledApplication: Identifiable, Codable, Hashable, Sendable {
         return Self(bundleURL: bundleURL, bundleIdentifier: bundleIdentifier, name: name, version: version,
             isRunning: isRunning, isSystem: isSystem, teamIdentifier: teamIdentifier,
             applicationGroups: applicationGroups, associatedBundleIdentifiers: associatedBundleIdentifiers,
-            applicationGroupsComplete: applicationGroupsComplete, uninstallRequiresAdministrator: uninstallRequiresAdministrator)
+            applicationGroupsComplete: applicationGroupsComplete)
     }
 
-    public var isUninstallProtected: Bool { isSystem || uninstallRequiresAdministrator == true }
+    public var isUninstallProtected: Bool { isSystem }
 
     public var uninstallProtectionReason: String? {
         if isSystem { return L10n.text("这是由 macOS 管理的系统应用，无论是否运行都不会提供卸载操作。") }
-        if uninstallRequiresAdministrator == true {
-            return L10n.text("当前用户无法直接移动应用本体，需要管理员权限；此应用已归入受保护列表，不提供卸载操作。")
-        }
         return nil
-    }
-
-    public func withUninstallAdministratorRequirement(_ required: Bool) -> Self {
-        Self(bundleURL: bundleURL, bundleIdentifier: bundleIdentifier, name: name, version: version,
-            isRunning: isRunning, isSystem: isSystem, teamIdentifier: teamIdentifier,
-            applicationGroups: applicationGroups, associatedBundleIdentifiers: associatedBundleIdentifiers,
-            applicationGroupsComplete: applicationGroupsComplete, uninstallRequiresAdministrator: required)
     }
 }
 

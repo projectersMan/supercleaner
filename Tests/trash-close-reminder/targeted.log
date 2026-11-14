@@ -1,0 +1,91 @@
+Building for debugging...
+[Constructing description]
+[Planning 1 / 300]
+[Planning deferred tasks]
+[1 / 1]
+[1 / 42] SuperCleaner_CleanerCore
+[12 / 47] CleanerCore
+[15 / 50] CleanerCore
+[24 / 52] CleanerCore
+[25 / 52] CleanerCore
+[29 / 53] CleanerCoreTests-product
+[39 / 62] supercleaner-product
+[43 / 75] CoreContractChecks-product
+[50 / 75] AgentOverlapAI
+[53 / 75] CoreContractChecks-product
+[54 / 75] CoreContractChecks-product
+[55 / 75] CoreContractChecks-product
+[57 / 75] CleanerHelper-product
+[61 / 76] CoreContractChecks-product
+[61 / 76] CleanerCoreTests-product
+[62 / 90] CoreContractChecks-product
+[69 / 90] CleanerHelper-product
+[71 / 91] CleanerHelper-product
+[73 / 104] CleanerApp-product
+[73 / 104] CleanerHelper-product
+[78 / 104] CleanerApp-product
+[81 / 104] CleanerApp-product
+[84 / 104] CleanerApp-product
+[85 / 103] CleanerCoreTests-product
+[86 / 103] CleanerCoreTests-product
+[92 / 103] CoreContractChecks-product
+[94 / 104] CleanerApp-product
+[95 / 104] CleanerApp-product
+[98 / 104] CoreContractChecks-product
+[98 / 105] CleanerApp-product
+[99 / 105] CleanerCoreTests-product
+[101 / 105] CleanerCoreTests-product
+[105 / 107] supercleaner-product
+[107 / 111] CleanerApp-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:93:51: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 91 |                 if updater == nil {
+ 92 |                     let driver = ImmediateUpdateDriver(hostBundle: .main, delegate: nil)
+ 93 |                     driver.validateItem = { [weak self] item in
+    |                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                   `- note: explicitly assign the capture list item to silence
+ 94 |                         guard let self else { throw ApplicationUpdateError.busy }
+ 95 |                         try validate(item)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:97:47: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 95 |                         try validate(item)
+ 96 |                     }
+ 97 |                     driver.rejected = { [weak self] error in self?.validationFailure = error }
+    |                                               |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                               `- note: explicitly assign the capture list item to silence
+ 98 |                     self.driver = driver
+ 99 |                     let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[109 / 111] CleanerApp-product
+Build complete! (10.67秒)
+Test Suite 'Selected tests' started at 2026-11-13 22:37:36.728.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 22:37:36.729.
+Test Suite 'TrashReminderStateTests' started at 2026-11-13 22:37:36.729.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testAcknowledgementAvoidsDuplicateWindowAndQuitRemindersUntilMoreCleanup]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testAcknowledgementAvoidsDuplicateWindowAndQuitRemindersUntilMoreCleanup]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testOnlyPositiveCleanupBytesRequireReminder]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testOnlyPositiveCleanupBytesRequireReminder]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionPersistsWhenPreferencesAreReopened]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionPersistsWhenPreferencesAreReopened]' passed (0.001 seconds).
+Test Suite 'TrashReminderStateTests' passed at 2026-11-13 22:37:36.734.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-13 22:37:36.734.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'Selected tests' passed at 2026-11-13 22:37:36.734.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.004 (0.006) seconds

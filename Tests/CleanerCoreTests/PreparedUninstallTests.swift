@@ -14,7 +14,7 @@ final class PreparedUninstallTests: XCTestCase {
         let original = ApplicationUninstallAnalysis(application: app, plan: plan, state: .limited, message: "partial coverage")
         let running = original.withRunningState(true)
         XCTAssertNil(running.plan)
-        XCTAssertEqual(running.state, .protected)
+        XCTAssertEqual(running.state, .running)
         let decoded = try JSONDecoder().decode(ApplicationUninstallAnalysis.self, from: JSONEncoder().encode(running))
         let stopped = decoded.withRunningState(false)
         XCTAssertEqual(stopped.plan, original.plan)

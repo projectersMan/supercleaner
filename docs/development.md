@@ -10,6 +10,8 @@
 
 Dock reopen优先把最小化的主窗口逐一deminiaturize；若窗口已被红色关闭按钮关掉，则通过带`main`标识的WindowGroup和SwiftUI`openWindow`重新创建主窗口。两种情况都返回false，阻止AppKit默认行为覆盖显式处理；已有可见窗口时返回true。
 
+清理后关闭提醒只读取本次累计清理量，并由窗口关闭和退出路径共用一个状态；0 字节、已确认容量、永久关闭提醒不弹窗，新增清理可再次提醒。不要替换 SwiftUI 的窗口 delegate 或监听所有面板，不得自动清空废纸篓。原生弹窗和持久化验证见 [关闭提醒计划](../doc/trash-close-reminder-plan.md)，相关素材统一放在 [Tests/trash-close-reminder](../Tests/trash-close-reminder)。
+
 清理中心UI约定：四行只保留整行导航与最右对齐状态，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。悬停色与应用卸载保持accentColor/0.08，移出恢复。completed/limited在首页共用绿色勾选“扫描完成”，不得反向修改原始扫描状态、CLI或删除保护。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。
 
 扫描启动排查：全扫描直接开始，不能重新引入大权限配置sheet或逐次确认。首次必要的只读预访问在并行模块启动前执行一次；不因已提醒标记推断权限可用，不自动改写系统授权。
@@ -244,7 +246,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 
 权限状态刷新覆盖首次提醒判定、扫描开始和设置页进入/返回。FDA沿用用户/系统专用TCC目录列举；明确拒绝与缺失/一般错误分类不变。首次扫描未确认FDA才进行一次现有只读预访问；不保留PermissionSetupView、preflightComplete/busy或重复配置按钮。App管理仍按真实卸载结果记录，界面使用固定说明；清理资格和系统保护不变。
 
-应用漏扫排查应先在All范围按名称/Bundle ID/路径核对；Uninstallable会隐藏运行中与系统应用。初始范围按用户要求保持Uninstallable，通过现有All/Running等范围查看其他条目；不能为增加可见数量而放宽删除校验或伪造扫描结果。Agent两种列表复用大文件的1pt/secondary 0.12底部分隔线，不增加新的行布局或选择状态。
+应用漏扫排查应先在 All 范围按名称/Bundle ID/路径核对。Protected、Running、Uninstallable 为互斥分区：系统应用只进入 Protected，其余应用按运行状态分别进入 Running 或 Uninstallable；初始范围保持 Uninstallable。不可用静态写权限、Bundle ID 的 Apple 前缀或输入法类型推断永久保护。Running 中第三方应用允许勾选退出，系统应用不显示操作复选框；退出后移入 Uninstallable 才可选择卸载项目，重新启动立即移回 Running 并清除卸载选择。Uninstallable 不显示退出按钮。权限问题通过真实执行错误及既有恢复流程处理。变更须覆盖分区无重复/无遗漏、只读应用/父目录、第三方输入法、运行状态切换、Siri AI 等系统应用以及卸载路径与恢复路径的一致性。Agent 两种列表继续复用大文件的底部分隔线。
 
 应用状态文案精简：使用原“系统保护”文案键统一短标签Protected/受保护；Running只在右侧状态说明显示，应用名旁不重复添加。修改文案时不得更改固定分段宽度、筛选语义或运行/系统应用的卸载保护。
 

@@ -1,0 +1,47 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 8] CleanerCore
+[4 / 9] CleanerCoreTests-product
+[8 / 13] CleanerCoreTests-product
+[14 / 18] CleanerCoreTests-product
+Build complete! (2.13秒)
+Test Suite 'Selected tests' started at 2026-11-13 19:59:21.097.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 19:59:21.099.
+Test Suite 'ApplicationUninstallProtectionTests' started at 2026-11-13 19:59:21.099.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' started.
+/Users/bytedance/code/supercleaner/Sources/CleanerCore/UninstallPlanner.swift:43: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation] : failed: caught error: "The app bundle requires administrator access. It is protected and no uninstall plan is created."
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' failed (0.384 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:34: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:36: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection] : XCTAssertEqual failed: ("0") is not equal to ("3")
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' failed (0.794 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:11: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:12: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertEqual failed: ("["Normal"]") is not equal to ("["Admin", "Normal", "RunningAdmin"]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:17: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTUnwrap failed: expected non-nil value of type "UninstallPlan"
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:17: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertFalse failed: threw error "UnwrappingOptional(errorCode: 105, errorUserInfo: ["XCTestErrorUserInfoKeyShouldIgnore": true])"
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:19: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertNotEqual failed: ("protected") is equal to ("protected")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:21: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertNotNil failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:22: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps]' failed (0.649 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:62: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps] : XCTAssertEqual failed: ("[]") is not equal to ("[CleanerCore.InstalledApplication(bundleURL: file:///Applications/Xcode.app/, bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode", version: nil, isRunning: true, isSystem: false, teamIdentifier: nil, applicationGroups: nil, associatedBundleIdentifiers: nil, applicationGroupsComplete: Optional(false), uninstallRequiresAdministrator: nil)]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:63: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps] : XCTAssertEqual failed: ("[CleanerCore.InstalledApplication(bundleURL: file:///System/Applications/System.app, bundleIdentifier: "com.apple.system", name: "System", version: nil, isRunning: true, isSystem: true, teamIdentifier: nil, applicationGroups: nil, associatedBundleIdentifiers: nil, applicationGroupsComplete: Optional(false), uninstallRequiresAdministrator: nil), CleanerCore.InstalledApplication(bundleURL: file:///Applications/Xcode.app/, bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode", version: nil, isRunning: true, isSystem: false, teamIdentifier: nil, applicationGroups: nil, associatedBundleIdentifiers: nil, applicationGroupsComplete: Optional(false), uninstallRequiresAdministrator: nil)]") is not equal to ("[CleanerCore.InstalledApplication(bundleURL: file:///Applications/Xcode.app/, bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode", version: nil, isRunning: true, isSystem: false, teamIdentifier: nil, applicationGroups: nil, associatedBundleIdentifiers: nil, applicationGroupsComplete: Optional(false), uninstallRequiresAdministrator: nil)]")
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' failed (0.001 seconds).
+Test Suite 'ApplicationUninstallProtectionTests' failed at 2026-11-13 19:59:22.927.
+	 Executed 4 tests, with 12 failures (2 unexpected) in 1.828 (1.829) seconds
+Test Suite 'HelperProtocolTests' started at 2026-11-13 19:59:22.927.
+Test Case '-[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/HelperProtocolTests.swift:8: error: -[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/HelperProtocolTests.swift:15: error: -[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.HelperProtocolTests testInputMethodHelperScopeAllowsOnlyThirdPartyAppBundles]' failed (0.002 seconds).
+Test Case '-[CleanerCoreTests.HelperProtocolTests testTokenCannotAuthorizeDifferentPathOrReplay]' started.
+Test Case '-[CleanerCoreTests.HelperProtocolTests testTokenCannotAuthorizeDifferentPathOrReplay]' passed (0.001 seconds).
+Test Suite 'HelperProtocolTests' failed at 2026-11-13 19:59:22.931.
+	 Executed 2 tests, with 2 failures (0 unexpected) in 0.003 (0.003) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-13 19:59:22.931.
+	 Executed 6 tests, with 14 failures (2 unexpected) in 1.831 (1.832) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 19:59:22.931.
+	 Executed 6 tests, with 14 failures (2 unexpected) in 1.831 (1.834) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

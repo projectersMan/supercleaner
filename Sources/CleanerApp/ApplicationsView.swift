@@ -59,7 +59,7 @@ struct ApplicationsView: View {
                 applicationSort
                 Spacer(minLength: 0)
                 applicationCount
-                if model.applicationScope == .running {
+                if model.applicationScope == .running || model.applicationScope == .all {
                     quitApplicationButton
                 }
             }
@@ -75,7 +75,7 @@ struct ApplicationsView: View {
                         .frame(width: 420).fixedSize(horizontal: false, vertical: true)
                     applicationSort
                     Spacer(minLength: 0)
-                    if model.applicationScope == .running {
+                    if model.applicationScope == .running || model.applicationScope == .all {
                         quitApplicationButton
                     }
                 }
@@ -180,8 +180,8 @@ private struct ApplicationUninstallRow: View {
                     Text(application.bundleIdentifier).font(.caption.monospaced()).foregroundColor(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 16)
-                if application.uninstallRequiresAdministrator == true {
-                    Label(L10n.text("需要管理员权限 · 已保护"), systemImage: "lock.shield")
+                if application.isUninstallProtected {
+                    Label(L10n.text("受保护"), systemImage: "lock.shield")
                         .font(.callout.weight(.medium)).foregroundColor(.secondary)
                 } else if plan != nil {
                     Text(L10n.text("可卸载 {0} 项 · {1}", String(describing: selectableItems.count + receiptItems.count), String(describing: selectableSizeDescription)))
@@ -192,7 +192,7 @@ private struct ApplicationUninstallRow: View {
                     Label(L10n.text("正在准备卸载清单…"), systemImage: "clock")
                         .font(.caption).foregroundColor(.secondary)
                 }
-                if let analysis, application.isRunning {
+                if let analysis, application.isRunning && !application.isUninstallProtected {
                     AnalysisStateBadge(analysis: analysis)
                 }
             }
@@ -344,7 +344,9 @@ private struct ApplicationUninstallRow: View {
     }
 
     @ViewBuilder private var planCheckbox: some View {
-        if application.isRunning {
+        if application.isUninstallProtected {
+            Color.clear.frame(width: 18, height: 1)
+        } else if application.isRunning {
             let checked = model.quitSelectedApplicationIDs.contains(application.id)
             Button { model.toggleApplicationQuitSelection(application) } label: {
                 Image(systemName: checked ? "checkmark.square.fill" : "square")
@@ -391,8 +393,8 @@ private struct ApplicationUninstallRow: View {
     private var protectedContent: some View {
         HStack(alignment: .top, spacing: 10) {
             if analysis != nil {
-                Image(systemName: application.isRunning ? "pause.circle.fill" : "info.circle")
-                    .foregroundColor(application.isRunning ? .orange : .secondary)
+                Image(systemName: application.isUninstallProtected ? "lock.shield" : application.isRunning ? "pause.circle.fill" : "info.circle")
+                    .foregroundColor(application.isRunning && !application.isUninstallProtected ? .orange : .secondary)
             }
             VStack(alignment: .leading, spacing: 5) {
                 if let analysis {
@@ -406,10 +408,6 @@ private struct ApplicationUninstallRow: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            if application.uninstallRequiresAdministrator == true {
-                Button(L10n.text("在访达中查看")) { NSWorkspace.shared.activateFileViewerSelecting([application.bundleURL]) }
-                    .font(.caption)
-            }
         }
         .padding(.leading, 54)
         .padding(.trailing, 18)
@@ -492,7 +490,7 @@ private struct AnalysisStateBadge: View {
     let analysis: ApplicationUninstallAnalysis
     var body: some View {
         let value = presentation
-        if analysis.state != .protected || analysis.application.isRunning {
+        if analysis.state != .protected {
             Label(analysis.statusTitle, systemImage: value.icon)
                 .font(.caption.weight(.semibold)).foregroundColor(value.color)
                 .padding(.horizontal, 9).padding(.vertical, 5)
@@ -503,7 +501,7 @@ private struct AnalysisStateBadge: View {
         switch analysis.state {
         case .complete: return ("checkmark.shield", .green)
         case .limited: return ("exclamationmark.triangle", .orange)
-        case .protected where analysis.application.isRunning: return ("pause.circle.fill", .orange)
+        case .running: return ("pause.circle.fill", .orange)
         case .protected: return ("info.circle", .secondary)
         case .unavailable: return ("xmark.octagon", .red)
         }

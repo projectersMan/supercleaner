@@ -30,8 +30,9 @@ public struct HelperFileScope: Sendable {
             && components.dropFirst().allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
     }
     func isApplication(_ path: String) -> Bool {
-        guard Self.validPath(path), path.hasPrefix(applicationsPath + "/"), path.lowercased().hasSuffix(".app") else { return false }
-        let relative = path.dropFirst(applicationsPath.count + 1).split(separator: "/")
+        guard Self.validPath(path), path.lowercased().hasSuffix(".app"),
+              let root = [applicationsPath, "/Library/Input Methods"].first(where: { path.hasPrefix($0 + "/") }) else { return false }
+        let relative = path.dropFirst(root.count + 1).split(separator: "/")
         return relative.dropLast().allSatisfy { !$0.lowercased().hasSuffix(".app") }
     }
     func isQuarantineItem(_ path: String, planID: UUID? = nil) -> Bool {
@@ -141,7 +142,8 @@ public struct HelperFileOperations: Sendable {
                 if walked == scope.homePath || walked.hasPrefix(scope.homePath + "/") {
                     guard facts.st_uid == scope.userID else { throw HelperRejection.invalidPath }
                 }
-                if walked == scope.applicationsPath || walked.hasPrefix(scope.applicationsPath + "/") {
+                if walked == scope.applicationsPath || walked.hasPrefix(scope.applicationsPath + "/")
+                    || walked == "/Library" || walked == "/Library/Input Methods" || walked.hasPrefix("/Library/Input Methods/") {
                     guard (facts.st_uid == 0 || facts.st_uid == scope.userID), facts.st_mode & mode_t(S_IWOTH) == 0 else { throw HelperRejection.invalidPath }
                 }
             }

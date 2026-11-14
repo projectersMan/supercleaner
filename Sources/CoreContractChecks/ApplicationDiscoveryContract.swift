@@ -43,7 +43,7 @@ func runApplicationDiscoveryContracts() async throws {
     let runningApp = app.withRunningState(true)
     let prepared = await analyzer.analyze(inventory: .init(applications: [runningApp], coverage: .init(), scannedAt: Date()), context: context)
     let runningDetails = prepared.analysis(for: app.id)!
-    require(runningDetails.plan == nil && runningDetails.state == .protected && prepared.plans.isEmpty,
+    require(runningDetails.plan == nil && runningDetails.state == .running && prepared.plans.isEmpty,
             "prepared running plans must not enter executable inventory")
     let ready = runningDetails.withRunningState(false)
     require(ready.plan?.items.contains { $0.candidate.url.path == data.path && $0.containsUserData && $0.candidate.risk == .review } == true,

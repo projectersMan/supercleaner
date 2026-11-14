@@ -1,0 +1,25 @@
+Building for debugging...
+[Using on-disk description]
+[3 / 18] SuperCleaner_CleanerCore
+[6 / 19] CleanerApp-product
+[12 / 25] CleanerCoreTests-product
+[17 / 24] CleanerCoreTests-product
+[19 / 22] CleanerApp-product
+[20 / 22] CleanerApp-product
+[22 / 24] CleanerApp-product
+Build complete! (2.73秒)
+Test Suite 'Selected tests' started at 2026-11-13 20:07:23.254.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 20:07:23.255.
+Test Suite 'InputMethodProtectionTests' started at 2026-11-13 20:07:23.255.
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/InputMethodProtectionTests.swift:29: error: -[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/InputMethodProtectionTests.swift:30: error: -[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup] : XCTAssertTrue failed - input-method caches rejected at execution must not be selectable in the uninstall plan
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' failed (0.537 seconds).
+Test Suite 'InputMethodProtectionTests' failed at 2026-11-13 20:07:23.792.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.537 (0.537) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-13 20:07:23.792.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.537 (0.537) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 20:07:23.792.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.537 (0.538) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

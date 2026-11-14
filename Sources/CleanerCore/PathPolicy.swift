@@ -66,6 +66,8 @@ public struct PathPolicy: Sendable {
             URL(fileURLWithPath: "/Applications", isDirectory: true).standardizedFileURL.path,
             homeDirectory.appendingPathComponent("Applications", isDirectory: true).standardizedFileURL.path,
             homeDirectory.appendingPathComponent("Applications", isDirectory: true).resolvingSymlinksInPath().standardizedFileURL.path,
+            "/Library/Input Methods",
+            homeDirectory.appendingPathComponent("Library/Input Methods", isDirectory: true).path,
         ]
         func allowed(_ candidate: URL) -> Bool {
             let parent = candidate.deletingLastPathComponent()

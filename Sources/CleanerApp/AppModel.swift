@@ -1089,7 +1089,7 @@ private struct ModuleScanSession: Sendable {
         }
         guard let analysis = scanned else { return nil }
         if application.isRunning && !application.isSystem {
-            return ApplicationUninstallAnalysis(application: application, plan: nil, state: .protected,
+            return ApplicationUninstallAnalysis(application: application, plan: nil, state: .running,
                 message: L10n.text("应用正在运行，因此暂时不能卸载。退出应用后会自动更新。"),
                 ownership: analysis.ownership, runtimeObservation: analysis.runtimeObservation)
         }
@@ -3707,7 +3707,7 @@ extension AppModel {
         let initiallyRunning = app.withRunningState(true)
         let runningInventory = ApplicationUninstallInventory(
             applicationInventory: .init(applications: [initiallyRunning], coverage: apps.coverage, scannedAt: apps.scannedAt),
-            analyses: [.init(application: initiallyRunning, plan: nil, state: .protected)])
+            analyses: [.init(application: initiallyRunning, plan: nil, state: .running)])
         model.install(report.replacing(module: .applications, payload: .applications(runningInventory), completedAt: Date()))
         model.updateRunningApplicationIDs([])
         try check(model.visibleApplications == [app] && model.applicationFilterSummary.visibleCount == 1 && model.applicationFilterSummary.totalCount == 1,
@@ -3724,10 +3724,10 @@ extension AppModel {
         try check(model.canExecuteUninstallBatch, "completed app module must allow deletion while other modules scan")
         model.updateRunningApplicationIDs([app.bundleIdentifier])
         try check(model.visibleApplications.isEmpty && !model.canExecuteUninstallBatch && model.uninstallSelectedIDs.isEmpty,
-            "a relaunched app must immediately leave Uninstallable and drop its selected items")
+            "a relaunched third-party app leaves Uninstallable and drops its selected items")
         model.applicationScope = .running
-        try check(model.visibleApplications.map(\.id) == [app.id] && model.uninstallAnalysis(for: model.visibleApplications[0])?.state == .protected,
-            "a relaunched app must appear as protected in Running")
+        try check(model.visibleApplications.map(\.id) == [app.id] && model.uninstallAnalysis(for: model.visibleApplications[0])?.state == .running,
+            "a relaunched app must appear as running without being system protected")
         model.updateRunningApplicationIDs([])
         try check(model.visibleApplications.isEmpty, "a stopped app must leave Running")
         model.applicationScope = .uninstallable
@@ -4015,11 +4015,13 @@ extension AppModel {
             if !condition { throw Failure(description: message) }
         }
         let original = ApplicationPresentationFixture.report()
-        let restricted = original.applicationInventory.applications[2].withUninstallAdministratorRequirement(true)
+        let source = original.applicationInventory.applications[2]
+        let restricted = InstalledApplication(bundleURL: URL(fileURLWithPath: "/System/Applications/Fixture.app"),
+            bundleIdentifier: "com.apple.fixture", name: "System fixture", version: "1", isRunning: false, isSystem: true)
         let stalePlan = original.applicationUninstallInventory.analyses[2].plan!
-        let apps = original.applicationInventory.applications.map { $0.id == restricted.id ? restricted : $0 }
+        let apps = original.applicationInventory.applications.map { $0.id == source.id ? restricted : $0 }
         let analyses = original.applicationUninstallInventory.analyses.map { analysis in
-            analysis.id == restricted.id
+            analysis.id == source.id
                 ? ApplicationUninstallAnalysis(application: restricted, plan: stalePlan, state: .complete)
                 : analysis
         }
@@ -4030,9 +4032,15 @@ extension AppModel {
         model.scanProgressByModule = model.systemReport!.modules
         model.selection = .applications
         model.applicationScope = .uninstallable
-        try check(!model.visibleApplications.contains { $0.id == restricted.id }, "administrator apps must be excluded from Uninstallable")
+        try check(!model.visibleApplications.contains { $0.id == restricted.id }, "system apps must be excluded from Uninstallable")
+        let thirdPartyRunning = apps[0]
+        try check(!model.visibleApplications.contains { $0.id == thirdPartyRunning.id }, "running third-party apps must not appear in Uninstallable")
+        model.applicationScope = .running
+        try check(model.visibleApplications.contains { $0.id == thirdPartyRunning.id }, "running third-party apps must appear in Running")
+        model.toggleApplicationQuitSelection(thirdPartyRunning)
+        try check(model.quitSelectedApplicationIDs.contains(thirdPartyRunning.id), "running third-party apps must allow quit selection")
         model.applicationScope = .systemProtected
-        try check(model.visibleApplications.map(\.id) == [restricted.id], "administrator apps must remain visible in Protected")
+        try check(model.visibleApplications.map(\.id) == [restricted.id], "system apps must remain visible in Protected")
         let analysis = model.uninstallAnalysis(for: restricted)
         try check(analysis?.plan == nil && analysis?.state == .protected && analysis?.message != nil,
             "Protected must explain the restriction without checkboxes, even when a stale plan exists")
@@ -4042,27 +4050,13 @@ extension AppModel {
         try check(model.uninstallBatchSummary.itemCount == 0 && !model.canExecuteUninstallBatch
             && model.uninstallReceiptItems(for: restricted).isEmpty, "stale files and installer receipts cannot enter a deletion batch")
         model.updateRunningApplicationIDs([restricted.bundleIdentifier])
-        try check(model.canQuitApplication(restricted.withRunningState(true)), "administrator protection must not prevent normal quit requests")
+        try check(!model.canQuitApplication(restricted.withRunningState(true)), "system apps must not allow quit selection")
+        model.applicationScope = .running
+        try check(!model.visibleApplications.contains { $0.id == restricted.id }, "running system apps must stay out of Running")
         model.updateRunningApplicationIDs([])
         model.applicationScope = .systemProtected
         try check(model.visibleApplications.map(\.id) == [restricted.id] && model.applicationIDsAwaitingQuitAnalysis.isEmpty,
-            "quitting an administrator app must preserve protection without rediscovery")
-
-        // A read-only parent blocks deletion, but must not hide a readable app.
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("protected-visibility-\(UUID())")
-        let parent = root.appendingPathComponent("Applications")
-        let app = parent.appendingPathComponent("Fixture.app")
-        try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
-        defer {
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: parent.path)
-            try? FileManager.default.removeItem(at: root)
-        }
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: parent.path)
-        let tracker = ScanAccessTrackingFileSystem(base: LocalFileSystem())
-        let movable = await tracker.canMoveDirectory(app)
-        let denied = await tracker.deniedPaths
-        try check(!movable && !ScanAccessPresentation(deniedPaths: denied).skips(app),
-            "a write restriction must not be mistaken for an unreadable scan path")
-        print("PASS: administrator preflight keeps apps in Protected and All, blocks stale selections, preserves normal quitting and keeps readable restricted apps visible")
+            "stopping a system app must preserve protection without rediscovery")
+        print("PASS: only system apps are Protected; Running excludes system apps and third-party quit selection remains available")
     }
 }

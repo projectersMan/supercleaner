@@ -47,9 +47,6 @@ actor ScanAccessTrackingFileSystem: FileSystemAccess {
 
     func fileExists(_ url: URL) async -> Bool { await base.fileExists(url) }
     func isWritable(_ url: URL) async -> Bool { await base.isWritable(url) }
-    // A write restriction does not make an app unreadable. Keep it visible in
-    // Protected instead of adding it to the paths hidden from scan results.
-    func canMoveDirectory(_ url: URL) async -> Bool { await base.canMoveDirectory(url) }
     func isDeletable(_ url: URL) async -> Bool {
         let allowed = await base.isDeletable(url)
         if !allowed { deniedPaths.insert(url.standardizedFileURL) }

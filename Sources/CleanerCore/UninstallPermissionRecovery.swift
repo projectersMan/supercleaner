@@ -28,6 +28,7 @@ public struct UninstallPermissionRequest: Identifiable, Sendable, Equatable {
     public var supportsPrivilegedHelper: Bool {
         switch resource {
         case .applicationBundle: url.standardizedFileURL.path.hasPrefix("/Applications/")
+            || url.standardizedFileURL.path.hasPrefix("/Library/Input Methods/")
         case .installationReceipts: true
         case .applicationData: false
         }

@@ -1,0 +1,23 @@
+Date: 2026-11-13 (Asia/Shanghai)
+Source version: 0.4.2 (116), bumped exactly once from 0.4.1 (115) with Scripts/version.py.
+Built app: /Users/bytedance/code/supercleaner/build/SuperCleaner.app
+Disk image: /Users/bytedance/code/supercleaner/build/SuperCleaner-0.4.2.dmg
+Installed app: /Applications/SuperCleaner.app
+Built App/HelperInfo.plist: 0.4.2 (116), verified independently.
+Mounted DMG App/HelperInfo.plist: 0.4.2 (116), verified independently.
+Installed App/HelperInfo.plist: 0.4.2 (116), verified independently.
+Release XCTest: 261 tests, 0 failures.
+CoreContractChecks and packaged CLI/helper/signing gates: passed.
+Scripts/verify-app.sh: passed, including structure, resources, bundled model checksum/licenses, bilingual preferences, signature, recovery smoke test and model self-checks.
+Scripts/create-dmg.sh: passed, including app icon, volume icon, Applications shortcut and mounted app signature.
+hdiutil verify: DMG checksum VALID.
+Deep strict code-signature verification: passed for built app, DMG-contained app and installed app.
+Existing certificate-bound requirement accepts the new installed app: passed.
+App file-content/symlink parity: built app equals mounted DMG app and installed app; both rsync checksum dry runs produced no differences.
+Signing identity: 106EFE6967C308B187E41A6FD8E5DFA3B3C4480C.
+DMG SHA-256: ec1c2626eb3e53a11b66f9dc0cde0fe2d3d72ed52e2712cb200043ea6c15e3bd
+DMG bytes: 301793795.
+Native UI verification: installed Settings shows App version 0.4.2 116, Full Disk Access Available; no access re-grant prompt.
+Classification source unchanged during this version-only rebuild; previous exclusive-scope behavior validation remains recorded separately.
+No real user app was quit/uninstalled; only SuperCleaner was restarted to update it.
+No dependency change, git commit, push, remote publication or notarization submission.

@@ -1,0 +1,144 @@
+Building for debugging...
+[Pre-planning 1 / 300]
+[Planning 1 / 300]
+[Planning deferred tasks]
+[1 / 1]
+[1 / 18] supercleaner-product
+[17 / 52] CleanerCore
+[31 / 66] CleanerCore
+[32 / 65] CleanerCore
+[40 / 71] CleanerCoreTests-product
+[40 / 69] CleanerCore
+[48 / 78] AgentOverlapAI
+[51 / 91] CoreContractChecks-product
+[56 / 91] AgentOverlapAI
+[61 / 92] AgentOverlapAI
+[62 / 92] AgentOverlapAI
+[63 / 92] CoreContractChecks-product
+[64 / 92] CoreContractChecks-product
+[66 / 92] CleanerHelper-product
+[67 / 92] CoreContractChecks-product
+[67 / 93] CleanerHelper-product
+[68 / 93] AgentOverlapAI
+[71 / 96] SuperCleaner_AgentOverlapAI
+[72 / 96] CoreContractChecks-product
+[72 / 96] SuperCleaner_AgentOverlapAI
+[72 / 96] CoreContractChecks-product
+[72 / 97] CleanerApp-product
+[79 / 109] CleanerApp-product
+[82 / 109] CleanerCore
+[83 / 109] CleanerApp-product
+[85 / 109] CleanerCore
+[87 / 109] CleanerApp-product
+[87 / 109]
+[89 / 109] CleanerApp-product
+[91 / 109] AgentOverlapAI
+[93 / 109] CleanerCoreTests-product
+[96 / 111] CleanerCoreTests-product
+[96 / 111] CoreContractChecks-product
+[96 / 111] CleanerApp-product
+[96 / 111] CleanerCoreTests-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:93:51: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 91 |                 if updater == nil {
+ 92 |                     let driver = ImmediateUpdateDriver(hostBundle: .main, delegate: nil)
+ 93 |                     driver.validateItem = { [weak self] item in
+    |                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                   `- note: explicitly assign the capture list item to silence
+ 94 |                         guard let self else { throw ApplicationUpdateError.busy }
+ 95 |                         try validate(item)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:97:47: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 95 |                         try validate(item)
+ 96 |                     }
+ 97 |                     driver.rejected = { [weak self] error in self?.validationFailure = error }
+    |                                               |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                               `- note: explicitly assign the capture list item to silence
+ 98 |                     self.driver = driver
+ 99 |                     let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[106 / 125] CleanerApp-product
+[109 / 125] CleanerCoreTests-product
+[111 / 124] CleanerCoreTests-product
+[115 / 125] CoreContractChecks-product
+[116 / 126] CleanerCoreTests-product
+[118 / 126] CleanerCoreTests-product
+[120 / 124]
+[120 / 125] CleanerApp-product
+[122 / 125] CleanerApp-product
+[122 / 125] CoreContractChecks-product
+[124 / 125] CoreContractChecks-product
+[125 / 125] CoreContractChecks-product
+[126 / 126] CoreContractChecks-product
+[131 / 132] CleanerApp-product
+Build complete! (21.28秒)
+Test Suite 'Selected tests' started at 2026-11-13 19:56:55.277.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 19:56:55.281.
+Test Suite 'ApplicationUninstallProtectionTests' started at 2026-11-13 19:56:55.281.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' started.
+/Users/bytedance/code/supercleaner/Sources/CleanerCore/UninstallPlanner.swift:43: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation] : failed: caught error: "The app bundle requires administrator access. It is protected and no uninstall plan is created."
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' failed (0.387 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:34: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:36: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection] : XCTAssertEqual failed: ("0") is not equal to ("3")
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' failed (1.115 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:11: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:12: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertEqual failed: ("["Normal"]") is not equal to ("["Admin", "Normal", "RunningAdmin"]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:17: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTUnwrap failed: expected non-nil value of type "UninstallPlan"
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:17: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertFalse failed: threw error "UnwrappingOptional(errorCode: 105, errorUserInfo: ["XCTestErrorUserInfoKeyShouldIgnore": true])"
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:19: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertNotEqual failed: ("protected") is equal to ("protected")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:21: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertNotNil failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:22: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsRemainUninstallableIncludingRunningApps]' failed (0.521 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:62: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps] : XCTAssertEqual failed: ("[]") is not equal to ("[CleanerCore.InstalledApplication(bundleURL: file:///Applications/Xcode.app/, bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode", version: nil, isRunning: true, isSystem: false, teamIdentifier: nil, applicationGroups: nil, associatedBundleIdentifiers: nil, applicationGroupsComplete: Optional(false), uninstallRequiresAdministrator: nil)]")
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' failed (0.000 seconds).
+Test Suite 'ApplicationUninstallProtectionTests' failed at 2026-11-13 19:56:57.308.
+	 Executed 4 tests, with 11 failures (2 unexpected) in 2.024 (2.027) seconds
+Test Suite 'InputMethodProtectionTests' started at 2026-11-13 19:56:57.308.
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/InputMethodProtectionTests.swift:23: error: -[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup] : XCTAssertEqual failed: ("Optional(true)") is not equal to ("Optional(false)")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/InputMethodProtectionTests.swift:24: error: -[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup] : XCTAssertEqual failed: ("0") is not equal to ("1")
+Test Case '-[CleanerCoreTests.InputMethodProtectionTests testInputMethodInventoryPreventsCacheAndResidueCleanup]' failed (0.610 seconds).
+Test Suite 'InputMethodProtectionTests' failed at 2026-11-13 19:56:57.918.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.610 (0.610) seconds
+Test Suite 'PathPolicyTests' started at 2026-11-13 19:56:57.918.
+Test Case '-[CleanerCoreTests.PathPolicyTests testAllowsNarrowCacheDescendant]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testAllowsNarrowCacheDescendant]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testApplicationScopeAllowsFoldersButRejectsEmbeddedAndSystemBundles]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testApplicationScopeAllowsFoldersButRejectsEmbeddedAndSystemBundles]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testNeverAllowsAgentRootOrSensitiveAssets]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testNeverAllowsAgentRootOrSensitiveAssets]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsRootsTraversalAndControlCharacters]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsRootsTraversalAndControlCharacters]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsSymlinkResolvingIntoProtectedRoot]' started.
+Test Case '-[CleanerCoreTests.PathPolicyTests testRejectsSymlinkResolvingIntoProtectedRoot]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/PathPolicyTests.swift:53: error: -[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly] : XCTAssertNoThrow failed: threw error "protectedPath("/Library/Input Methods/SogouInput.app")"
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/PathPolicyTests.swift:53: error: -[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly] : XCTAssertNoThrow failed: threw error "protectedPath("/Users/tester/Library/Input Methods/Example.app")"
+Test Case '-[CleanerCoreTests.PathPolicyTests testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly]' failed (0.001 seconds).
+Test Suite 'PathPolicyTests' failed at 2026-11-13 19:56:57.923.
+	 Executed 6 tests, with 2 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-13 19:56:57.923.
+	 Executed 11 tests, with 15 failures (2 unexpected) in 2.638 (2.641) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 19:56:57.923.
+	 Executed 11 tests, with 15 failures (2 unexpected) in 2.638 (2.646) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

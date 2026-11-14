@@ -1,0 +1,8 @@
+PASS: zero-byte main-window close has no reminder
+PASS: panel close has no reminder
+ACTION: close reminder; select Open Trash to verify the Finder handoff
+PASS: positive-byte window close completes after reminder
+PASS: unchanged cleanup amount skips duplicate quit and window reminders
+ACTION: new cleanup; check Don't remind me again and select Close Window
+PASS: persisted suppression skips a fresh controller after further cleanup
+PASS: native Trash reminder interaction checks complete

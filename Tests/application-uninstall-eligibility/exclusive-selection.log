@@ -1,0 +1,1 @@
+PASS: model cleanup gates, concurrent scans, parent/file/receipt selection, retained uninstall checkmarks, progress/result/error presentation, cancellation, and manual-only offline selection

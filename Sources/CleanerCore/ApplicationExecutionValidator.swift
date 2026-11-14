@@ -21,7 +21,6 @@ public struct ApplicationExecutionValidator: Sendable {
                   let actual = await scanner.installedApplication(at: ownerURL, context: context), actual.bundleIdentifier == identifier, !actual.isRunning, !actual.isSystem else {
                 throw ApplicationExecutionRejection.ownershipChanged
             }
-            guard !actual.isUninstallProtected else { throw UninstallPlanningError.administratorRequired }
             // The user selected the app bundle itself. Revalidate its identity,
             // running state, and system status, then let the executor quarantine
             // it. Installation receipts and service references govern associated
@@ -34,7 +33,7 @@ public struct ApplicationExecutionValidator: Sendable {
             // mistake an absent body for permission to delete another copy's data.
             let anchor = actual ?? InstalledApplication(bundleURL: ownerURL, bundleIdentifier: identifier, name: name, version: nil, isRunning: context.runningBundleIdentifiers.contains(identifier), isSystem: false)
             guard anchor.bundleIdentifier == identifier, !anchor.isRunning else { throw ApplicationExecutionRejection.ownershipChanged }
-            guard !anchor.isUninstallProtected else { throw UninstallPlanningError.administratorRequired }
+            guard !anchor.isUninstallProtected else { throw ApplicationExecutionRejection.ownershipChanged }
             let index = await scanner.associationIndex(for: inventory.applications + (actual == nil ? [anchor] : []), context: context, resourceURL: candidate.url)
             guard index.ownershipGraph?.application(at: ownerURL)?.blocksAssociationDeletion == false else {
                 throw ApplicationExecutionRejection.managedInstallation

@@ -1,10 +1,5 @@
 import Foundation
 
-public enum UninstallPlanningError: Error, CustomStringConvertible {
-    case administratorRequired
-    public var description: String { L10n.text("应用本体需要管理员权限，已保护，不生成卸载计划。") }
-}
-
 public struct UninstallPlanner: Sendable {
     private let scanner: ApplicationScanner
     public init(scanner: ApplicationScanner = ApplicationScanner()) { self.scanner = scanner }
@@ -37,12 +32,6 @@ public struct UninstallPlanner: Sendable {
         var reachedSizeBudget = false
         var limitations: [ScanLimitation] = []
         let bundleIdentity = try await context.fileSystem.identity(at: application.bundleURL)
-        if !application.isSystem {
-            guard application.uninstallRequiresAdministrator != true,
-                  await context.fileSystem.canMoveDirectory(application.bundleURL) else {
-                throw UninstallPlanningError.administratorRequired
-            }
-        }
         let bundleBytes = try await measuredBytes(
             at: application.bundleURL,
             identity: bundleIdentity,
@@ -95,7 +84,9 @@ public struct UninstallPlanner: Sendable {
                 limitations.append(measurementLimitation(at: association.url, error: error))
                 continue
             }
-            let isProtected = association.isShared || association.risk == .blocked || identity.kind == .symbolicLink
+            let isInputMethodCache = association.kind == .cache
+                && InputMethodProtection.contains(application.bundleURL, home: context.homeDirectory)
+            let isProtected = isInputMethodCache || association.isShared || association.risk == .blocked || identity.kind == .symbolicLink
                 || association.removalPolicy == .referenceOnly
                 || ownership?.blocksAssociationDeletion == true
             let previousLimitationCount = limitations.count
@@ -115,7 +106,8 @@ public struct UninstallPlanner: Sendable {
             }
             let incomplete = limitations.count > previousLimitationCount || reachedSizeBudget
             let category: CleanupCategory = association.kind == .cache ? .cache : association.kind == .diagnosticReport ? .log : .applicationSupport
-            let protectionReason: String = association.isShared ? L10n.text("这是多个应用共用的内容")
+            let protectionReason: String = isInputMethodCache ? L10n.text("输入法运行缓存受保护；卸载应用时保留，避免影响系统输入服务。")
+                : association.isShared ? L10n.text("这是多个应用共用的内容")
                 : association.isSystemResource == true ? L10n.text("这是系统目录内容")
                 : association.references?.isEmpty == false ? L10n.text("仍有配置或服务引用此项目")
                 : association.removalPolicy == .referenceOnly && association.kind != .launchAgent && association.kind != .launchDaemon ? L10n.text("此项目用于关联核对；安装记录或已注册组件需通过原安装来源移除")

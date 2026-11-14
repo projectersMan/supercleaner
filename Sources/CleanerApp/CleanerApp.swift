@@ -110,7 +110,9 @@ struct MainWindowContent: View {
     var body: some View {
         ContentView(model: model)
             .environment(\.locale, L10n.language.locale)
+            .background(TrashReminderWindowObserver(model: model, controller: delegate.trashReminder))
             .onAppear {
+                delegate.model = model
                 delegate.reopenMainWindow = { openWindow(id: "main") }
             }
     }
@@ -118,6 +120,8 @@ struct MainWindowContent: View {
 
 @MainActor final class CleanerApplicationDelegate: NSObject, NSApplicationDelegate {
     var reopenMainWindow: (() -> Void)?
+    weak var model: AppModel?
+    let trashReminder = TrashReminderController(preferences: .standard)
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Closing the interface leaves the app running until an explicit quit.
@@ -141,6 +145,10 @@ struct MainWindowContent: View {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // Sparkle can install a prepared update on quit. Keep that path closed
         // until the final explicit approval, or until cancellation has finished.
-        ApplicationUpdateTerminationGuard.allowsTermination ? .terminateNow : .terminateCancel
+        guard ApplicationUpdateTerminationGuard.allowsTermination else { return .terminateCancel }
+        if let model {
+            trashReminder.remindIfNeeded(cleanedBytes: model.sessionCleanupSummary.bytes, isQuitting: true)
+        }
+        return .terminateNow
     }
 }

@@ -200,11 +200,13 @@ public actor AuthorizedApplicationOperations: PrivilegedApplicationOperations {
         }
     }
     public func moveToQuarantine(candidate: CleanupCandidate, destination: URL, planID: UUID) async throws -> Bool {
-        guard candidate.source == .application, candidate.category == .application, candidate.url.path.hasPrefix("/Applications/") else { return false }
+        guard candidate.source == .application, candidate.category == .application,
+              candidate.url.path.hasPrefix("/Applications/") || candidate.url.path.hasPrefix("/Library/Input Methods/") else { return false }
         return try await perform(.moveToQuarantine(path: candidate.url.path, destination: destination.path), planID: planID, identity: candidate.identity)
     }
     public func restore(source: URL, destination: URL, planID: UUID) async throws -> Bool {
-        guard source.pathExtension.lowercased() == "app", destination.path.hasPrefix("/Applications/") else { return false }
+        guard source.pathExtension.lowercased() == "app",
+              destination.path.hasPrefix("/Applications/") || destination.path.hasPrefix("/Library/Input Methods/") else { return false }
         return try await perform(.restoreFromQuarantine(path: source.path, destination: destination.path), planID: planID, identity: try await fileSystem.identity(at: source))
     }
     public func purge(source: URL, planID: UUID) async throws -> Bool {

@@ -18,9 +18,6 @@ public protocol FileSystemAccess: Sendable {
     func isReadable(_ url: URL) async -> Bool
     func isWritable(_ url: URL) async -> Bool
     func isDeletable(_ url: URL) async -> Bool
-    /// Read-only preflight for moving a directory into a different parent.
-    /// This neither changes permissions nor guarantees future authorization.
-    func canMoveDirectory(_ url: URL) async -> Bool
     func fileExists(_ url: URL) async -> Bool
     func readText(at url: URL, maximumBytes: Int) async throws -> String
     func readData(at url: URL, maximumBytes: Int) async throws -> Data
@@ -34,10 +31,6 @@ public extension FileSystemAccess {
     func directoryGeneration(at url: URL) async throws -> String? { nil }
     func itemGeneration(at url: URL) async throws -> String? { nil }
     func isDeletable(_ url: URL) async -> Bool { await isWritable(url.deletingLastPathComponent()) }
-    func canMoveDirectory(_ url: URL) async -> Bool {
-        guard await isWritable(url) else { return false }
-        return await isDeletable(url)
-    }
     func readData(at url: URL, maximumBytes: Int) async throws -> Data {
         Data(try await readText(at: url, maximumBytes: maximumBytes).utf8)
     }

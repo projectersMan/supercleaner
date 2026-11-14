@@ -36,7 +36,7 @@ public struct ApplicationListFilter: Sendable {
             switch scope {
             case .all: matchesScope = true
             case .uninstallable: matchesScope = !application.isRunning && !application.isUninstallProtected
-            case .running: matchesScope = application.isRunning
+            case .running: matchesScope = application.isRunning && !application.isUninstallProtected
             case .systemProtected: matchesScope = application.isUninstallProtected
             }
             return matchesQuery && matchesScope

@@ -1,0 +1,38 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 1]
+[1 / 22]
+[2 / 7] CleanerCoreTests-product
+[5 / 10] CleanerCoreTests-product
+[11 / 15] CleanerCoreTests-product
+[13 / 15] CleanerCoreTests-product
+Build complete! (2.27秒)
+Test Suite 'Selected tests' started at 2026-11-13 21:44:12.446.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-13 21:44:12.447.
+Test Suite 'ApplicationUninstallProtectionTests' started at 2026-11-13 21:44:12.447.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testPermissionChangeDoesNotPreventPlanningOrLiveIdentityValidation]' passed (0.022 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' started.
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyParentDoesNotBecomePermanentProtection]' passed (1.336 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsAreSeparatedByRunningState]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:12: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsAreSeparatedByRunningState] : XCTAssertEqual failed: ("["Admin", "Normal", "RunningAdmin"]") is not equal to ("["Admin", "Normal"]")
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testReadOnlyThirdPartyAppsAreSeparatedByRunningState]' failed (0.600 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:84: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertEqual failed: ("2") is not equal to ("1")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:86: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:89: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertEqual failed: ("5") is not equal to ("4") - each app must appear once across the three scopes
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:84: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertEqual failed: ("2") is not equal to ("1")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:86: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:89: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges] : XCTAssertEqual failed: ("5") is not equal to ("4") - each app must appear once across the three scopes
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testScopesPartitionAllAppsBeforeAndAfterRunningStateChanges]' failed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ApplicationUninstallProtectionTests.swift:62: error: -[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.ApplicationUninstallProtectionTests testSystemAppsStayProtectedWhileAppleIdentifierAloneDoesNotProtectApps]' failed (0.000 seconds).
+Test Suite 'ApplicationUninstallProtectionTests' failed at 2026-11-13 21:44:14.406.
+	 Executed 5 tests, with 8 failures (0 unexpected) in 1.958 (1.959) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-13 21:44:14.406.
+	 Executed 5 tests, with 8 failures (0 unexpected) in 1.958 (1.959) seconds
+Test Suite 'Selected tests' failed at 2026-11-13 21:44:14.406.
+	 Executed 5 tests, with 8 failures (0 unexpected) in 1.958 (1.960) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

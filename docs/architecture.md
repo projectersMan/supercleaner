@@ -17,6 +17,8 @@ SuperCleaner 是 Swift 6 / SwiftUI 的 macOS 清理应用。核心原则是只�
 
 CleanerApplicationDelegate处理Dock reopen事件：如果主窗口已最小化，则展开所有最小化窗口；如果窗口已关闭，则通过SwiftUI的openWindow显式重开主窗口。两种情况都停止AppKit默认处理；已有可见窗口时保留系统默认行为。
 
+清理后的窗口关闭与应用退出提醒复用 TrashReminderController 和 CleanerCore/TrashReminderState：本次累计清理量大于 0 且未确认本轮容量、未永久关闭提醒时显示原生弹窗；打开 Finder 废纸篓由用户检查并手动清空。主窗口通过独立 NSView 观察自己的 willCloseNotification，保留 SwiftUI delegate；退出须先通过既有更新退出门禁。重复关闭、重开后立即退出不会重复提醒，新增清理后可再次提醒；不再提醒跨重启保存。详细规则见 [关闭提醒架构](../doc/architecture.md)。
+
 ## 扫描与计划
 
 应用图标：ApplicationIconView首帧直接使用ApplicationIconCache的同步结果，不先显示空State占位再由task替换；缓存继续避免列表重绘重复读取。卸载页与系统清理页共用ApplicationIconCache，优先保留NSWorkspace返回的图标（含asset catalog与自定义图标）；仅与系统通用应用图标相同的内嵌应用沿真实Contents父子路径、按CFBundlePackageType=APPL识别最近的外层应用包，外层也缺图时继续向外。安装临时目录即使没有.app后缀也通过包元数据识别，并从CFBundleIconName/CFBundleIconFile声明资源读取图标。回退仅影响显示，不修改扫描记录、应用归属或卸载计划。
@@ -144,7 +146,7 @@ Helper 使用 macOS 13+ `SMAppService.daemon` 注册 / 异步移除，plist 位�
 
 用户需先显式验证协议 v2 连接并通过系统管理员授权，内存会话最多 5 分钟；每次请求还绑定短期 token、操作摘要、planID、UID、文件身份和全进程去重 nonce。AuthorizationExternalForm 仅经 XPC 传递，不写入日志、历史或磁盘。Helper 独立检查系统授权，根进程不弹授权 UI、不代为取得新权限。
 
-`HelperFileOperations` 只允许标准应用目录的应用隔离，以及本用户恢复区中对应计划应用的恢复 / 清除。路径逐段以目录描述符和 O_NOFOLLOW 打开；拒绝跳转语法、链接祖先、符号链接应用、非本用户恢复容器、网络文件系统、挂载点、身份变化和目标冲突。移动使用不覆盖的 renameatx_np；清除以 fd 相对 unlinkat 删除链接本身，不跟随目标，且有条目、深度和时间限制。没有任意系统删除、脚本、服务终止、chmod/chown 或跨卷复制接口；系统服务仍交回原安装来源处理。
+`HelperFileOperations` 只允许 `/Applications` 和 `/Library/Input Methods` 中应用本体的隔离，以及本用户恢复区中对应计划应用的恢复 / 清除；输入法目录并不整体开放删除。路径逐段以目录描述符和 O_NOFOLLOW 打开；拒绝跳转语法、链接祖先、符号链接应用、非本用户恢复容器、网络文件系统、挂载点、身份变化和目标冲突。移动使用不覆盖的 renameatx_np；清除以 fd 相对 unlinkat 删除链接本身，不跟随目标，且有条目、深度和时间限制。没有任意系统删除、脚本、服务终止、chmod/chown 或跨卷复制接口；系统服务仍交回原安装来源处理。
 
 `CleanupExecutor` 通过 `PrivilegedApplicationOperations` 接入，在已授权会话中对应用本体调用 Helper；未授权只尝试既有用户态路径，权限错误不会触发自动提权或重试。移动、恢复均验证移动后的身份。取消已发出的修改请求会等待该项结论，只停止后续项目。连接中断 / 超时或无法判断的移动结果设置 `verificationNotBefore`，保留执行日志和确定的隔离目标，待所有可能的在途请求过期后只读复验；迟到完成回写原回执，不重复移动。启动以及空闲维护期间复验；运行中的计划不参与恢复重放。
 
@@ -192,7 +194,7 @@ Agent 默认规划：应用层以当前用户`.agents/`路径标记默认保留�
 
 FDA状态在首次提醒判断、每次扫描开始及设置页进入/激活时检查；其余启动不触发全目录预访问。依次列举用户/系统TCC保护目录，不读取数据库；任一成功为可用，拒绝/缺失/其他错误按原逻辑区分。已提醒与预访问记录仅控制交互次数，未验证/拒绝仍可扫描可访问范围。App管理仅显示固定说明，清理保护不变。
 
-应用清单可见性：按用户最终要求，AppModel初始applicationScope保持uninstallable；All中仍保留运行中与系统应用。ApplicationListFilter仍严格应用用户选中的范围；非all范围搜索无结果时，ApplicationsView说明可切换全部查看完整清单。扫描器、运行中/系统应用锁定与实际卸载资格保持不变。
+应用清单可见性：AppModel 初始范围为 Uninstallable。三个范围互斥且无遗漏：系统应用无论运行状态均归入 Protected；其余应用运行中进入 Running，未运行进入 Uninstallable，All 汇总全部。系统身份依据字面或实际 `/System/` 路径，后装输入法及 Apple 签名本身不代表系统保护。删除静态写权限推断管理员需求的字段与拦截；`ApplicationUninstallCoverageState.running` 单独表达等待退出，保留预备清单但不暴露执行项，退出后移动到 Uninstallable 并复用原项目身份；重新启动则移回 Running 并清除卸载选择。实际操作被拒绝时沿用权限恢复流程。第三方输入法本体路径在 `PathPolicy` 和 Helper 中一致开放；通用输入法缓存保护保持独立。详见 [本次方案](../doc/application-uninstall-eligibility-plan.md)。
 
 应用状态显示：名称旁不再重复绘制绿色Running标签；右侧分析状态仍显示运行限制。原“系统保护”短文案统一为Protected/受保护，作用于同一筛选和应用行徽标，不改变systemProtected枚举、默认可卸载范围或执行保护。
 

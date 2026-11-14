@@ -1,0 +1,13 @@
+Historical corrected-code package at 0.4.1 (115), before the requested version bump. Current delivery record: release-0.4.2/verification.txt.
+Correction: Protected / Running / Uninstallable are mutually exclusive; All is the full inventory.
+Built and installed: /Applications/SuperCleaner.app, source version 0.4.1 (115).
+Build: SUPERCLEANER_REQUIRE_STABLE_SIGNING=1 ./Scripts/build-app.sh
+Debug XCTest: 261 tests, 0 failures.
+Release XCTest: 261 tests, 0 failures.
+CoreContractChecks and packaged CLI/helper/signing gates: passed.
+Classification and running-transition model self-checks: passed.
+Deep strict signature verification: passed for built and installed copies.
+Existing signing requirement accepts the rebuilt application: passed.
+File-content and symlink comparison between build and installed copy: no differences.
+No new dependencies, no version publication, no git commit or push.
+Only SuperCleaner itself was restarted for the update; no other real app was quit or uninstalled.

@@ -17,15 +17,13 @@ public struct ApplicationScanner: Sendable {
     func installedApplication(at url: URL, context: ScanContext) async -> InstalledApplication? {
         guard (try? await context.fileSystem.identity(at: url))?.kind == .directory,
               let metadata = metadataProvider.metadata(for: url) else { return nil }
-        let isSystem = url.standardizedFileURL.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory)
-        let requiresAdministrator = isSystem ? false : !(await context.fileSystem.canMoveDirectory(url))
+        let isSystem = url.standardizedFileURL.path.hasPrefix("/System/") || url.resolvingSymlinksInPath().path.hasPrefix("/System/")
         return InstalledApplication(bundleURL: url, bundleIdentifier: metadata.bundleIdentifier,
             name: metadata.name, version: metadata.version,
             isRunning: context.runningBundleIdentifiers.contains(metadata.bundleIdentifier),
             isSystem: isSystem,
             teamIdentifier: metadata.teamIdentifier, applicationGroups: metadata.applicationGroups,
-            associatedBundleIdentifiers: metadata.associatedBundleIdentifiers, applicationGroupsComplete: metadata.applicationGroupsComplete,
-            uninstallRequiresAdministrator: requiresAdministrator)
+            associatedBundleIdentifiers: metadata.associatedBundleIdentifiers, applicationGroupsComplete: metadata.applicationGroupsComplete)
     }
 
     public func installedApplications(
@@ -112,8 +110,7 @@ public struct ApplicationScanner: Sendable {
 
                     if url.pathExtension.lowercased() == "app" {
                         guard let metadata = metadataProvider.metadata(for: url) else { unavailableRoots.append(url); continue }
-                        let isSystem = url.path.hasPrefix("/System/") || InputMethodProtection.contains(url, home: context.homeDirectory)
-                        let requiresAdministrator = isSystem ? false : !(await context.fileSystem.canMoveDirectory(url))
+                        let isSystem = url.path.hasPrefix("/System/") || url.resolvingSymlinksInPath().path.hasPrefix("/System/")
                         applications.append(InstalledApplication(
                             bundleURL: url,
                             bundleIdentifier: metadata.bundleIdentifier,
@@ -124,8 +121,7 @@ public struct ApplicationScanner: Sendable {
                             teamIdentifier: metadata.teamIdentifier,
                             applicationGroups: metadata.applicationGroups,
                             associatedBundleIdentifiers: metadata.associatedBundleIdentifiers,
-                            applicationGroupsComplete: metadata.applicationGroupsComplete,
-                            uninstallRequiresAdministrator: requiresAdministrator
+                            applicationGroupsComplete: metadata.applicationGroupsComplete
                         ))
                         continue
                     }

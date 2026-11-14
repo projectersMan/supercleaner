@@ -266,7 +266,7 @@
 "可手动加入卸载计划" = "Can be manually added to the uninstall plan";
 "分析完整" = "Analysis complete";
 "分析受限" = "Limited analysis";
-"运行中 · 暂不可卸载" = "Running · Cannot uninstall yet";
+"运行中 · 退出后可卸载" = "Running · Quit to uninstall";
 "无法分析" = "Cannot analyze";
 "系统目录" = "system directory";
 "引用" = "reference";
@@ -1105,6 +1105,15 @@
 "全部模块 · {0} 项" = "All modules · {0} items";
 
 "清空废纸篓，即可立即释放磁盘空间。" = "Empty the Trash to free up disk space immediately.";
+"清空废纸篓，释放磁盘空间" = "Empty the Trash to Free Up Space";
+"本次已清理 {0}，清空废纸篓以释放空间。" = "Cleaned {0} this session. Empty the Trash to free up space.";
+"打开废纸篓" = "Open Trash";
+"继续退出" = "Continue Quitting";
+"直接关闭" = "Close Window";
+"不再提醒" = "Don't remind me again";
+"无法打开废纸篓" = "Unable to Open the Trash";
+"好" = "OK";
+"请点击 Dock 中的废纸篓图标，检查内容后手动清空。" = "Click the Trash icon in the Dock, review its contents, then empty it manually.";
 
 "统计本次打开软件后的成功清理量，重新扫描不清零；不含失败或跳过项。恢复区和废纸篓中的文件可能仍占空间。" = "Successful cleanup since opening the app, across all modules. Rescanning does not reset the total. Failed and skipped items are excluded. Recovery and Trash may still occupy disk space.";
 
@@ -1340,9 +1349,4 @@
 "文件系统权限不足，需要管理员操作；App 管理开关不能解决此限制。" = "File system permissions require administrator action; enabling App Management cannot resolve this restriction.";
 
 "受保护" = "Protected";
-
-"当前用户无法直接移动应用本体，需要管理员权限；此应用已归入受保护列表，不提供卸载操作。" = "The current user cannot move this app bundle without administrator access. The app is listed under Protected and cannot be selected for uninstall.";
-
-"应用本体需要管理员权限，已保护，不生成卸载计划。" = "The app bundle requires administrator access. It is protected and no uninstall plan is created.";
-
-"需要管理员权限 · 已保护" = "Administrator access required · Protected";
+"输入法运行缓存受保护；卸载应用时保留，避免影响系统输入服务。" = "Input method runtime caches are protected and retained during uninstall to avoid disrupting system input services.";

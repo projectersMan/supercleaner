@@ -46,4 +46,16 @@ final class PathPolicyTests: XCTestCase {
         XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/System/Applications/Example.app")))
         XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: "/Applications/Example")))
     }
+
+    func testThirdPartyInputMethodsAreExplicitUninstallTargetsOnly() throws {
+        let policy = PathPolicy(homeDirectory: home)
+        for path in ["/Library/Input Methods/SogouInput.app", home.appendingPathComponent("Library/Input Methods/Example.app").path] {
+            XCTAssertNoThrow(try policy.validateApplicationBundle(URL(fileURLWithPath: path)))
+        }
+        for path in ["/Library/Input Methods", "/Library/Input Methods/cache", "/Library/Other.app",
+                     "/Library/Input Methods/Host.app/Contents/Nested.app", "/System/Library/Input Methods/Apple.app"] {
+            XCTAssertThrowsError(try policy.validateApplicationBundle(URL(fileURLWithPath: path)))
+        }
+        XCTAssertThrowsError(try policy.validateCandidate(URL(fileURLWithPath: "/Library/Input Methods/SogouInput.app")))
+    }
 }

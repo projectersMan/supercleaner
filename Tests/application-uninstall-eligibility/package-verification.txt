@@ -1,0 +1,16 @@
+Historical package before the exclusive-scope correction. Current verification: exclusive-package-verification.txt.
+Date: 2026-11-13 (Asia/Shanghai)
+Source version: 0.4.1 (115); this fix does not publish a release or change version metadata.
+Built: /Users/bytedance/code/supercleaner/build/SuperCleaner.app
+Installed: /Applications/SuperCleaner.app
+Build script: SUPERCLEANER_REQUIRE_STABLE_SIGNING=1 ./Scripts/build-app.sh
+Debug XCTest: 260 tests, 0 failures
+Release XCTest: 260 tests, 0 failures
+CoreContractChecks: passed
+Packaged CLI, helper identity and production signing gate checks: passed
+Deep strict signature verification: passed for built and installed copies
+Existing installed signing requirement accepts new build: passed
+Fixed signing identity: 106EFE6967C308B187E41A6FD8E5DFA3B3C4480C
+File-content and symlink parity: rsync --dry-run --recursive --links --checksum --itemize-changes --delete produced no differences.
+Build warning: existing weak-capture warnings in ApplicationUpdateModel.swift:93 and :97; that file was not changed.
+No real application uninstall, user-app quit, permission change, privileged helper registration or remote publication was performed.
