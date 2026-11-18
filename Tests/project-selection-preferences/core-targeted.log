@@ -1,0 +1,72 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 18]
+[5 / 12] CleanerApp-product
+[9 / 18]
+[11 / 18] CleanerCoreTests-product
+[17 / 24] CleanerCoreTests-product
+[19 / 22] CleanerApp-product
+[20 / 24] CleanerApp-product
+[32 / 36] CleanerApp-product
+[34 / 36] CleanerApp-product
+Build complete! (8.19秒)
+Test Suite 'Selected tests' started at 2026-11-17 22:40:40.315.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 22:40:40.317.
+Test Suite 'DefaultCleanupSelectionTests' started at 2026-11-17 22:40:40.317.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' passed (0.016 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testProjectDefaultsAreDisabledUntilUserOptsIn]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testProjectDefaultsAreDisabledUntilUserOptsIn]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testProjectOptInIncludesTrackedButStillExcludesBlockedActiveAndIncompleteItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testProjectOptInIncludesTrackedButStillExcludesBlockedActiveAndIncompleteItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' passed (0.000 seconds).
+Test Suite 'DefaultCleanupSelectionTests' passed at 2026-11-17 22:40:40.347.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.030 (0.031) seconds
+Test Suite 'NewCleanupDimensionsTests' started at 2026-11-17 22:40:40.347.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' passed (0.036 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' passed (0.085 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' passed (0.000 seconds).
+Test Suite 'NewCleanupDimensionsTests' passed at 2026-11-17 22:40:40.469.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.122 (0.122) seconds
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 22:40:40.469.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testDiscoveryUsesConfiguredRootsBeforePublishingLargeFiles]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testDiscoveryUsesConfiguredRootsBeforePublishingLargeFiles]' passed (0.025 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' passed (0.065 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' passed (0.099 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' passed (0.055 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedBuildDirectoryAllowsReviewButCredentialsAndUnknownGitStillBlock]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedBuildDirectoryAllowsReviewButCredentialsAndUnknownGitStillBlock]' passed (0.162 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored]' passed (0.200 seconds).
+Test Suite 'ProjectInstallerTests' passed at 2026-11-17 22:40:41.076.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.606 (0.607) seconds
+Test Suite 'ResourceCleanupListPolicyTests' started at 2026-11-17 22:40:41.076.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testProjectScopesRemoveCleanableWithoutChangingModelScopes]' started.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testProjectScopesRemoveCleanableWithoutChangingModelScopes]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems]' started.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory]' started.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices]' started.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices]' passed (0.000 seconds).
+Test Suite 'ResourceCleanupListPolicyTests' passed at 2026-11-17 22:40:41.077.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-17 22:40:41.077.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.758 (0.760) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 22:40:41.077.
+	 Executed 21 tests, with 0 failures (0 unexpected) in 0.758 (0.762) seconds

@@ -1,0 +1,6 @@
+Another instance of SwiftPM (PID: 90143) is already running using '/Users/bytedance/code/supercleaner/.build', waiting until that process has finished execution...CONFIRM: closeOption=false, allowsEmptying=true, priorCount=0
+CONFIRM: closeOption=true, allowsEmptying=true, priorCount=1
+CONFIRM: closeOption=true, allowsEmptying=true, priorCount=2
+CONFIRM: closeOption=true, allowsEmptying=true, priorCount=3
+CONFIRM: closeOption=true, allowsEmptying=false, priorCount=4
+ExactTrashDialogHarness/main.swift:81: Precondition failed: a displayed Trash confirmation must offer an enabled Empty Trash action

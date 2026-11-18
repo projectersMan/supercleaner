@@ -1,0 +1,66 @@
+Building for debugging...
+[Pre-planning 1 / 271]
+[Planning 1 / 271]
+[Planning deferred tasks]
+[1 / 24]
+[9 / 25]
+[13 / 26] CleanerCoreTests-product
+[28 / 43] CleanerApp-product
+[31 / 43] CleanerCoreTests-product
+[35 / 42] CleanerCoreTests-product
+[36 / 43] CleanerCoreTests-product
+[38 / 43] CleanerApp-product
+[39 / 43] CleanerApp-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:93:51: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 91 |                 if updater == nil {
+ 92 |                     let driver = ImmediateUpdateDriver(hostBundle: .main, delegate: nil)
+ 93 |                     driver.validateItem = { [weak self] item in
+    |                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                   `- note: explicitly assign the capture list item to silence
+ 94 |                         guard let self else { throw ApplicationUpdateError.busy }
+ 95 |                         try validate(item)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:97:47: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 95 |                         try validate(item)
+ 96 |                     }
+ 97 |                     driver.rejected = { [weak self] error in self?.validationFailure = error }
+    |                                               |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                               `- note: explicitly assign the capture list item to silence
+ 98 |                     self.driver = driver
+ 99 |                     let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[41 / 43] CleanerApp-product
+Build complete! (6.90秒)
+Test Suite 'Selected tests' started at 2026-11-17 22:33:55.127.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 22:33:55.128.
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 22:33:55.128.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:111: error: -[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:112: error: -[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Sources/CleanerCore/ProjectArtifacts.swift:176: error: -[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored] : failed: caught error: "executionRefused("project-installer-changed")"
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGCanBeManuallySelectedAndRestored]' failed (0.511 seconds).
+Test Suite 'ProjectInstallerTests' failed at 2026-11-17 22:33:55.640.
+	 Executed 1 test, with 3 failures (1 unexpected) in 0.511 (0.512) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 22:33:55.640.
+	 Executed 1 test, with 3 failures (1 unexpected) in 0.511 (0.512) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 22:33:55.640.
+	 Executed 1 test, with 3 failures (1 unexpected) in 0.511 (0.513) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

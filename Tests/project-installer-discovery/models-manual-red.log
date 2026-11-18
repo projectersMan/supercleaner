@@ -1,0 +1,61 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 17]
+[3 / 11] CleanerCoreTests-product
+[12 / 20] CleanerApp-product
+[12 / 20] CleanerCoreTests-product
+[18 / 23] CleanerCoreTests-product
+[20 / 23] CleanerApp-product
+[21 / 23] CleanerApp-product
+[23 / 25] CleanerApp-product
+Build complete! (5.49秒)
+Test Suite 'Selected tests' started at 2026-11-17 19:55:16.878.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 19:55:16.879.
+Test Suite 'DefaultCleanupSelectionTests' started at 2026-11-17 19:55:16.879.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/DefaultCleanupSelectionTests.swift:22: error: -[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations] : XCTAssertEqual failed: ("[9FA85F8B-37A3-4480-94D8-904BA6BB66BE, 24712077-01DE-4FC3-B835-9444AAEAC1C9, 3F2B354F-9618-4D5B-9FDD-C9E9A8CAE781, 2797F8EB-1451-4C8D-B178-6B2531AB6145, 7FF28316-D7C7-4A5B-A5D8-2418E4938CB7]") is not equal to ("[9FA85F8B-37A3-4480-94D8-904BA6BB66BE, 3F2B354F-9618-4D5B-9FDD-C9E9A8CAE781, 7FF28316-D7C7-4A5B-A5D8-2418E4938CB7, 24712077-01DE-4FC3-B835-9444AAEAC1C9]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/DefaultCleanupSelectionTests.swift:23: error: -[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations] : XCTAssertEqual failed: ("500") is not equal to ("400")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/DefaultCleanupSelectionTests.swift:30: error: -[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' failed (0.284 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' passed (0.007 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/DefaultCleanupSelectionTests.swift:68: error: -[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' failed (0.000 seconds).
+Test Suite 'DefaultCleanupSelectionTests' failed at 2026-11-17 19:55:17.172.
+	 Executed 6 tests, with 4 failures (0 unexpected) in 0.293 (0.293) seconds
+Test Suite 'NewCleanupDimensionsTests' started at 2026-11-17 19:55:17.172.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/NewCleanupDimensionsTests.swift:62: error: -[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup] : XCTAssertEqual failed: ("[5BFE4D78-3C43-42A0-AFA8-BA8193A432A0, 999B25EE-CE71-4AF4-9675-EAC5D992B5F8]") is not equal to ("[999B25EE-CE71-4AF4-9675-EAC5D992B5F8]")
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' failed (0.027 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' passed (0.053 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' passed (0.000 seconds).
+Test Suite 'NewCleanupDimensionsTests' failed at 2026-11-17 19:55:17.253.
+	 Executed 3 tests, with 1 failure (0 unexpected) in 0.080 (0.080) seconds
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 19:55:17.253.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testDiscoveryUsesConfiguredRootsBeforePublishingLargeFiles]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testDiscoveryUsesConfiguredRootsBeforePublishingLargeFiles]' passed (0.022 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' passed (0.053 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' passed (0.085 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' passed (0.055 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' passed (0.085 seconds).
+Test Suite 'ProjectInstallerTests' passed at 2026-11-17 19:55:17.554.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.301 (0.301) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 19:55:17.554.
+	 Executed 14 tests, with 5 failures (0 unexpected) in 0.674 (0.675) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 19:55:17.554.
+	 Executed 14 tests, with 5 failures (0 unexpected) in 0.674 (0.676) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

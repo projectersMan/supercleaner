@@ -1,0 +1,10 @@
+{
+  "Sources/CleanerApp/TrashReminderController.swift": "271c99000078eb648b9920ea96d416d9ebe6840d4f9d3b3880eed5db599dc84a",
+  "Sources/CleanerApp/TrashReminderWindowObserver.swift": "c09bd85039ceb081876db061600ab46473b0c7b3ab975c1a7faedc9cf7272a1b",
+  "Sources/CleanerApp/CleanerApp.swift": "86837c08075a4bf3eeb0720b03be0da2ffb14cfd1b41561de5300d3571dbd107",
+  "Sources/CleanerApp/AppModel.swift": "61c19265d79ca808d11d7e8a20c0d3e5e165be8b56aa271dfa36aa2dd45b5400",
+  "Sources/CleanerApp/TrashEmptyingCheck.swift": "f00d7aec69e036560a0deed2e5dbcce1d14a881831051768f2052bc7bbc4a8db",
+  "Sources/CleanerCore/Resources/en.lproj/Localizable.strings": "05184981c0c760dec1fae5111a04d57ff1c3acae92908970ec915f93a95de4b9",
+  "Sources/CleanerCore/Resources/zh-Hans.lproj/Localizable.strings": "539ed404185e2e75bc0acc175afd97a781ad8ff9f503f9a6d62fd337739702b7",
+  "Version.json": "22f81d32fdd28f1ba511b2bbf919f7a3ecfc393e0e030d144ae053b639c05b71"
+}

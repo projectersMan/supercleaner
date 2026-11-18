@@ -99,12 +99,16 @@ if CommandLine.arguments.dropFirst().first == "--check-helper-identity", Command
     try await runPackagedHelperIdentityContract(binary: CommandLine.arguments[2], expectedExit: expected)
     exit(0)
 }
-if CommandLine.arguments.dropFirst().first == "--check-cli", CommandLine.arguments.count == 3 {
-    try await runReadOnlyCommandLineContracts(binary: CommandLine.arguments[2])
+if CommandLine.arguments.dropFirst().first == "--check-core-read-only" {
+    try await runCoreReadOnlyContracts()
     exit(0)
 }
-if CommandLine.arguments.dropFirst().first == "--check-cli-config", CommandLine.arguments.count == 3 {
-    try await runPackagedRuleConfigurationContract(binary: CommandLine.arguments[2])
+if CommandLine.arguments.dropFirst().first == "--check-packaged-rule-config", CommandLine.arguments.count == 3 {
+    try await runPackagedRuleConfigurationContract(application: CommandLine.arguments[2])
+    exit(0)
+}
+if CommandLine.arguments.dropFirst().first == "--assert-packaged-rule-config", CommandLine.arguments.count == 3 {
+    try await runPackagedRuleConfigurationSelfCheck(home: CommandLine.arguments[2])
     exit(0)
 }
 if CommandLine.arguments.dropFirst().first == "--validate-release-config", CommandLine.arguments.count >= 3 {
@@ -202,7 +206,7 @@ try await runStoreContracts()
 try await runRuleEngineContracts()
 try await runSystemCleanupContracts()
 try await runInstallerDiscoveryContracts()
-try await runReadOnlyInterfaceContracts()
+try await runCoreReadOnlyContracts()
 try await runProjectArtifactContracts()
 await runHelperContracts()
 try await runHelperIntegrationContracts()

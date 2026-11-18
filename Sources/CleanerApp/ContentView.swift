@@ -10,7 +10,7 @@ struct ContentView: View {
         NavigationSplitView {
             List(selection: $model.selection) {
                 Section(L10n.text("清理")) {
-                    ForEach([AppDestination.cleanupCenter, .systemCleanup, .applications, .largeFiles, .agentEnvironment]) { destination in
+                    ForEach([AppDestination.cleanupCenter, .systemCleanup, .applications, .largeFiles, .agentEnvironment, .localAIModels, .projects]) { destination in
                         destinationLabel(destination)
                     }
                 }
@@ -20,8 +20,15 @@ struct ContentView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
             .navigationSplitViewColumnWidth(min: 210, ideal: 238)
-            .background(SidebarToolbarAlignment())
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SidebarDiskCapacityView(model: model)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+            }
+            .background(SidebarSurface())
         } detail: {
             VStack(spacing: 0) {
                 destinationView(for: model.selection).frame(
@@ -30,18 +37,17 @@ struct ContentView: View {
                     minHeight: 560,
                     maxHeight: .infinity
                 )
-                .disabled((model.updateInProgress && model.selection != .settings) || model.checkingScanPermissions)
+                .disabled((model.updateInProgress && model.selection != .settings) || model.checkingScanPermissions || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
                 if showsOneClickBar {
                     OneClickCleanupActionBar(model: model)
-                        .disabled(model.updateInProgress)
+                        .disabled(model.updateInProgress || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
                 } else if showsDimensionActionBar {
                     DimensionActionBar(model: model)
-                        .disabled(model.updateInProgress)
+                        .disabled(model.updateInProgress || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
                 }
             }
             .navigationTitle("SuperCleaner")
         }
-        .toolbarBackground(.hidden, for: .windowToolbar)
         .onAppear { model.bootstrap() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.helper.refresh()
@@ -69,6 +75,8 @@ struct ContentView: View {
         case .applications: ApplicationsView(model: model)
         case .largeFiles: DiskSpaceView(model: model)
         case .agentEnvironment: AgentEnvironmentView(model: model)
+        case .localAIModels: ResourceCleanupView(model: model, destination: .localAIModels)
+        case .projects: ResourceCleanupView(model: model, destination: .projects)
         case .recovery: HistoryView(model: model)
         case .settings: PermissionsView(model: model)
         }
@@ -90,5 +98,32 @@ struct ContentView: View {
             Text(destination.title)
         }
         .tag(destination)
+    }
+}
+
+private struct SidebarDiskCapacityView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(L10n.text("磁盘空间"), systemImage: "internaldrive")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.primary)
+            if let capacity = model.diskCapacity {
+                ProgressView(value: capacity.usedFraction)
+                    .tint(.blue)
+                    .accessibilityLabel(L10n.text("磁盘空间"))
+                Text(L10n.text("可用空间：{0}", ByteCountFormatter.cleanerString(bytes: capacity.availableBytes)))
+                    .monospacedDigit().lineLimit(1)
+            } else if let error = model.diskCapacityReadError {
+                Label(L10n.text("无法读取磁盘空间"), systemImage: "exclamationmark.triangle")
+                    .help(error)
+            } else {
+                Text(L10n.text("正在读取磁盘空间…"))
+            }
+        }
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

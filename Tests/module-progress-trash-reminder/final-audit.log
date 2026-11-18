@@ -1,0 +1,5 @@
+PASS: diff whitespace, unchanged HEAD, empty index; no commit or push
+PASS: production sources, resources and build scripts exactly match the pre-build snapshot
+PASS: 185 local documentation links in 10 current documents
+PASS: final version and DMG checksum match; existing installation was not replaced
+PASS: generated native test app and read-only DMG mount removed

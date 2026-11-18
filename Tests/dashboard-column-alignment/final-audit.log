@@ -1,0 +1,9 @@
+PASS: 425 local Markdown links checked; no newly broken links.
+Pre-existing missing historical artifact: doc/agent-only-scope.md -> ../build/SuperCleaner-0.2.25-58.dmg
+PASS: git diff --check and per-file review.
+PASS: 305 Release tests, core contracts, 1259 bilingual messages, complete package verification and DMG checks.
+PASS: installed 0.4.8 (122) signature checked after reopening; versions and executable hashes recorded in installation.log.
+PASS: native screenshot confirms shared title/scan/card left edge, card/Trash right edge, and middle card/disk start; six rows fully visible.
+PASS: own previous-install backup and self-check homes removed; no app data/preferences replacement.
+Production source scope: DashboardView layout only; no scan, selection or execution changes.
+No scan, user cleanup, Trash emptying, permission grant, Helper registration, commit or push performed.

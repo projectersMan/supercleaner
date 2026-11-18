@@ -16,7 +16,7 @@ BUNDLE_ID=$(/usr/bin/plutil -extract bundleIdentifier raw -o - ${CONFIG})
 [[ $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' ${APP}/Contents/Info.plist) == ${BUNDLE_ID} ]] || { print -u2 "FAIL: mismatched app identity"; exit 1; }
 REQUIREMENT="anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"${TEAM}\" and ! entitlement[\"com.apple.security.get-task-allow\"] exists"
 SPARKLE=${APP}/Contents/Frameworks/Sparkle.framework/Versions/B
-TARGETS=(${APP} ${APP}/Contents/MacOS/supercleaner ${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper
+TARGETS=(${APP} ${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper
   ${APP}/Contents/MacOS/AgentInference
   ${APP}/Contents/Frameworks/Sparkle.framework ${SPARKLE}/Autoupdate ${SPARKLE}/Updater.app
   ${SPARKLE}/XPCServices/Downloader.xpc ${SPARKLE}/XPCServices/Installer.xpc)
@@ -25,7 +25,7 @@ for TARGET in ${TARGETS[@]}; do
   DETAILS=$(/usr/bin/codesign -dv --verbose=4 ${TARGET} 2>&1)
   [[ ${DETAILS} == *"runtime)"* && ${DETAILS} == *"Timestamp="* && ${DETAILS} != *"Signature=adhoc"* ]] || { print -u2 "FAIL: Hardened Runtime and secure timestamp required: ${TARGET}"; exit 1; }
 done
-for PAIR in "${APP}|${BUNDLE_ID}" "${APP}/Contents/MacOS/supercleaner|${BUNDLE_ID}.cli" "${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper|${BUNDLE_ID}.helper" "${APP}/Contents/MacOS/AgentInference|${BUNDLE_ID}.agent-inference"; do
+for PAIR in "${APP}|${BUNDLE_ID}" "${APP}/Contents/Library/LaunchServices/${BUNDLE_ID}.helper|${BUNDLE_ID}.helper" "${APP}/Contents/MacOS/AgentInference|${BUNDLE_ID}.agent-inference"; do
   /usr/bin/codesign --verify --strict -R="${REQUIREMENT} and identifier \"${PAIR#*|}\"" "${PAIR%%|*}"
 done
 /usr/bin/codesign --verify --deep --strict --all-architectures ${APP}

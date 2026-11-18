@@ -5,9 +5,11 @@
 ## Features
 
 - Scan caches, logs, temporary files, installers, developer artifacts, historical uninstall remnants, and duplicate large files.
-- Review evidence and safety status before cleanup. Duplicate Large Files and Agent capability analysis preselect eligible items for your confirmation. Application uninstall selection is manual.
+- Review evidence and safety status before cleanup. Duplicate Large Files, Agent capability analysis, and Project Artifacts preselect eligible items for your confirmation. Application uninstallations and local AI models require manual selection.
 - Plan application uninstallations with related files and installation ownership checks.
-- Find project artifacts such as `node_modules`, `target`, `.build`, `build`, and `dist`, while protecting active projects and tracked content.
+- Find project artifacts such as `node_modules`, `target`, `.build`, `build`, `dist`, and project DMG installers, while protecting active projects and tracked content.
+- Review local AI models and download caches by provider, with shared storage kept together and every cleanup choice made manually.
+- Read the current volume's total, used, and available capacity separately from scan results and cleanup totals.
 - Discover Codex, Claude, Cursor, Trae, and other AI agent environments. Inspect Skills, MCP configurations, sessions, caches, and worktrees with protections for sensitive data.
 - Quarantine eligible items for recovery, keep an operation history, and protect paths you choose.
 
@@ -22,9 +24,58 @@ cd supercleaner
 open build/SuperCleaner.app
 ```
 
-The current local build is **0.4.3 (117)**. Open [SuperCleaner.app](build/SuperCleaner.app), or install it from [SuperCleaner-0.4.3.dmg](build/SuperCleaner-0.4.3.dmg).
+Each run of `build-app.sh` automatically increments the patch version and build number in [Version.json](Version.json) once before compilation. For an explicitly requested release, use `./Scripts/build-app.sh --version 0.5.0` to build that exact version with the next build number; the target version must increase. Subsequent ordinary builds resume patch increments. Separate verification and DMG creation reuse the assigned version.
 
-The Cleanup Center keeps its introduction, four scan scopes, and three safety cards in place before, during, and after scanning. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout.
+The current local build is **0.5.0 (145)**. Open [SuperCleaner.app](build/SuperCleaner.app), or install it from [SuperCleaner-0.5.0.dmg](build/SuperCleaner-0.5.0.dmg). The installed copy is `/Applications/SuperCleaner.app`.
+
+The Cleanup Center fits into one page with no vertical scrolling. Three compact safety cards sit below the title. The scan button stays aligned with the title text, with elapsed time to its right; session cleanup totals and the larger **Empty Trash…** button stay on the right. Disk capacity appears below **Tools** at the bottom of the sidebar, using a drive icon and **Disk Space** title above a capacity bar and available space. The sidebar and default cleanup footer share the same opaque system-based background, avoiding tint differences from transparent materials. Six scope rows remain visible. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout, with the actual build SDK recorded separately from the minimum macOS version.
+
+All six scope pages use the same centered spinner and status text while their own module is waiting or scanning, including rescans with previous results. Completed modules show their results while other modules continue scanning.
+
+**Clean All Defaults** processes the still-selected system recommendations, large-file preselection, Agent automatic preselection, and project artifacts together. Canceling a default checkmark removes it from the total. Each module row labels its nonzero operation count and size as **Cleanup**; application uninstallations, local AI models, and other manual choices remain excluded from this dashboard queue. Overlapping paths are consolidated before counting and execution.
+
+**Empty Trash…** first asks you to confirm permanent deletion, then asks Finder to empty the system Trash. macOS may request permission to control Finder. The app refreshes disk capacity and waits for that read to finish before completing the operation. Successful emptying acknowledges the cleanup total captured when it started, so closing or quitting does not repeat the reminder for that total. Canceling or failing keeps the reminder; later cleanup can trigger it again. Your saved **Don't remind again** preference is preserved.
+
+The **Uninstall Apps** page prepares application rows as needed. Opening it with no selections avoids preparing the entire uninstall batch; safety checks and running-app protection remain in effect.
+
+## Architecture and scan scopes
+
+The SwiftUI app uses [CleanerCore](Sources/CleanerCore) for discovery, safety checks, cleanup plans, execution, and recovery. The optional [CleanerHelper](Sources/CleanerHelper) handles authorized application operations. The standalone `supercleaner` command has been retired and is no longer embedded in the app; [CoreContractChecks](Sources/CoreContractChecks) remains a development verification tool.
+
+| Scope | Contents and selection |
+| --- | --- |
+| System Cleanup | Caches, logs, installers, and verified historical app remnants; eligible items can be suggested for cleanup. |
+| Applications | Installed apps and their related items; uninstall selection is manual. |
+| Duplicate Large Files | Large files, verified identical copies, extracted ZIPs, and eligible installers. |
+| Agent Environment | Skills, MCP configurations, sessions, caches, and worktrees; capability analysis can suggest eligible items. |
+| Local AI Models | Model and dataset storage grouped by provider; no default selection. |
+| Project Artifacts | Dependencies, build output, and project DMGs grouped by source project; optional preselection is controlled in Settings (off initially), including Git-tracked artifacts. |
+
+The data flow is **read-only scan → candidates with paths, evidence, and coverage → selection → reviewed plan → live safety checks → cleanup receipt and recovery**. Local AI Models and Project Artifacts use this same execution and recovery flow; project defaults appear in Cleanup Center only when their Settings option is enabled; local model choices remain manual and excluded from Clean All Defaults.
+
+**Project Artifacts** has **All / Protected / Selected** scopes. Settings includes **Preselect project build artifacts (including Git-tracked items)**, initially off. When enabled, eligible artifacts are checked after scanning and appear in Cleanup Center; the page opens in Selected, or All if nothing is selected. Turning it off removes automatic choices and preserves manual choices, while excluding projects from Clean All Defaults. Git-tracked items can be selected manually when other safety checks pass. Unknown activity or Git state, credentials, nested repositories within a directory, incomplete inspection, and protected paths still prevent cleanup.
+
+**Local AI Models** opens in **Cleanable**, or **All** when that scope is empty, and always starts unselected. Cleanable indicates that safety checks permit manual selection, not that the model is unneeded. Both resource pages follow the app and large-file review layout: a search field, scope filters, sorting and counts above a full-width grouped list. **Select All** applies to eligible visible items. Filters wrap on narrower windows and preserve selections. Expand a provider or project and open details as needed. Navigation and unrelated scan updates retain your choices; rescanning that resource module reapplies its defaults.
+
+**Local AI Models** checks ten common locations for seven providers. Hugging Face repositories stay together; LM Studio is grouped by model; Ollama is one library because models share blobs. Removing the Ollama item removes that whole library, so use Ollama's own model manager for individual models. Keras is limited to model and dataset subdirectories, and GPT4All discovery is limited to recognized model files. Custom model storage outside these locations is not discovered by this module.
+
+| Provider | Locations under your home directory |
+| --- | --- |
+| Hugging Face | `.cache/huggingface/hub` |
+| LM Studio | `.lmstudio/models`, `.cache/lm-studio/models` |
+| Ollama | `.ollama/models` |
+| PyTorch | `.cache/torch/hub/checkpoints` |
+| Whisper | `.cache/whisper` |
+| Keras | `.keras/models`, `.keras/datasets` |
+| GPT4All | `Library/Application Support/nomic.ai/GPT4All`, `.cache/gpt4all` |
+
+Close related model tools before scanning. Running tools, unknown activity, credentials, unreadable content, unsafe paths, or incomplete inspection keep affected resources protected. Candidate paths and their ancestors must not be symbolic links. Links inside a selected repository or library move with it; their targets are neither traversed nor counted again. Files and directories are checked again immediately before moving; changes or newly detected activity stop cleanup of that item. Cleanup may require downloading models again later.
+
+**Project Artifacts** means dependencies or generated output belonging to a source project, identified by a project manifest such as `package.json`, `Cargo.toml`, `Package.swift`, or `pyproject.toml`. Examples include JavaScript dependencies in `node_modules`, Rust output in `target`, Swift output in `.build`, and generated `build` or `dist` directories. A familiar directory name alone is insufficient evidence. Open **Settings → Project Scan Folders** to add multiple source roots, remove entries, and **Save Scan Folders** or **Discard Changes**. The list shows three rows and scrolls internally for additional folders; every saved entry is scanned. Removing an entry only changes the scan scope. Saving refreshes only Project Artifacts when scan results exist; otherwise it saves the scope for the next scan. Both resource pages omit header action buttons; start scans from Cleanup Center. The default roots cover common project locations and supported Agent worktree containers.
+
+Review each project's evidence before choosing an artifact. Git-tracked artifacts can be selected manually after other checks pass; optional preselection is controlled in Settings. Nested repositories inside a directory, credentials, active projects, unknown Git or activity state, and incomplete checks remain protected. Git-ignored content is not proof that it is disposable. Removing dependencies or output can require a new install or build, and generated folders can still contain files you need.
+
+The sidebar capacity bar reads the filesystem containing your home directory. It shows used capacity in the bar and currently available space underneath, and refreshes on activation, scanning, and cleanup. An unsuccessful read shows an error instead of zero capacity. Available capacity does not include estimated purgeable space. Scan sizes and **Cleaned This Session** are logical file bytes; moving content to Trash or Recovery does not establish how much physical disk space was released.
 
 **Duplicate Large Files** opens in **All Large Files**, sorted **By Selection** so selected items and their folders come first. The same scan preselects one copy per verified identical group, ZIPs verified against sibling folders, and eligible large installer files (`.dmg`, `.pkg`, `.mpkg`, `.xip`, `.iso`). Protected, active, and retained files are excluded from installer preselection. A matching sibling folder must have a total logical file size at least as large as both the current threshold and the ZIP. Individual members can be any size, and every member must match. Review the reason and any retained path before confirming cleanup. See the [scan and cleanup workflow](doc/large-file-duplicates-plan.md).
 
@@ -32,7 +83,7 @@ To change installer preselection, go to **Settings → Duplicate Large Files →
 
 Agent environment scans use the bundled Google EmbeddingGemma 2 model to analyze directional capability containment: Skill against other Skills, and MCP against other MCP configurations. Skills and MCP use the same default 85% threshold, configurable in Settings. When the union of capabilities provided by other items of the same type reaches that threshold, eligible items are preselected. Existing file protections remain in force, covering items are retained, and deletion still requires your manual confirmation.
 
-**Agent Environment** opens with **Selected** for both Skills and MCP. Choose **All** in the display menu to see the full scan results.
+**Agent Environment** automatically opens in **Selected** when the current Skill/MCP type and platform have selected items, and **All** when that list is empty. Until you choose a display filter yourself, this follows later preselection and type/platform changes. A manually chosen **All** or **Selected** remains in effect, including an empty Selected list. **Duplicate Large Files** already defaults to **All Large Files**.
 
 The Agent page keeps the original inventory, paths, checkboxes, grouping, and filters. Each row ranks up to three other items by how much of the current item they cover, with names and paths to distinguish copies. Hover over an individual Top 3 item to see its complete path, including the parts truncated in the list. The combined coverage summary is omitted from the interface. The internal calculation uses all other items, not just the displayed three: 86 distinct descriptions covered out of 100 means 86%, which meets the default 85% threshold. Overlapping coverage is counted once. All extracted capability descriptions are retained; reference lists are excluded and long descriptions are split without a 64-item sampling cap. These are estimates from scanned descriptions, not a count of verified runtime functions. After upgrading from the old analysis policy, use Recalculate all containment to replace old scores.
 
@@ -56,27 +107,27 @@ The app list initially shows Uninstallable. The three scopes are mutually exclus
 
 Application icons use native macOS artwork, resolved through the existing cache for the first rendered row without a placeholder-to-icon task. Embedded helpers with only a generic icon inherit the nearest enclosing application’s icon. Local updates replace `/Applications/SuperCleaner.app`; open that installed copy after an update.
 
-Cleanup Center keeps four clickable scan rows with right-aligned status and the same hover highlight as the application list. Cancel and Resume remain inside each module page. Finished scans share the green checkmark **Scan complete** badge, while their original coverage and cleanup protections are retained. The three capability cards share the height of the tallest content and align at the top.
+Cleanup Center keeps six clickable scan rows with right-aligned status and the same hover highlight as the application list. Cancel and Resume remain inside each module page. Finished scans share the green checkmark **Scan complete** badge, while their original coverage and cleanup protections are retained. The three capability cards share the height of the tallest content and align at the top.
 
 The Agent page shows its analysis status directly above the inventory. Each analyzed item shows up to three covering peers and their paths; the combined summary is omitted from the interface. If an upgrade changes the analysis rules, the previous index is not reused: the page explains that **Settings → Recalculate all containment** is required. Eligible default selections appear after analysis finishes; no selections can also be a valid result when coverage is below your threshold or existing file protections apply.
 
 Full scans start directly without a permission setup window. On first launch, an app without verified Full Disk Access shows one short reminder with a System Settings link; an already configured app skips it. The reminder is remembered across restarts and does not represent an authorization grant.
 
-App scans quietly skip locations that deny read access, without reporting those expected skips as a regional permission warning. Results cover accessible locations; skipped content remains protected from cleanup. The four scan modules and application refresh do not stop at a fixed entry count. Depth, time, and content-size limits still apply, and scans can be canceled. Other failures remain visible. System Settings links remain in the app’s Settings page.
+App scans quietly skip locations that deny read access, without reporting those expected skips as a regional permission warning. Results cover accessible locations; skipped content remains protected from cleanup. System, application, large-file, and Agent app scans and application refresh do not stop at a fixed entry count. Local AI Models and Project Artifacts keep their own inspection budgets; incomplete checks retain protection. Other applicable time and content-size limits still apply, and scans can be canceled. Other failures remain visible. System Settings links remain in the app’s Settings page.
 
 Permissions and the optional helper remain in Settings. The first scan preflights known locations once if Full Disk Access is not available; later scans do not repeat this setup. macOS still enforces access and may request its own confirmation when needed.
 
-The Uninstall Apps search and filter bar uses the same compact spacing and vertical placement as Large Files, while retaining scope, sorting, application counts, and refresh controls. Completed application analyses omit the repetitive success badge; protection and incomplete-analysis indicators remain visible.
+The Uninstall Apps search and filter bar uses the same compact spacing and vertical placement as Duplicate Large Files, while retaining scope, sorting, and application counts. Completed application analyses omit the repetitive success badge; protection and incomplete-analysis indicators remain visible.
 
-![SuperCleaner overview showing the scan entry point and cleanup categories](docs/images/cleanup-center.png)
-
-1. Open SuperCleaner and start a full scan from **Overview**. Grant macOS permissions when prompted for protected locations.
-2. Review findings in **Cleanup Center**, **Applications**, **Large Files**, **Agent Environment**, or **Project Artifacts**. Historical uninstall remnants appear in **Cleanup Center**: orphaned caches and verified empty residual directories with complete Bundle ID and application-inventory evidence can be suggested for cleanup, while non-empty application-support data stays in suggested retention for review. Select an item to inspect its path, evidence, and safety status.
-3. Choose what to include. Eligible system cleanup items, large files, and Agent analysis findings may be preselected for review. Application uninstall selection is manual. Blocked items cannot be selected.
+1. Open SuperCleaner and start a full scan from **Cleanup Center**. Grant macOS permissions when prompted for protected locations.
+2. Review findings in **Cleanup Center**, **Uninstall Apps**, **Duplicate Large Files**, **Agent Environment**, **Local AI Models**, or **Project Artifacts**. Historical uninstall remnants appear in **Cleanup Center**: orphaned caches and verified empty residual directories with complete Bundle ID and application-inventory evidence can be suggested for cleanup, while non-empty application-support data stays in suggested retention for review. Select an item to inspect its path, evidence, and safety status.
+3. Choose what to include. Eligible system cleanup items, large files, and Agent analysis findings may be preselected for review. Local models open in Cleanable (All if empty) and always start unselected. Projects open in Selected (All if empty); their optional preselection is controlled in Settings and starts off. Cleanable means selectable after safety checks, not that a model is unneeded. Application uninstall requires manual selection. Blocked items cannot be selected.
 4. Review the cleanup plan and confirm. SuperCleaner checks selected items again before acting. By default, items move to macOS Trash after safety checks and record saving. Choose a retention period in **Settings** to keep items in Recovery first.
 5. Open **Recovery** to review completed operations and restore retained items while they remain available. Recovery and Trash contents are excluded from large-file results and their totals.
 
-When **Cleaned This Session** is greater than zero, closing the main window or quitting shows a reminder to review and empty macOS Trash to free up disk space. Choose **Open Trash** or continue closing, and select **Don't remind me again** to disable future reminders across launches. The same cleanup amount is only acknowledged once per session; more cleanup enables another reminder. Emptying Trash does not remove files retained in Recovery.
+When **Cleaned This Session** includes a positive amount that has not been acknowledged, closing the main window or quitting uses the shared **Empty Trash** confirmation and executor. The window-close reminder also offers **Don't remind me again**; this disables automatic close/quit reminders without treating the Trash as emptied. Restore reminders in **Settings → Cleanup Reminders**. Manually clicking **Empty Trash…** always confirms and has no suppression checkbox. When explicitly quitting, **Cancel** keeps the Trash untouched and lets the app quit. Choosing **Empty Trash** waits for the operation, disk refresh and any failure message to finish, then quits even if emptying failed. Closing only the window leaves the app and scans running in the background; Cancel there only cancels emptying. Successful emptying acknowledges its starting total; canceling or failing does not. Emptying Trash does not remove files retained in Recovery.
+
+Scanning does not block **Empty Trash**. The manual button and window-close confirmation can start emptying immediately while existing scans continue; every displayed confirmation has an enabled **Empty Trash** action. If cleanup itself or another exclusive operation is still finishing, the app keeps one pending reminder until that operation ends. No successful cleanup means no automatic reminder. Once the app has committed to a full quit, the ensuing window-close events do not show another reminder.
 
 To uninstall an app, open **Applications**, select it, review its related items, and confirm the plan. Apps managed by Homebrew, Steam, or another installer should be removed through that source. Add paths to the protection list in **Settings** to exclude them from cleanup plans.
 
@@ -93,7 +144,7 @@ Agent 默认选择优先保留用户主目录 `.agents` 中的共享源，独立
 
 应用卸载筛选栏与大文件页保持相同字号及上下间距；搜索框固定260 pt，四项筛选固定等分，切换范围时不会挤动控件；窄窗口自动分为两行。移除Refresh Apps按钮。
 
-清理中心全扫描按钮右侧显示本轮扫描用时（时:分:秒），从点击全扫描实际启动本轮任务计时，包含必要预访问、四模块和Agent分析；全部结束后保留最终用时，重新全扫描清零。取消或失败后无任务时冻结，继续被取消模块则从本轮原始起点继续计时。
+清理中心全扫描按钮下方显示本轮扫描用时（时:分:秒），从点击全扫描实际启动本轮任务计时，包含必要预访问、六个模块和Agent分析；全部结束后保留最终用时，重新全扫描清零。取消或失败后无任务时冻结，继续被取消模块则从本轮原始起点继续计时。
 
 点击全扫描直接开始，不再打开大权限配置窗口。首次启动且尚未验证完全磁盘访问时，只显示一次简短提醒；已有磁盘访问的用户不显示，提醒记录跨重启保留。设置页继续提供FDA、App管理与可选Helper的系统入口。首次扫描未确认FDA时会在并行扫描前进行一次只读预访问，之后不重复；系统仍对实际访问独立检查。Top 3中的其他Skill位于各平台分组，软链接不作为另一份Skill。
 
@@ -102,3 +153,7 @@ Agent 默认选择优先保留用户主目录 `.agents` 中的共享源，独立
 Agent 页的 Skill 与 MCP 条目使用与大文件相同的细横线分隔；高亮、鼠标命中和横线使用同一内容边界，避免List行内边距造成错位。分组、两栏信息、悬停颜色和勾选方式保持一致。
 
 Skill 与 MCP 使用相同的覆盖信息右栏：固定360 pt，标题、名称与路径左对齐，百分比独立列对齐；左栏允许随窗口收缩，切换类型不改变右栏起点。MCP每行不再重复显示服务器数量，顶部配置和服务器定义总数保留。权限页的Available仅表示FDA只读探测可用；App管理显示卸载时由系统确认，不以未显示Available推断未授权。
+
+Project-owned DMG files appear under **Project Artifacts**, including installers found in build output; downloaded DMGs outside discovered projects remain under **Duplicate Large Files**. A selected build directory covers its DMG children in the execution total. Git-tracked, protected, or in-use installers remain protected. The two resource pages have no header action buttons; configure project scan folders in Settings and start scans from Cleanup Center.
+
+Project DMG ownership is checked against the saved project roots and manifests before publishing large-file results. Project installers never appear temporarily in the large-file cleanup total; Project Artifacts performs their own content verification and preserves retained-copy constraints.

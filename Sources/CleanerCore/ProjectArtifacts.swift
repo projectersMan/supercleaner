@@ -100,10 +100,17 @@ public struct ProjectArtifactScanner: Sendable {
                         limitations.append(limitation(child, L10n.text("达到项目扫描预算"))); break
                     }
                     remaining -= 1
-                    guard let identity = try? await context.fileSystem.identity(at: child), identity.kind == .directory else { continue }
+                    guard let identity = try? await context.fileSystem.identity(at: child) else { continue }
+                    if identity.kind == .file, child.pathExtension.lowercased() == "dmg", let project {
+                        artifacts.append(ProjectArtifact(projectURL: project,
+                            candidate: try await inspectInstaller(child, project: project, context: context)))
+                    }
+                    guard identity.kind == .directory else { continue }
                     if Self.artifactNames.contains(child.lastPathComponent), let project {
-                        let candidate = try await inspect(child, project: project, context: context, remaining: &remaining, deadline: deadline)
+                        let inspection = try await inspect(child, project: project, context: context, remaining: &remaining, deadline: deadline)
+                        let candidate = inspection.candidate
                         artifacts.append(ProjectArtifact(projectURL: project, candidate: candidate))
+                        artifacts.append(contentsOf: inspection.installers.map { ProjectArtifact(projectURL: project, candidate: $0) })
                         if candidate.evidence.contains(where: { ["inspection-budget", "inspection-failed"].contains($0.code) }) {
                             limitations.append(limitation(child, L10n.text("产物内容未完整验证")))
                         }
@@ -114,7 +121,36 @@ public struct ProjectArtifactScanner: Sendable {
             }
         }
         let sorted = artifacts.sorted { $0.candidate.url.path < $1.candidate.url.path }
-        return ProjectScanReport(startedAt: startedAt, completedAt: Date(), roots: roots, artifacts: sorted, limitations: limitations)
+        let installers = sorted.map(\.candidate).filter { $0.identity.kind == .file && $0.url.pathExtension.lowercased() == "dmg" }
+        let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: 1, preselectInstallers: true)
+            .analyze(installers.map { candidate in
+                CleanupCandidate(id: candidate.id, url: candidate.url, displayName: candidate.displayName,
+                    category: .largeFile, bytes: candidate.bytes, risk: candidate.risk, evidence: candidate.evidence,
+                    identity: candidate.identity, source: .diskAnalysis, lastAccessDate: candidate.lastAccessDate,
+                    isActive: candidate.isActive, requiresExplicitSelection: candidate.requiresExplicitSelection)
+            })
+        let reviewed = SystemScanReport.preservingProjectInstallerProofs(sorted.map(\.candidate), largeFiles: analysis.candidates)
+        if analysis.limited { limitations.append(limitation(context.homeDirectory, L10n.text("重复大文件核验受限"))) }
+        let result = zip(sorted, reviewed).map { ProjectArtifact(projectURL: $0.0.projectURL, candidate: $0.1) }
+        return ProjectScanReport(startedAt: startedAt, completedAt: Date(), roots: roots, artifacts: result, limitations: limitations)
+    }
+
+    func installerPaths(in urls: [URL], context: ScanContext) async throws -> Set<String> {
+        let configured = roots.map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+        var paths = Set<String>()
+        for url in urls where url.pathExtension.lowercased() == "dmg" {
+            var directory = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
+            while configured.contains(where: { directory.path == $0 || directory.path.hasPrefix($0 + "/") }) {
+                try Task.checkCancellation()
+                var found = false
+                for marker in Self.manifestNames {
+                    if await context.fileSystem.fileExists(directory.appendingPathComponent(marker)) { found = true; break }
+                }
+                if found { paths.insert(url.standardizedFileURL.path); break }
+                directory.deleteLastPathComponent()
+            }
+        }
+        return paths
     }
 
     public func validateForExecution(_ candidate: CleanupCandidate, context: ScanContext) async throws {
@@ -125,7 +161,8 @@ public struct ProjectArtifactScanner: Sendable {
         let project = URL(fileURLWithPath: projectPath).resolvingSymlinksInPath().standardizedFileURL
         let artifactPath = normalizedPath(candidate.url)
         let ownerPath = normalizedPath(project)
-        guard Self.artifactNames.contains(candidate.url.lastPathComponent), artifactPath.hasPrefix(ownerPath + "/"),
+        let installer = candidate.identity.kind == .file && candidate.url.pathExtension.lowercased() == "dmg"
+        guard (installer || Self.artifactNames.contains(candidate.url.lastPathComponent)), artifactPath.hasPrefix(ownerPath + "/"),
               roots.contains(where: { root in
                   let path = normalizedPath(root)
                   return ownerPath == path || ownerPath.hasPrefix(path + "/")
@@ -134,25 +171,31 @@ public struct ProjectArtifactScanner: Sendable {
         }
         let manifests = try await context.fileSystem.children(of: project)
         guard manifests.contains(where: { Self.manifestNames.contains($0.lastPathComponent) }) else { throw RuleScanError.executionRefused("project-manifest-missing") }
+        if installer {
+            let current = try await inspectInstaller(candidate.url, project: project, context: context)
+            guard current.risk != .blocked else { throw RuleScanError.executionRefused("project-installer-changed") }
+            return
+        }
         var remaining = maximumEntries
         let current = try await inspect(candidate.url, project: project, context: context, remaining: &remaining,
-                                        deadline: ContinuousClock.now.advanced(by: .seconds(timeLimit)))
+                                        deadline: ContinuousClock.now.advanced(by: .seconds(timeLimit))).candidate
         guard current.risk != .blocked else { throw RuleScanError.executionRefused("project-changed") }
     }
 
     private func inspect(
         _ url: URL, project: URL, context: ScanContext, remaining: inout Int, deadline: ContinuousClock.Instant
-    ) async throws -> CleanupCandidate {
+    ) async throws -> (candidate: CleanupCandidate, installers: [CleanupCandidate]) {
         let identity = try await context.fileSystem.identity(at: url)
         var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", String(describing: project.lastPathComponent)), details: project.path),
                         Evidence(code: "rebuildable-artifact", summary: L10n.text("项目工具生成的 {0} 目录，恢复前可能需要重新安装依赖或构建", String(describing: url.lastPathComponent)))]
         var blocked = identity.kind != .directory
-        var active = context.isActive(project)
+        var active = context.isProjectActive(project)
         if !context.activityProbeAvailable || !context.projectActivityAvailable { active = true }
         var newest = identity.modificationTime
         var bytes: UInt64 = 0
         var pending = [(url, 0)]
         var budgetLimited = false
+        var installers: [CleanupCandidate] = []
         while let (directory, depth) = pending.popLast() {
             try Task.checkCancellation()
             guard remaining > 0, ContinuousClock.now < deadline else { blocked = true; budgetLimited = true; break }
@@ -171,6 +214,9 @@ public struct ProjectArtifactScanner: Sendable {
                     else if childIdentity.kind == .file {
                         let (sum, overflow) = bytes.addingReportingOverflow(childIdentity.size)
                         bytes = overflow ? .max : sum
+                        if child.pathExtension.lowercased() == "dmg" {
+                            installers.append(try await inspectInstaller(child, project: project, context: context))
+                        }
                     } else if childIdentity.kind == .other { blocked = true }
                     // Directory moves carry links without following their targets.
                 }
@@ -179,8 +225,8 @@ public struct ProjectArtifactScanner: Sendable {
         }
         if budgetLimited { evidence.append(Evidence(code: "inspection-budget", summary: L10n.text("达到产物检查预算，保持保护"))) }
         let git = await trackedFiles(in: url, project: project, context: context)
-        if git != .untracked { blocked = true }
-        evidence.append(Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件") : git == .tracked ? L10n.text("包含 Git 跟踪文件，保持保护") : L10n.text("无法验证 Git 状态，保持保护")))
+        if git == .unknown { blocked = true }
+        evidence.append(Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件") : git == .tracked ? L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") : L10n.text("无法验证 Git 状态，保持保护")))
         let recent = context.now.timeIntervalSince1970 - Double(newest) < 7 * 86_400
         if recent { evidence.append(Evidence(code: "recent-activity", summary: L10n.text("7 天内有文件活动，默认保留；可明确审查后选择"))) }
         if active { blocked = true; evidence.append(Evidence(code: "active-project", summary: L10n.text("构建工具正在运行或活动状态无法验证"))) }
@@ -188,9 +234,33 @@ public struct ProjectArtifactScanner: Sendable {
             url: url, displayName: url.lastPathComponent, category: .developerCache,
             bytes: bytes, risk: blocked ? .blocked : .review, evidence: Array(Set(evidence)).sorted { $0.code < $1.code },
             identity: identity, source: .projectArtifacts, lastAccessDate: Date(timeIntervalSince1970: Double(newest)),
-            isActive: active, defaultSelection: false
+            isActive: active, defaultSelection: false, requiresExplicitSelection: git == .tracked
         )
-        return context.protectionPolicy.applying(to: candidate)
+        return (context.protectionPolicy.applying(to: candidate), installers)
+    }
+
+    private func inspectInstaller(_ url: URL, project: URL, context: ScanContext) async throws -> CleanupCandidate {
+        let identity = try await context.fileSystem.identity(at: url)
+        var repository = url.deletingLastPathComponent()
+        while repository.path != project.path && repository.path != "/" {
+            if await context.fileSystem.fileExists(repository.appendingPathComponent(".git")) { break }
+            repository.deleteLastPathComponent()
+        }
+        let git = await trackedFiles(in: url, project: repository, context: context)
+        let active = context.isActive(url) || !context.activityProbeAvailable || !context.projectActivityAvailable
+        let snapshot = LargeFileContentAnalyzer.eligibleSnapshot(url, context: context, installer: true,
+            forManualSelection: git == .tracked)
+        let eligible = identity.kind == .file && !active && git != .unknown && snapshot != nil
+        var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", project.lastPathComponent), details: project.path),
+            InstallerDiscovery.formatEvidence("dmg"),
+            Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件")
+                : git == .tracked ? L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") : L10n.text("无法验证 Git 状态，保持保护"))]
+        if snapshot == nil { evidence.append(Evidence(code: "inspection-failed", summary: L10n.text("内容未完整验证，保持保护"))) }
+        if active { evidence.append(Evidence(code: "active-project", summary: L10n.text("文件正在使用，暂不可选择"))) }
+        return context.protectionPolicy.applying(to: CleanupCandidate(url: url, displayName: url.lastPathComponent,
+            category: .installerArtifact, bytes: identity.size, risk: eligible ? .review : .blocked, evidence: evidence,
+            identity: identity, source: .projectArtifacts, lastAccessDate: nil, isActive: active, defaultSelection: false,
+            requiresExplicitSelection: git == .tracked))
     }
 
     private enum Tracking { case tracked, untracked, unknown }

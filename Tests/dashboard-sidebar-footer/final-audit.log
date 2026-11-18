@@ -1,0 +1,8 @@
+PASS: current version, build/package snapshots and DMG SHA-256 agree
+PASS: HEAD unchanged, index empty, no LFS rule modification; no commit or push performed
+PASS: real project scan root configuration unchanged
+Removed only own verified installation backup: 0.4.20
+Removed only own verified installation backup: 0.4.22
+PASS: current documentation local links and git diff --check
+PASS: per-file diff and necessity reviewed; all prior workspace changes retained
+PASS: ordinary/fullscreen native observations confirm matching backgrounds, sidebar drive title/bar/available space, and elapsed time beside Scan

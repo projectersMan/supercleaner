@@ -1,0 +1,8 @@
+PASS: version 0.4.26 (140) unchanged after package verification, DMG and installation
+PASS: final source hashes match the signed build
+PASS: built, installed and mounted DMG metadata, signatures, entitlement and executable hashes agree
+PASS: 317 XCTest cases, packaged cold-entry/trash regressions and isolated actual red-close checks passed
+PASS: installation backup, native harness app and temporary icon executable removed; scripts/logs and delivered DMG retained
+PASS: HEAD unchanged, staged diff empty, no commit or push; prior work retained
+PASS: no dependency additions or root AGENTS.md/CONTEXT.md/.trae/rules/project_rules.md
+PASS: current documentation links resolve; git diff whitespace check clean

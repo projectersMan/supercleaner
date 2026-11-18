@@ -1,5 +1,13 @@
+import AppKit
 import CleanerCore
 import SwiftUI
+
+struct SidebarSurface: View {
+    var body: some View {
+        Color(nsColor: .windowBackgroundColor)
+            .overlay(Color.primary.opacity(0.05))
+    }
+}
 
 struct RiskBadge: View {
     let risk: RiskLevel
@@ -228,6 +236,7 @@ private extension CandidateSource {
         case .application: L10n.text("应用卸载")
         case .diskAnalysis: L10n.text("磁盘分析")
         case .projectArtifacts: L10n.text("项目产物")
+        case .localAIModels: L10n.text("本地 AI 模型")
         }
     }
 }

@@ -1,0 +1,2 @@
+Another instance of SwiftPM (PID: 67422) is already running using '/Users/bytedance/code/supercleaner/.build', waiting until that process has finished execution...PASS: actual NSApplication will terminate, cleanup=true, confirmations=1; no Finder execution, capacity read or cleanup accounting change
+PASS: actual NSApplication will terminate, cleanup=false, confirmations=0; no Finder execution, capacity read or cleanup accounting change

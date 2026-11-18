@@ -10,12 +10,10 @@ struct DiskSpaceView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if !model.hasScanResult(for: .largeFiles) {
-                if model.isCurrentModuleScanning, let message = model.scanProgressByModule[.largeFiles]?.message {
-                    EmptyState(title: L10n.text("扫描中"), message: message, icon: "doc.on.doc")
-                } else {
-                    ScanRequiredView(destinationTitle: L10n.text("重复大文件")) { model.navigateToScan() }
-                }
+            if let message = model.moduleScanProgressMessage(for: .largeFiles) {
+                ModuleProgressView(message: message)
+            } else if !model.hasScanResult(for: .largeFiles) {
+                ScanRequiredView(destinationTitle: L10n.text("重复大文件")) { model.navigateToScan() }
             } else if let tree = model.diskUsageTree {
                 if model.largeFileThresholdNeedsRefresh {
                     HStack {

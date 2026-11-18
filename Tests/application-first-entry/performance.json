@@ -1,0 +1,10 @@
+{
+  "baseline_cold_seconds": 0.49162399768829346,
+  "optimized_cold_seconds": [
+    0.025866985321044922,
+    0.023750901222229004,
+    0.021880030632019043
+  ],
+  "optimized_median_seconds": 0.023750901222229004,
+  "scope": "114 apps / 4560 items; first entry model data, footer and first 20 rows; not total UI render time"
+}

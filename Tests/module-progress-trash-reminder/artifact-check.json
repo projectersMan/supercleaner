@@ -1,0 +1,15 @@
+{
+  "version": {
+    "version": "0.4.27",
+    "build": 141
+  },
+  "dmg_bytes": 298984438,
+  "dmg_sha256": "2f29ccd07eb2d4353a7f36c693f284dfa75b6baa129d419605bbd67fade44a04",
+  "executable_sha256": {
+    "Contents/MacOS/CleanerApp": "6834e3a7db6b1eccb12a85885d1cbc08ad838cb8b71ffb4675766b2b8014e548",
+    "Contents/MacOS/AgentInference": "9f2943822806832417c23ed1b5383f7e96b2bf9c5bbcce11649f0a22850eec69",
+    "Contents/Library/LaunchServices/com.example.SuperCleaner.helper": "f68b067c1a0d91551937c39c1bfa4a4ee8275d3b33fa7cd1c726c61652822291"
+  },
+  "installed_version": "0.4.26",
+  "installation_replaced": false
+}

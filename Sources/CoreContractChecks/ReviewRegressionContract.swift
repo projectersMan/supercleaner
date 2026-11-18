@@ -157,28 +157,26 @@ struct ReviewScanFileSystem: FileSystemAccess {
 func runReviewCompletenessRegressionContracts() async throws {
     let manager = FileManager.default
     let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Tests", isDirectory: true)
+        .deletingLastPathComponent().appendingPathComponent("Tests/local-ai-projects-disk/cli", isDirectory: true)
     let home = fixtures.appendingPathComponent(".review-coverage-" + UUID().uuidString, isDirectory: true)
-    defer { try? manager.removeItem(at: home) }
     let providerRoot = home.appendingPathComponent(".codex")
     let boundary = providerRoot.appendingPathComponent("a/b/c/d/e/f/g/h")
     let omitted = boundary.appendingPathComponent("i/sentinel.txt")
     try manager.createDirectory(at: omitted.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data("must remain untouched".utf8).write(to: omitted)
-    let request = try ReadOnlyRequest(arguments: ["scan", "--module", "agentEnvironment", "--home", home.path])
     let fs = ReviewScanFileSystem(home: home)
-    let partial = try await ReadOnlyInterface.run(request, runtime: CleanupRuntime(home: home, fileSystem: fs))
-    require(partial.scan?.scanStatus == "complete" && partial.scan?.modules.first?.state == .completed,
-            "deep Agent scans must finish without depth truncation")
-    require(partial.scan?.coverage.budgetLimitedModules.isEmpty == true,
-            "complete deep scans must not report a synthetic depth budget")
-    let object = try JSONSerialization.jsonObject(with: partial.json()) as! [String: Any]
-    let scanObject = object["scan"] as! [String: Any]
-    let providerCoverage = scanObject["agent_provider_coverage"] as? [[String: Any]]
-    require(providerCoverage?.contains { $0["provider"] as? String == "codex" && $0["state"] as? String == "complete" } == true,
-            "JSON must preserve provider-level completeness evidence")
     let context = ScanContext(homeDirectory: home, fileSystem: fs)
-    guard let full = await SystemScanCoordinator().scan(context: context) else { throw ReadOnlyInterfaceError.scanUnavailable }
+    let scanner = AgentWorkspaceScanner(maximumAssets: 20_000)
+    let deep = try await scanner.scanAssetInventory(context: context)
+    require(deep.isComplete,
+            "deep Agent scans must finish without depth truncation")
+    require(deep.coverage.budgetLimitedModules.isEmpty,
+            "complete deep scans must not report a synthetic depth budget")
+    require(deep.providerCoverage[.codex]?.state == .complete,
+            "Core inventory must preserve provider-level completeness evidence")
+    let fullResult = await SystemScanCoordinator().scan(context: context)
+    require(fullResult != nil, "full GUI/system scan must produce a report")
+    let full = fullResult!
     require(full.modules[.agentEnvironment]?.state == .completed && !full.coverage.budgetLimitedModules.contains(.agentEnvironment),
             "full GUI/system scan must retain Agent completeness and coverage")
     let inventory = try await AgentWorkspaceScanner(adapters: [CodexProviderAdapter()], maximumDepth: 8).scanAssetInventory(context: context)
@@ -189,22 +187,23 @@ func runReviewCompletenessRegressionContracts() async throws {
     let payload = try Data(contentsOf: omitted)
     require(payload == Data("must remain untouched".utf8), "completeness reporting must remain read-only")
     try manager.removeItem(at: omitted.deletingLastPathComponent())
-    let complete = try await ReadOnlyInterface.run(request, runtime: CleanupRuntime(home: home, fileSystem: fs))
-    require(complete.scan?.scanStatus == "complete", "an empty directory at the depth boundary is not omitted content")
+    let complete = try await scanner.scanAssetInventory(context: context)
+    require(complete.isComplete, "an empty directory at the depth boundary is not omitted content")
 
     let denied = providerRoot.appendingPathComponent("blocked")
     try manager.createDirectory(at: denied, withIntermediateDirectories: true)
     let inaccessible = ReviewScanFileSystem(home: home, unreadableDirectory: denied)
-    let unreadable = try await ReadOnlyInterface.run(request, runtime: CleanupRuntime(home: home, fileSystem: inaccessible))
-    require(unreadable.scan?.scanStatus == "partial" && unreadable.scan?.coverage.unavailableRoots.contains { $0.resolvingSymlinksInPath().path == denied.resolvingSymlinksInPath().path } == true,
-            "directory read failures must be visible in JSON completeness and unavailable paths")
-    require(unreadable.scan?.modules.first?.limitations.contains { $0.path?.resolvingSymlinksInPath().path == denied.resolvingSymlinksInPath().path } == true,
+    let unreadable = try await scanner.scanAssetInventory(context: ScanContext(homeDirectory: home, fileSystem: inaccessible))
+    require(!unreadable.isComplete && unreadable.coverage.unavailableRoots.contains { $0.resolvingSymlinksInPath().path == denied.resolvingSymlinksInPath().path },
+            "directory read failures must be visible in Core completeness and unavailable paths")
+    require(unreadable.limitations.contains { $0.path?.resolvingSymlinksInPath().path == denied.resolvingSymlinksInPath().path },
             "directory read failure must explain its limitation")
     let unverifiable = ReviewScanFileSystem(home: home, unverifiablePath: providerRoot)
-    let unavailable = try await ReadOnlyInterface.run(request, runtime: CleanupRuntime(home: home, fileSystem: unverifiable))
-    require(unavailable.scan?.scanStatus == "partial" && unavailable.scan?.coverage.unavailableRoots.contains { $0.resolvingSymlinksInPath().path == providerRoot.resolvingSymlinksInPath().path } == true,
+    let unavailable = try await scanner.scanAssetInventory(context: ScanContext(homeDirectory: home, fileSystem: unverifiable))
+    require(!unavailable.isComplete && unavailable.coverage.unavailableRoots.contains { $0.resolvingSymlinksInPath().path == providerRoot.resolvingSymlinksInPath().path },
             "identity failure on a detected root must not be reported as not detected or complete")
-    print("PASS: Agent JSON depth/read/identity completeness, provider evidence, empty boundary and read-only payload")
+    try manager.removeItem(at: home)
+    print("PASS: Agent Core depth/read/identity completeness, provider evidence, empty boundary and read-only payload")
 }
 
 private enum ReviewRecoveryAction: CaseIterable { case restore, purge, reschedule, existingSchedule }

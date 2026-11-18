@@ -1,0 +1,6 @@
+PASS: unchanged HEAD, empty index, whitespace clean; no commit or push
+PASS: production sources, resources and build scripts match the pre-build snapshot
+PASS: 198 local documentation links in 11 current documents
+PASS: version, DMG checksum, built executable hashes and strict signature match; existing 0.4.28 install retained
+PASS: generated test apps/sources and read-only DMG mount removed
+LIMIT: modal screenshot interaction was blocked by the native capture service; not counted as passed visual verification

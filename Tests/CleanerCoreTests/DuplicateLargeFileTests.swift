@@ -215,7 +215,7 @@ import XCTest
         XCTAssertFalse(scope.allows(home.appendingPathComponent("archive.zip")))
     }
 
-    func testProjectBuildInstallersArePreselectedWithoutSelectingProjectData() async throws {
+    func testProjectBuildInstallersAreDiscoveredOnlyByProjects() async throws {
         let root = try makeFixtureDirectory(); defer { removeFixtureDirectory(root) }
         let home = root.deletingLastPathComponent()
         _ = try write(Data(), to: "code/project/Package.swift", in: home)
@@ -223,8 +223,8 @@ import XCTest
         let data = try write(Data(repeating: 43, count: 8192), to: "code/project/build/data.bin", in: home)
         let runtime = try write(Data(repeating: 44, count: 8192), to: "code/project/node_modules/runtime.dmg", in: home)
         let report = try await scan(ScanContext(homeDirectory: home), index: DuplicateFixtureIndex(urls: [dmg, data, runtime]))
-        XCTAssertEqual(Set(DefaultCleanupPolicy().selection(for: report).largeFiles.map(\.url)), [dmg])
-        XCTAssertEqual(report.largeFileCandidates.first { $0.url == dmg }?.largeFileRecommendation?.code, "installer-type")
+        XCTAssertTrue(DefaultCleanupPolicy().selection(for: report).largeFiles.isEmpty)
+        XCTAssertFalse(report.largeFileCandidates.contains { $0.url == dmg })
     }
 
     func testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored() async throws {

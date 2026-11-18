@@ -2,7 +2,7 @@
 
 ## 环境与构建
 
-全扫描用时只记录在AppModel，不从最后一个模块报告时间推断；须等待四模块和Agent分析均结束。Dashboard用局部TimelineView每秒显示HH:MM:SS，停止后静态展示；按钮右侧预留180 pt，等宽数字防止抖动。全扫描启动后的必要预访问计入本轮、重扫归零、取消/失败冻结、继续同轮沿用起点，完成后的单模块刷新不改写上一轮全扫描用时。计时不得修改扫描任务、权限、清理或覆盖分析规则。
+全扫描用时只记录在AppModel，不从最后一个模块报告时间推断；须等待系统、应用、重复大文件、Agent、本地 AI 模型、项目产物六模块和Agent分析均结束。Dashboard用局部TimelineView每秒显示HH:MM:SS，停止后静态展示；计时位于按钮右侧，等宽数字防止抖动。全扫描启动后的必要预访问计入本轮、重扫归零、取消/失败冻结、继续同轮沿用起点，完成后的单模块刷新不改写上一轮全扫描用时。计时不得修改扫描任务、权限、清理或覆盖分析规则。
 
 图标视图直接显示同步缓存结果，避免State初始nil与出现后的task导致占位图逐个替换；不引入新预加载服务或持久图标缓存。图标排查先核对NSWorkspace返回值与包中图标声明。不能仅因缺CFBundleIconFile就覆盖asset catalog或自定义图标；仅系统通用图标允许沿真实包路径回退，优先最近外层应用，不做Bundle ID前缀猜测。外层包以APPL元数据识别，不能仅判断.app后缀；WorkBuddy的.app.installing临时包是已复现的真实案例，非标准目录直接读取包声明图标。定向复现命令：`zsh Tests/application-icons/run-check.sh`，需本机已安装WorkBuddy；缺夹具返回77，不计为通过。
 
@@ -10,9 +10,15 @@
 
 Dock reopen优先把最小化的主窗口逐一deminiaturize；若窗口已被红色关闭按钮关掉，则通过带`main`标识的WindowGroup和SwiftUI`openWindow`重新创建主窗口。两种情况都返回false，阻止AppKit默认行为覆盖显式处理；已有可见窗口时返回true。
 
-清理后关闭提醒只读取本次累计清理量，并由窗口关闭和退出路径共用一个状态；0 字节、已确认容量、永久关闭提醒不弹窗，新增清理可再次提醒。不要替换 SwiftUI 的窗口 delegate 或监听所有面板，不得自动清空废纸篓。原生弹窗和持久化验证见 [关闭提醒计划](../doc/trash-close-reminder-plan.md)，相关素材统一放在 [Tests/trash-close-reminder](../Tests/trash-close-reminder)。
+清理后关闭提醒只读取本次累计清理量，并由窗口关闭和退出路径共用一个状态；0 字节、已确认容量、永久关闭提醒不弹窗，新增清理可再次提醒。不要替换 SwiftUI 的窗口 delegate 或监听所有面板，不得未经用户永久删除确认就清空废纸篓。原生弹窗和持久化验证见 [关闭提醒计划](../doc/trash-close-reminder-plan.md)，相关素材统一放在 [Tests/trash-close-reminder](../Tests/trash-close-reminder)。
 
-清理中心UI约定：四行只保留整行导航与最右对齐状态，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。悬停色与应用卸载保持accentColor/0.08，移出恢复。completed/limited在首页共用绿色勾选“扫描完成”，不得反向修改原始扫描状态、CLI或删除保护。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。
+首页显式清空按钮由同一个 TrashReminderController 实现；确认永久删除后再异步调用固定 Finder 命令，成功且实际已空才记录启动时累计量。取消/失败不确认，原 suppress 偏好不能被重置；结束刷新并等待容量读取完成。清空忙碌门禁必须覆盖模型执行入口、更新/退出及界面，不能只禁用按钮。只增加 Apple Events Automation entitlement 与本地化用途描述；不直接 rm Trash。验证使用假执行器，实机只走确认取消，详见 [本批计划](../doc/dashboard-compact-trash-plan.md)。
+
+清理中心UI约定：六行只保留整行导航与最右对齐状态，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。悬停色与应用卸载保持accentColor/0.08，移出恢复。completed/limited在首页共用绿色勾选“扫描完成”，不得反向修改原始扫描状态、覆盖证据或删除保护。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。
+
+首页压缩为单页，扫描按钮下显示用时，与紧凑容量、累计清理/清空按钮同行等高；不得仅隐藏滚动条而裁切内容。中英文本、detail 760×560 pt 和默认窗口均检查六行导航与头部能力卡可见。大标题/说明缩小，长说明通过单行与 tooltip 保留。
+
+顶部扫描与累计清理区域不使用容器背景或边框，保持原生按钮与安全卡样式；按钮尺寸及对齐按本批截图调整，不修改扫描规则。
 
 扫描启动排查：全扫描直接开始，不能重新引入大权限配置sheet或逐次确认。首次必要的只读预访问在并行模块启动前执行一次；不因已提醒标记推断权限可用，不自动改写系统授权。
 
@@ -39,13 +45,25 @@ Agent分析排查：先核对安装包版本与源码版本，再检查索引mod
 open build/SuperCleaner.app
 ```
 
-`build-app.sh` 构建核心契约、主 App 和 Helper，并组装本地 App。`verify-app.sh` 检查 Bundle、资源、Helper、最低系统版本和签名，并在系统临时目录执行真实隔离/恢复烟雾测试。
+`build-app.sh` 在正式编译前自动分配一次新版本，构建核心契约、主 App 和 Helper，并组装本地 App。`verify-app.sh` 检查 Bundle、资源、Helper、最低系统版本和签名，并在系统临时目录执行真实隔离/恢复烟雾测试。
 
-Agent能力分析规格见[分析设计](../doc/agent-skill-overlap-analysis-design.md)。根包、App、Helper及CLI保持远端macOS13要求；AgentInference独立SwiftPM包仅面向macOS14/arm64，固定GemmaEmbed0.4.1，由AgentOverlapAI通过本机stdin/stdout调用。模型及SDK许可随App打包，模型固定大小/SHA-256由脚本校验。Agent仅在支持的平台启用，不改变扫描算法、删除/文件恢复或发布门禁；已授权的首页、标题栏和独立扫描控制另外维护。
+Agent能力分析规格见[分析设计](../doc/agent-skill-overlap-analysis-design.md)。根包、App与Helper保持macOS13要求；AgentInference独立SwiftPM包仅面向macOS14/arm64，固定GemmaEmbed0.4.1，由AgentOverlapAI通过本机stdin/stdout调用。模型及SDK许可随App打包，模型固定大小/SHA-256由脚本校验。Agent分析仅在支持的平台启用，本地模型库存扫描不依赖该推理进程；六维度仍使用原有删除/文件恢复与发布门禁，本批未新增依赖。
 
 覆盖排名取其他同类对象前3名，并展示路径；累计分母使用全部提取能力描述，来源取去重并集，默认85%（含85%）预选，前3只是展示。既有对象/零关系按稳定身份复用，只有新增项补算；策略变化要求设置中显式重算。Skill/MCP使用同一规划及基线安全资格，保留覆盖来源与用户明确保留。分析不二次打开manifest，不连接MCP或读取凭证/参数。
 
-修改必须以origin/main逐文件、逐函数核对，保留用户历次明确授权的Agent功能、首页布局固定、四行导航、标题栏对齐、模块独立取消/继续扫描及必要依赖、打包、版本和文档。未要求的扫描算法、CLI契约、规则/文件恢复逻辑和发布脚本不得夹带修改。模块回调同时检查generation和单次运行令牌；Agent扫描期间的嵌入任务属于Agent模块取消范围。继续扫描重跑单个模块并保留同批其他结果，不能替换成整批重扫。完整核对记录见[范围审计](../doc/agent-only-scope.md)。
+修改须逐文件、逐函数核对，保留用户历次明确授权的Agent功能、首页布局固定、六行导航、标题栏对齐、模块独立取消/继续扫描及必要依赖、打包、版本和文档。独立CLI已按本批授权删除，不恢复其参数解析或JSON传输层；规则、保护、覆盖与只读行为继续由直接Core契约验证，Helper和发布门禁保留。模块回调同时检查generation和单次运行令牌；Agent扫描期间的嵌入任务属于Agent模块取消范围。继续扫描重跑单个模块并保留同批其他结果，不能替换成整批重扫。历史核对记录见[范围审计](../doc/agent-only-scope.md)，本批范围见[六维度实施计划](../doc/local-ai-projects-disk-plan.md)。
+
+### 本地模型、项目产物与卷容量
+
+[LocalAIModelScanner](../Sources/CleanerCore/LocalAIModelScanner.swift) 集中维护七类供应商的十个固定根、布局和执行复验。Hugging Face 以仓库为单元、LM Studio 以 publisher/model 为单元、Ollama 整库；Keras 限 models/datasets，GPT4All 限识别出的模型文件。不得把整个工具支持目录纳入清理，或把共享 blob 当作单独模型。验证候选和祖先无链接；内部链接不跟随、不重复计量。Core 候选保留显式选择标记，模型页始终要求手动选择并确认，不预选；项目页的自动勾选由设置开关控制，初始关闭，开启后包括通过检查的 Git 跟踪项。活动未知/运行/凭据/权限/预算保守拒绝；执行时重新验证范围、身份、大小和元数据指纹。指纹证明扫描快照的一致性，不应描述成全模型内容哈希。
+
+安全验证调用与是否允许内容变化解耦：模型目录和文件都严格拒绝变化，不能用 `allowsExecutionContentChanges` 同时控制是否调用最终验证。回归须覆盖初始验证之后、实际移动之前，以及公共执行器 Helper 拒绝处理而回退用户态后的终验；期间内容、活动或保护状态变化必须拒绝移动。不能只测文件身份变化而遗漏目录或等待边界。
+
+[ResourceCleanupView](../Sources/CleanerApp/ResourceCleanupView.swift) 使用与应用/大文件一致的 260pt 搜索、范围、排序和数量栏，窄窗口分行；模型按 `LocalAIModelProvider`、项目按 `project-root` 展开全宽分组，详情按需显示。全选/组选择只处理可见且可清理项，继续调用 AppModel 选择入口；筛选不丢选择，不影响其它维度，模块 limited 不等于所有已验证项目不可选。两个资源页均移除页头操作按钮。项目使用已有 [ProjectArtifactScanner](../Sources/CleanerCore/ProjectArtifacts.swift)，根目录由 `NSOpenPanel` 多选并经 `ProjectScanRootsStore` 保存；已有报告时仅刷新项目模块；设置无报告时只保存，首次全扫描从清理中心沿原权限准备流程启动，回归必须覆盖这些分支。项目由 manifest 识别；Git 跟踪内容可手选，项目自动勾选须由设置开关开启；未知 Git 状态、嵌套仓库目录、凭据、活动与读取失败保护不能因 ignored 或目录名被放开。模型和项目都不进入系统默认队列和Agent包含率预选。
+
+修改维度须同时覆盖 `ScanModuleID`、`CandidateSource`、导航、report payload、Coordinator、AppModel的启动/取消/继续/渐进合并、scope/default selection、执行验证和清理后跨模块对账，禁止仅新增页面却遗漏执行入口。六个模块结果彼此独立，旧 generation 或旧运行令牌不得回写。
+
+[DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 使用 `statfs` 的卷总量及当前用户可用量，已用为两者之差，不加 estimated purgeable。AppModel 异步刷新并公开失败状态，侧栏不能用 0 或旧快照掩盖读取失败。验收覆盖激活、扫描和清理后的自动刷新，候选逻辑字节和回执累计量不得充当物理释放量。相关夹具、脚本与日志集中放在 [Tests/local-ai-projects-disk](../Tests/local-ai-projects-disk)，最终测试数量和包验收事实以实际日志为准。
 
 ### 语言与版本管理
 
@@ -53,15 +71,17 @@ Agent能力分析规格见[分析设计](../doc/agent-skill-overlap-analysis-des
 
 `CleanerCore/Localization.swift` 在进程启动时固定本次语言，后台扫描和界面共用它。自有界面与诊断文案维护在 `Sources/CleanerCore/Resources/{en,zh-Hans}.lproj/Localizable.strings`。参数使用 `{0}`、`{1}`，允许翻译调整顺序，但不会重新解释文件名和路径中的占位符。文件名、用户 Skill 文档、第三方规则及历史记录中的原始内容不做自动翻译。原有卸载归属判断使用的标准证据字符串保持不变，仅翻译展示副本；Skill Markdown 的中英文标题识别也保持不变。系统权限说明位于 `Resources/{en,zh-Hans}.lproj/InfoPlist.strings`。
 
-版本从 `0.0.0` 开始，唯一仓库配置为根目录 `Version.json`，包含三段式 `version` 和递增正整数 `build`。每个完成的修改批次仅将第三位加一（如 `0.0.9` → `0.0.10`），第一位和第二位只能根据人类明确要求修改，不自动进位或重置。Info.plist 源文件中的零值只是打包占位符；构建脚本把解析后的同一版本写入主应用和 Helper 的元数据。设置页读取实际安装包元数据；直接运行未打包程序时显示“Unpackaged”，不伪报发行版本。
+版本的唯一仓库配置为根目录 `Version.json`，包含三段式 `version` 和递增正整数 `build`。每次运行 `build-app.sh`，在签名、模型资源与 SDK 等基础检查通过后、第一次 Swift 编译前调用一次 `version.py next-build`，自动将第三位和构建号加一（如 `0.0.9` → `0.0.10`），打印并保存这次使用的值。第一位和第二位只按人类明确要求修改，不自动进位或重置。Info.plist 源文件中的零值只是打包占位符；同一次分配的版本供主 App 和 Helper 共用。设置页读取实际安装包元数据；未打包程序显示“Unpackaged”。
 
 ```bash
-python3 Scripts/version.py show
-python3 Scripts/version.py bump        # 0.0.0 (1) → 0.0.1 (2)
-python3 Scripts/version.py bump patch  # 等价；只增加第三位和构建号
+python3 Scripts/version.py show     # 查看，不修改
+./Scripts/build-app.sh              # 内置自动递增，不要先手动 bump
+python3 Scripts/version.py resolve  # 只读解析；供验证/发布使用
 ```
 
-每批修改完成后、最终验证和提交前执行一次递增命令，版本配置与修改一起提交；重跑测试、重复构建或仅推送不会再次递增。命令拒绝 `major`、`minor` 和仅增加 `build` 的普通递增方式。用户明确要求修改前两位时，按要求编辑配置，再为该修改批次递增第三位一次。CI 的 `SUPERCLEANER_VERSION` 必须与配置一致，不能另行覆盖展示版本；`SUPERCLEANER_BUILD_NUMBER` 仍可提供独立的 CI 构建号。构建与发布脚本共用相同验证。正式发布仍必须提供真实的 `SUPERCLEANER_PREVIOUS_BUILD_NUMBER`，新构建号必须更大。版本管理不自动检查更新、发布或上传。
+重复执行编译脚本也会再次递增；这是用户最新要求，取代旧的“每修改批次手动递增一次”。普通测试、`verify-app.sh`、`create-dmg.sh` 和 `publish-release.sh` 不递增。基础检查或版本参数校验失败不写入新版本；已分配版本并进入编译后发生失败则保留该号码，下次编译再分配新号码，不回滚或重复使用。`version.py bump` 仅保留作显式维护命令，正常构建无需调用。
+
+CI 可选 `SUPERCLEANER_VERSION` 必须等于本次分配的展示版本；`SUPERCLEANER_BUILD_NUMBER` 如提供须严格大于旧配置构建号，并随实际版本写回 `Version.json`，保证随后不传环境变量也能解析同一版本。后续验证/发布中的环境值须与已分配版本一致；重复构建需提供新的 CI 值或移除覆写。普通递增拒绝 major、minor 和仅增加 build；人类明确指定发布版本时运行 `./Scripts/build-app.sh --version 0.5.0`，目标必须严格大于旧展示版本，直接使用 0.5.0 并增加构建号，后续普通编译恢复 patch 递增。正式发布仍需真实的 `SUPERCLEANER_PREVIOUS_BUILD_NUMBER`，发布构建号必须更大；版本管理不自动发布或上传。
 
 ```bash
 python3 -B -m unittest discover -s Tests -p 'test_version.py'
@@ -70,7 +90,7 @@ python3 Scripts/check-localizations.py
 
 构建时自动检查双语键、参数和内置规则说明的覆盖。核心契约验证语言默认值、偏好持久化、参数保护和实际包版本读取；打包验证分别以英语和中文检查资源，并核对主应用与 Helper 版本一致。
 
-`SUPERCLEANER_BUNDLE_ID`可设置正式主应用标识符，Helper标识符、Mach service、LaunchDaemon名称和BundleProgram从同一值生成。主App、Helper、CLI及AgentInference使用显式签名标识符；Apple签名启用Hardened Runtime与时间戳，本机开发身份使用本地签名模式。构建门禁验证`--self-check`：开发/示例Helper必须退出78，不能启动listener；正式身份检查不安装、注册或弹授权UI。
+`SUPERCLEANER_BUNDLE_ID`可设置正式主应用标识符，Helper标识符、Mach service、LaunchDaemon名称和BundleProgram从同一值生成。主App、Helper及AgentInference使用显式签名标识符；Apple签名启用Hardened Runtime与时间戳，本机开发身份使用本地签名模式。独立CLI的构建、复制、签名和required identifier已移除。构建门禁验证`--self-check`：开发/示例Helper必须退出78，不能启动listener；正式身份检查不安装、注册或弹授权UI。
 
 Helper 通过设置页显式注册，需放在 `/Applications`，并由系统管理员批准。再通过“验证连接并授权本次会话”开启最多 5 分钟受限操作。升级后可重新注册，先异步解除旧注册再安装本版本。恢复区内容与注册无关，移除 Helper 不清除内容；会话过期时需要权限的自动清除会失败并保留内容，不自动弹管理员授权框。
 
@@ -121,7 +141,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 10. resolution 结果未全部进入对应终态时必须保留 journal，不得错误清除恢复依据。
 11. 自动清理成功状态必须按标准化路径而非单个 UUID 清除跨模块别名。
 12. 新增规则必须更新 [`docs/rule-sources.md`](rule-sources.md)，包含来源、独立验证、测试夹具和责任人。
-13. 扫描态不得启动清理、应用卸载或失败项重试；UI 禁用必须由模型执行入口的同等硬门禁兜底，模块扫描控制契约必须覆盖四个扫描维度。维度底栏必须优先展示扫描状态；应用卸载与普通候选执行期间均需提供进度、停止后续项目入口并禁用重复确认删除。
+13. 扫描态的删除资格按当前模块结果与既有执行门禁判断，不能仅靠UI禁用；模块扫描控制契约必须覆盖六个扫描维度。维度底栏必须优先展示当前模块扫描状态；应用卸载与普通候选执行期间均需提供进度、停止后续项目入口并禁用重复确认删除。失败项重试遵循既有扫描互斥。
 
 ## 执行生命周期开发要求
 
@@ -156,7 +176,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 - 自动清理成功后按标准化路径清除跨模块选择、默认队列和旧失败状态；
 - 原子提交失败不会破坏上一版历史或调度。
 
-审计修复的定向回归入口为 `CoreContractChecks --check-review-recovery`、`--check-ownership`、`--check-review-coverage` 与 `--check-review-expiry`，默认全量契约同样执行它们。使用受限临时目录、内存文件系统和可控时钟，覆盖后台复验与恢复/清除/调度交错、管理来源变化后的旧关联项、Agent 深度与读取限制传播，以及五个异步边界过期；不注册 Helper、不访问真实用户清理目标。打包 CLI 另验证深度截断的真实 JSON 输出与只读行为。
+审计修复的定向回归入口为 `CoreContractChecks --check-review-recovery`、`--check-ownership`、`--check-review-coverage` 与 `--check-review-expiry`，默认全量契约同样执行它们。使用受限临时目录、内存文件系统和可控时钟，覆盖后台复验与恢复/清除/调度交错、管理来源变化后的旧关联项、Agent深目录及读取限制传播，以及五个异步边界过期；不注册 Helper、不访问真实用户清理目标。`--check-core-read-only` 直接调用Core验证分类、显式/默认计划、空历史、文件/mtime不变及保护清单的精确拒绝；不再要求CLI参数或JSON传输契约。
 
 ## 自动删除失败与重试
 
@@ -175,18 +195,18 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 
 ### 公开发布配置与规则协议
 
-`Resources/release-configuration.example.json` 是故意不可发布的模板。只填写正式 Bundle ID、Team ID、公开 Ed25519 公钥及 HTTPS 源；不得加入私钥、密码、公证凭据、Cookie、header 或带 token 的 feed query，未知字段会被拒绝。通过 `SUPERCLEANER_RELEASE_CONFIG=/绝对路径/public-config.json` 显式传给构建脚本；未设置时不会嵌入示例或启用网络更新。配置中的 Bundle ID 派生 App / Helper / CLI，若环境另设不同 ID 则构建失败。此配置校验不是证书、公证或线上发布验收。
+`Resources/release-configuration.example.json` 是故意不可发布的模板。只填写正式 Bundle ID、Team ID、公开 Ed25519 公钥及 HTTPS 源；不得加入私钥、密码、公证凭据、Cookie、header 或带 token 的 feed query，未知字段会被拒绝。通过 `SUPERCLEANER_RELEASE_CONFIG=/绝对路径/public-config.json` 显式传给构建脚本；未设置时不会嵌入示例或启用网络更新。配置中的 Bundle ID 派生 App / Helper / AgentInference 标识符，若环境另设不同 ID 则构建失败。此配置校验不是证书、公证或线上发布验收。
 
-规则更新接口为 camelCase 的 `SignedRuleUpdate` JSON：`packData` 是原始 RulePack JSON 字节的 base64，`signature` 是对这些精确字节进行 Ed25519 签名后的 64 字节 base64。RulePack 的日期沿用 Swift JSONEncoder 的 2001-01-01 UTC 参考秒数；不得把只读 CLI 的 ISO 8601 / snake_case 输出混作签名输入。`activationID` 属于本地状态，发布包必须省略；签名不是对 executionVersion 字符串计算。
+规则更新接口为 camelCase 的 `SignedRuleUpdate` JSON：`packData` 是原始 RulePack JSON 字节的 base64，`signature` 是对这些精确字节进行 Ed25519 签名后的 64 字节 base64。RulePack 的日期沿用 Swift JSONEncoder 的 2001-01-01 UTC 参考秒数；展示层的格式化JSON不得混作签名输入。`activationID` 属于本地状态，发布包必须省略；签名不是对 executionVersion 字符串计算。
 
 发布包 `issuedAt` 必须高于已见最高包和当前随包基线，并且不能超过本机时钟 10 分钟；重复的当前原始包可作无变化检查，显式回滚后的最高包重放也会拒绝。建议发布者持续携带累计 revokedRuleIDs，接收端保存并复验历史签名证据；证明数量上限 64、单包 1 MiB、网络 envelope 1.5 MB、状态 8 MiB，超过限制拒绝更新而非丢弃撤销。新版 App 随包撤销也会与已安装包合并。HTTP 源应返回完整原始内容并尊重 `Accept-Encoding: identity`。
 
-`CoreContractChecks --check-updates` 覆盖真实 URLSession delegate 的代送 HTTP 响应、重定向、大小/时间/取消限制及完整签名规则流程。打包门禁额外在临时 Fixture.app 中验证 CLI 从同一公开配置读取已安装规则，且不创建历史或改写状态。它们不证明实际发布主机的 TLS、证书或可用性，用户源仍待配置验证。
+`CoreContractChecks --check-updates` 覆盖真实 URLSession delegate 的代送 HTTP 响应、重定向、大小/时间/取消限制及完整签名规则流程。打包门禁改用 `--check-packaged-rule-config /绝对路径/SuperCleaner.app`：复制契约工具自身和实际打包Core资源进入临时Fixture.app，直接验证公开配置、资源定位和已安装签名规则生效，且不创建历史或改写规则状态。该检查保留固定配置和签名规则门禁，不依赖已删除的用户CLI，也不证明实际发布主机的TLS、证书或可用性。
 
 - 卸载图契约覆盖不同名称副本、签名应用组、独立 Label 的显式服务引用、二进制 plist、配置去敏、Homebrew/Steam 交回原渠道、真实临时 BOM 和旧计划复验。`CoreContractChecks --check-ownership` 可单独运行。系统关联文件始终保护；挂载卷应用只参与归属，不可直接删除。
 
 - Helper：安装/异步移除、系统批准、双向签名 XPC、显式管理员会话和受限应用文件操作已接入主 App。`CoreContractChecks --check-helper` 验证无链接路径、UID/plan/身份、授权、移动恢复清除、预算、执行路由与迟到完成恢复；打包 self-check 仅检查身份，不注册或调用特权操作。真实安装/授权/连接仍须正式配置及干净 Mac；ad-hoc / 示例身份必须拒绝启动。
-- 规则：签名网络分发、离线导入和回滚已接入设置页，生产扫描及 CLI 共用当前包和发布公钥。执行身份含结构化摘要与激活 ID，必须随计划传递并在执行前重新加载。撤销与 high-water 不能随回滚丢失；禁止恢复固定 `bundled-1` 的生产路径。
+- 规则：签名网络分发、离线导入和回滚已接入设置页，生产扫描通过 `CleanupRuntime` 使用当前包和发布公钥，直接Core契约保留该配置验证。执行身份含结构化摘要与激活 ID，必须随计划传递并在执行前重新加载。撤销与 high-water 不能随回滚丢失；禁止恢复固定 `bundled-1` 的生产路径。
 - 发布：脚本默认要求有效固定证书，缺失即失败。即使本机开发签名验证通过，也不能证明Developer ID、公证、staple或Gatekeeper发布链完成。
 
 ### 应用更新与发布脚本
@@ -199,7 +219,7 @@ swift run CoreContractChecks --check-installed-uninstall '/Applications/Example.
 
 - `SUPERCLEANER_RELEASE_CONFIG`：完整公开 JSON 的绝对路径。
 - `SUPERCLEANER_SIGN_IDENTITY`：Developer ID Application 证书名称或 SHA-1。
-- `SUPERCLEANER_VERSION`：可选，若提供，必须与 `Version.json` 的展示版本一致；`SUPERCLEANER_BUILD_NUMBER` 可提供独立的递增正整数构建号，构建与发布时必须一致。
+- `SUPERCLEANER_VERSION`：构建时如提供，必须等于本次分配的目标版本（普通 patch 递增或显式 `--version`）；后续发布时须与已写入 `Version.json` 的版本一致。`SUPERCLEANER_BUILD_NUMBER` 如提供须大于旧构建号，实际值写回配置；未提供则旧号加一。
 - `SUPERCLEANER_PREVIOUS_BUILD_NUMBER`：上次正式构建号；首次发布为 0。必须从真实发布记录取得，门禁不能证明这个人工输入正确。
 - `SUPERCLEANER_NOTARY_PROFILE`、`SUPERCLEANER_SPARKLE_ACCOUNT`：已有公证 Profile / Sparkle Ed25519 Keychain account；脚本不创建或导出私钥。
 
@@ -255,3 +275,41 @@ Top3路径tooltip：完整路径从同一targetID去掉skill|或mcp|前缀，显
 Agent行底线和高亮必须在同一内容padding后绘制，ListRowBackground仅透明；不要混用系统整行背景和内层overlay，从而引入行内边距/高度差。
 
 Agent双栏验收：Skill/MCP切换及长名称/路径时右栏起点保持一致，标题与各覆盖项名称/路径左对齐，比例保持固定数值列；无结果状态也使用相同360pt右栏。左栏minWidth=0允许收缩，覆盖栏优先保持宽度。不要恢复每行MCP服务器数量徽标。FDA Available来自只读探测，App管理不做试删或伪造Available。
+
+全部默认清理必须复用 DefaultCleanupSelection 的可执行集合；系统与大文件默认项需仍在 selectedIDs，Agent 需同时属于自动预选 IDs。修改选中或自动预选时使缓存失效；分模块统计在全局父子/重复去重后计算，零值和手动维度不显示。三张安全卡直接放在标题下、扫描按钮行上方；不再展示原两行说明。回归覆盖 Agent 单独可执行、取消勾选、活动/保护、异步预选与扫描门禁；只读夹具不执行真实清理。
+
+跨模块默认计划通过 DefaultCleanupSelection.buildPlan(using:) 将原始候选先交给 PlanBuilder；不得将已去重的展示候选直接当成计划输入，以免系统安装包别名或父目录遮蔽大文件保留副本证明。执行和回执使用最终 plan.selectedItems。
+
+三张安全卡和下方操作行统一使用左 52pt、右 24pt 的外边距；左右边界分别对齐标题文字和废纸篓按钮右边缘，安全卡三列与操作行均用 12pt 间距，避免把边距分别加在首列与末列。
+
+Scan 按钮可见高度为 56pt（约原来的两倍），使用专用 SwiftUI ButtonStyle 保留按压、禁用、焦点轮廓和原生 Button 无障碍语义，计时在按钮右侧，左右外边界保持一致。模型/项目页的顶部 NSButton 复选框显示本地化 Select All/全选，组内仍为无文字小复选框；顶部摘要至少 200pt，计数使用固有宽度，ViewThatFits 在窄窗口分行。Project Artifacts 的标题、侧栏和首页统一来自同一个翻译条目。
+
+项目目录设置使用草稿和同一个持久化入口，三行视口不能裁掉保存范围；移除仅改配置。自检覆盖默认完整列表、去重、空列表、重开、实际写入失败保留旧配置、不触发首次扫描、只刷新项目、取消刷新后的旧范围门禁，以及保存时禁止新扫描/权限继续/模块续跑与清理。配置错误必须在项目页无结果时也可见。原生验收只编辑草稿后撤销，不改变用户真实配置，不执行清理；记录见 [设置验证](../Tests/project-scan-roots-settings/README.md)。
+
+资源默认值须在 AppModel 模块结果边界应用，不能放在 View.onAppear 或每次报告变化时全选。回归覆盖两维度首次/渐进发布、受保护/空集合回退 All、旧 ID 替换、本模块刷新保留其它维度、搜索排序保留、用户取消后导航/无关发布/最终汇总不重选，并确认只有项目预选加入首页队列、模型无默认且手动选择不加入。使用既有导航自检与只读原生扫描，材料见 [验证记录](../Tests/resource-cleanable-defaults/README.md)。
+
+Agent 默认空回退必须区分自动默认和用户主动筛选；Picker、列表和空态继续共用同一 agentItemsSelectionFilter。类型/平台/选择变化后缓存必须刷新，Skill/MCP 过滤循环内不得反复扫描全部列表来解析默认。回归包括延迟预选、自动 Selected/All 互换、手动空 Selected 和 All 保留、类型平台切换和既有性能门禁。大文件初始 All 已符合要求，手动空重复范围不自动切换。验证见 [本批记录](../Tests/agent-empty-default-scope/README.md)。
+
+上一轮资源汇总和 DMG 归属见 [实施计划](../doc/cleanup-center-resource-sync-plan.md)。ProjectArtifactScanner 识别工程内独立及构建目录内的 DMG；Git 跟踪、路径/身份/活动检查继续用于执行复验。ProjectInstallerOwnership 从大文件展示清单和树中排除已归项目的 DMG，原始候选保留以便刷新与副本保留证明校验。项目/大文件渐进结果先后不影响最终归属。构建进程目录仅进入 projectActivePaths，具体文件仍进入 activePaths；项目目录保持活动保护，未打开 DMG 不因 cwd 被整目录保护。项目根待刷新时，首页排除旧项目默认项。验收与逐文件审计见 [本批记录](../Tests/cleanup-center-resource-sync/README.md)。
+
+项目 DMG 接管大文件副本时保留 largeFileProof，并保护其保留文件及覆盖该文件的目录。项目范围变化按路径迁移已选/撤选状态，不重新勾选人工撤选；单项取消子 DMG 时同步取消包含它的目录，选中目录包含其可清理子项。分组和首页容量都按最终目录操作去重。
+
+本轮更新见 [计划](../doc/project-installer-discovery-plan.md)。项目 DMG 发现与副本证明由 ProjectArtifactScanner 承担；大文件发布前依据同一项目根/manifest 规则排除其清单与容量树，避免临时默认数后续消失。正式 App 显式链接实际 SDK 与独立的 macOS 13 最低版本，记录 DTSDKName 并与 Mach-O 复核。删除手动标题栏背景干预，由原生 NavigationSplitView 和 unified 工具栏管理边界；不再混淆 SDK 与最低系统版本，不使用固定偏移。模型保留分类，但始终手选；证据见 [验证记录](../Tests/project-installer-discovery/README.md)。
+
+当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](../doc/dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
+
+
+本轮项目选择策略见 [实施计划](../doc/project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包、保护和活动；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
+
+
+关闭/退出共用 requestEmptyTrash 的工厂及执行器，关闭提醒额外显示“不再提醒”，手动清空及明确退出保持无 checkbox，不复制弹窗。抑制只改原偏好，失败也尊重选择；成功才确认清空量。Cancel 不清空并允许明确退出，同意清空后等任务/容量/错误提示结束再退出；willTerminate 后不得再次弹关闭提醒。红色关窗仍保留后台会话。现行证据见 [关闭提醒回归](../Tests/close-trash-reminder-choice/README.md) 和 [真实进程退出回归](../Tests/quit-without-emptying/README.md)。
+
+0.4.30 移除扫描对清空的限制；确认框只在取得执行锁后显示，Empty Trash 始终可用。真实模型与模拟执行器的并发进度、两个入口及成功/失败验证见 [扫描中清空](../Tests/trash-during-scan/README.md)。
+
+首次进入性能必须从空计划缓存测量列表、底栏和首屏行，另测图标；旧测试预热后再计时不能替代。只准备当前行、空选择汇总直接零，批量保护仍逐项检查实际路径；新报告、保护变更、进程启动/退出和 receipt 选择回归必须保持。见 [性能计划](../doc/application-first-entry-plan.md) 与 [逐文件验证](../Tests/application-first-entry/README.md)。
+# 0.4.27 验证入口
+
+- 导航状态：`.build/debug/CleanerApp --navigation-presentation-self-check`，六模块及旧报告/终态边界。
+- Trash 执行门禁：`.build/debug/CleanerApp --trash-emptying-self-check`，只使用模拟执行器。
+- 原生关闭：`zsh Tests/exact-trash-dialog/run-native-check.sh`，增加繁忙时重复 close、延迟成功记账、空清理回归；不接触真实废纸篓。
+- 本轮日志、失败基线、逐文件说明：[Tests/module-progress-trash-reminder](../Tests/module-progress-trash-reminder/README.md)。

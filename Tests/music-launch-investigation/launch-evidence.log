@@ -1,0 +1,40 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-18 13:11:48.015 Df mediaremoted[578:3796f1] [com.apple.amp.mediaremote:RemoteControl] Received command from client <MRDMediaRemoteClient 0x74b0cced00, bundleIdentifier = com.apple.bluetoothd, pid = 638, entitlements=264241664>: <MRDMutableRemoteControlCommand 0x74b0cbc9c0, command = Play, SenderDevice = <Mac>, SenderBundleIdentifier = <com.apple.bluetoothd>, SenderPID = <638>
+, commandID = DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB
+, remote control interface = (null)
+, appOptions = 0
+, path = 〖 􁊸 LOCL (Mac) ❯ 􁐜 ❯ 􀭉 〗
+, unresolvedPath = 〖 􂞷 ❯ 􁐜 ❯ 􀭉 〗
+, nowPlayingAppStackOperation=NO
+>
+2026-11-18 13:11:48.017 Df mediaremoted[578:3796f1] [com.apple.amp.mediaremote:RemoteControl] Destination app com.apple.Music not available for command <MRDMutableRemoteControlCommand 0x74b0cbcde0, command = Play, SenderDevice = <Mac>, SenderBundleIdentifier = <com.apple.bluetoothd>, SenderPID = <638>
+, commandID = DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB
+, remote control interface = (null)
+, appOptions = 0
+, path = 〖 􁊸 LOCL (Mac) ❯ 􁐜 ❯ 􀭉 〗
+, unresolvedPath = 〖 􂞷 ❯ 􁐜 ❯ 􀭉 〗
+, nowPlayingAppStackOperation=NO
+>, and command requested a launch. Enqueueing command for later execution.
+2026-11-18 13:11:48.017 Df mediaremoted[578:3796f1] [com.apple.amp.mediaremote:rr] Request: MRDLaunchApplicationWithReason<command<Play>=DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB> for com.apple.Music
+2026-11-18 13:11:48.088 I  launchservicesd[617:379922] [com.apple.launchservices:cas] LSApplication::CreatePendingApplication(), creating [ 0x0-0x2a92a9]  session="LSSession:id=100020 @ 0x1053942a0 Apps:88 " with info={ "ApplicationType"="Foreground", "CFBundleExecutablePath"="/System/Applications/Music.app/Contents/MacOS/Music", "CFBundleExecutablePathDeviceID"=16777230, "CFBundleExecutablePathINode"=1152921500311889637, "CFBundleIdentifier"="com.apple.Music", "CFBundleName"="Music", "CFBundlePackageType"="APPL", "LSASN"=ASN:0x0-0x2a92a9:, "LSBundlePath"="/System/Applications/Music.app", "LSBundlePathDeviceID"=16777230, "LSBundlePathINode"=1152921500311889632, "LSDisplayName"="音乐", "LSExecutableFormat"="LSExecutableMachOFormat", "LSFrontApplicationSeed"=1163, "LSLaunchDoNotBringFrontmost"=false, "LSLaunchEventRecordTime"=161522255919875, "LSLaunchTime"=now-ish 2026/11/18 13:11:48, "LSLaunchedByLaunchServices"=true, "LSLaunchedWithLaunchD"=true, "LSParentASN"=ASN:0x1-0x242:(pid=578), "LSStoppedState"=true, "LSUserActivityCount"=0, "LSWantsToComeForwardAtRegistrationTimeKey"=true, "pid"=94569 }
+2026-11-18 13:11:48.098 I  mediaremoted[578:379e5f] [com.apple.runningboard:assertion] Acquiring assertion: <RBSAssertionDescriptor| "post-launch setup for  command<Play>=DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB" ID:(null) target:app<com.apple.Music(-1)>>
+2026-11-18 13:11:48.098 Df mediaremoted[578:379e5f] [com.apple.amp.mediaremote:rr] Response: MRDLaunchApplicationWithReason<command<Play>=DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB> returned for com.apple.Music in 0.0809 seconds
+2026-11-18 13:11:48.473 Df mediaremoted[578:379e5f] [com.apple.amp.mediaremote:RemoteControl] Sending previously queued command <MRDMutableRemoteControlCommand 0x74b0cbcc00, command = Play, SenderDevice = <Mac>, SenderBundleIdentifier = <com.apple.bluetoothd>, SenderPID = <638>
+, commandID = DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB
+, remote control interface = (null)
+, appOptions = 0
+, path = 〖 􁊸 LOCL (Mac) ❯ 􁐜 ❯ 􀭉 〗
+, unresolvedPath = 〖 􂞷 ❯ 􁐜 ❯ 􀭉 〗
+, nowPlayingAppStackOperation=NO
+> to client <MRDMediaRemoteClient 0x74b0ccf840, bundleIdentifier = com.apple.Music, pid = 94569, entitlements=264348160>.
+2026-11-18 13:11:48.473 Df mediaremoted[578:379e5f] [com.apple.amp.mediaremote:RemoteControl] Sending command <MRDMutableRemoteControlCommand 0x74b0cbcc00, command = Play, SenderDevice = <Mac>, SenderBundleIdentifier = <com.apple.bluetoothd>, SenderPID = <638>
+, commandID = DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB
+, remote control interface = (null)
+, appOptions = 0
+, path = 〖 􁊸 LOCL (Mac) ❯ 􁐜 ❯ 􀭉 〗
+, unresolvedPath = 〖 􂞷 ❯ 􁐜 ❯ 􀭉 〗
+, nowPlayingAppStackOperation=NO
+> to com.apple.Music (com.apple.Music-94569).
+2026-11-18 13:11:48.473 Df mediaremoted[578:379e5f] [com.apple.amp.mediaremote:rr] Request: sendRemoteControlCommand<DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB> for 〖 􁊸 LOCL (Mac) ❯ 􁐜 ❯ 􀭉 〗
+2026-11-18 13:11:48.473 Df mediaremoted[578:379e5f] [com.apple.amp.mediaremote:RemoteControl] Set AVSystemController_AllowAppToInitiatePlaybackTemporarilyAttribute for command DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB
+2026-11-18 13:11:48.474 I  mediaremoted[578:379e5f] [com.apple.runningboard:assertion] Acquiring assertion: <RBSAssertionDescriptor| "Sending remote control command DCABFBCC-FDC6-4589-AD87-12AAFB4E91CB" ID:(null) target:94569>

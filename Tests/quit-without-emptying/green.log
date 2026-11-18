@@ -1,0 +1,5 @@
+PASS: real AppModel preserves active cleanup and dismisses only completed hidden results before the shared Trash confirmation
+PASS: trash confirmation cancellation preserves reminder and never executes
+PASS: trash success, timeout, operation cancellation, permission denial and unconfirmed completion; nonempty selection gates; cleanup added during operation; capacity refresh
+PASS: trash suppression persists; process success requires exact confirmed-empty token and zero exit status; no Finder commands were sent
+PASS: close/quit reuse the same two-choice confirmation and executor, allow Cancel to quit without emptying, wait for an approved operation and capacity even on failure, preserve reminders and prevent duplicate termination; no Finder commands

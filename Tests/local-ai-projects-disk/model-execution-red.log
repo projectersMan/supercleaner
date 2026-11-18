@@ -1,0 +1,39 @@
+Building for debugging...
+[Using on-disk description]
+[2 / 7] CleanerCoreTests-product
+[5 / 10] CleanerCoreTests-product
+[10 / 14] CleanerCoreTests-product
+Build complete! (1.51秒)
+Test Suite 'Selected tests' started at 2026-11-17 11:29:49.826.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 11:29:49.826.
+Test Suite 'LocalAIModelExecutionTests' started at 2026-11-17 11:29:49.826.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:12: error: -[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove] : XCTAssertEqual failed: ("[CleanerCore.OperationStatus.succeeded]") is not equal to ("[CleanerCore.OperationStatus.skippedProtected]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:78: error: -[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove] : XCTAssertTrue failed - A stale model must never reach the filesystem move operation
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:79: error: -[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove]' failed (0.214 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:49: error: -[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:78: error: -[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity] : XCTAssertTrue failed - A stale model must never reach the filesystem move operation
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:79: error: -[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity]' failed (0.016 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:37: error: -[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove] : XCTAssertEqual failed: ("[CleanerCore.OperationStatus.succeeded]") is not equal to ("[CleanerCore.OperationStatus.skippedProtected]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:78: error: -[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove] : XCTAssertTrue failed - A stale model must never reach the filesystem move operation
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:79: error: -[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove]' failed (0.020 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:27: error: -[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove] : XCTAssertEqual failed: ("[CleanerCore.OperationStatus.succeeded]") is not equal to ("[CleanerCore.OperationStatus.skippedProtected]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:78: error: -[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove] : XCTAssertTrue failed - A stale model must never reach the filesystem move operation
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift:79: error: -[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove]' failed (0.015 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testUnchangedModelDirectoriesAndFilesRemainExecutable]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testUnchangedModelDirectoriesAndFilesRemainExecutable]' passed (0.037 seconds).
+Test Suite 'LocalAIModelExecutionTests' failed at 2026-11-17 11:29:50.130.
+	 Executed 5 tests, with 12 failures (0 unexpected) in 0.303 (0.304) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 11:29:50.130.
+	 Executed 5 tests, with 12 failures (0 unexpected) in 0.303 (0.304) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 11:29:50.130.
+	 Executed 5 tests, with 12 failures (0 unexpected) in 0.303 (0.304) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

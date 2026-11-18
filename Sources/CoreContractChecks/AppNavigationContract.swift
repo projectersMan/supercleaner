@@ -3,7 +3,7 @@ import CleanerCore
 func runAppNavigationContracts() {
     require(
         AppDestination.allCases.map(\.title) == [
-            "概览", "清理中心", "系统清理", "应用卸载", "重复大文件", "Agent 环境", "恢复记录", "设置",
+            "概览", "清理中心", "系统清理", "应用卸载", "重复大文件", "Agent 环境", "本地 AI 模型", "项目产物", "恢复记录", "设置",
         ].map { L10n.text($0) },
         "sidebar must expose the approved task-centered destinations"
     )
@@ -37,6 +37,8 @@ func runAppNavigationContracts() {
         .applications: .applications,
         .largeFiles: .largeFiles,
         .agentEnvironment: .agentEnvironment,
+        .localAIModels: .localAIModels,
+        .projects: .projects,
     ]
     for (module, destination) in expectedScanDestinations {
         require(
@@ -80,7 +82,7 @@ func runAppNavigationContracts() {
         "a stopped scan must not leave a destination in a scanning placeholder"
     )
 
-    for destination in [AppDestination.systemCleanup, .applications, .largeFiles, .agentEnvironment] {
+    for destination in [AppDestination.systemCleanup, .applications, .largeFiles, .agentEnvironment, .localAIModels, .projects] {
         for state in [ScanModuleState.completed, .limited, .failed, .cancelled] {
             require(!policy.showsModuleScanControls(for: destination, globalScanIsRunning: true, moduleState: state), "terminal modules must hide scan controls while other modules scan")
         }

@@ -1,0 +1,11 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 1]
+[5 / 10] SuperCleaner_CleanerCore
+[5 / 8] CleanerApp-product
+[9 / 12] CleanerApp-product
+[10 / 12] CleanerApp-product
+[11 / 13] CleanerApp-product
+[13 / 15] CleanerApp-product
+Build complete! (5.37秒)
+FAIL: navigation presentation new resource results must show/select Cleanable without entering dashboard default cleanup

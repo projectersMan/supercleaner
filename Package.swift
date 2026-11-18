@@ -11,7 +11,6 @@ let package = Package(
         .executable(name: "CleanerApp", targets: ["CleanerApp"]),
         .executable(name: "CleanerHelper", targets: ["CleanerHelper"]),
         .executable(name: "CoreContractChecks", targets: ["CoreContractChecks"]),
-        .executable(name: "supercleaner", targets: ["CleanerCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
@@ -28,7 +27,6 @@ let package = Package(
         .executableTarget(name: "CleanerApp", dependencies: ["CleanerCore", "AgentOverlapAI", .product(name: "Sparkle", package: "Sparkle")],
                           linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
         .executableTarget(name: "CleanerHelper", dependencies: ["CleanerCore"]),
-        .executableTarget(name: "CleanerCLI", dependencies: ["CleanerCore"]),
         .executableTarget(name: "CoreContractChecks", dependencies: ["CleanerCore"]),
         .testTarget(name: "CleanerCoreTests", dependencies: ["CleanerCore"]),
     ]

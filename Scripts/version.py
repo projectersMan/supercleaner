@@ -30,7 +30,7 @@ def read_version(path=VERSION_FILE):
 def resolve(data, environment):
     version = environment.get("SUPERCLEANER_VERSION", data["version"])
     if version != data["version"]:
-        raise ValueError("SUPERCLEANER_VERSION must match Version.json; change the checked-in version under the project version policy")
+        raise ValueError(f"SUPERCLEANER_VERSION must match the resolved release version {data['version']}")
     raw_build = str(environment.get("SUPERCLEANER_BUILD_NUMBER", data["build"]))
     if not re.fullmatch(r"[1-9][0-9]{0,17}", raw_build):
         raise ValueError("invalid SUPERCLEANER_BUILD_NUMBER")
@@ -39,10 +39,22 @@ def resolve(data, environment):
 
 def increment(data, part="patch"):
     if part != "patch":
-        raise ValueError("routine changes may only increment patch; major/minor require an explicit human request and an edit to Version.json")
+        raise ValueError("routine changes may only increment patch; explicit releases use next-build --version")
     components = [int(value) for value in data["version"].split(".")]
     components[2] += 1
     return validate(".".join(map(str, components)), data["build"] + 1)
+
+
+def prepare_build(data, environment, requested_version=None):
+    next_version = increment(data)
+    if requested_version is not None:
+        next_version = validate(requested_version, next_version["build"])
+        if tuple(map(int, requested_version.split("."))) <= tuple(map(int, data["version"].split("."))):
+            raise ValueError("explicit release version must exceed the previous checked-in version")
+    resolved = resolve(next_version, environment)
+    if resolved["build"] <= data["build"]:
+        raise ValueError("SUPERCLEANER_BUILD_NUMBER must exceed the previous checked-in build")
+    return resolved
 
 
 def save(data, path=VERSION_FILE):
@@ -68,12 +80,16 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("show", help="show the checked-in version")
     commands.add_parser("resolve", help="print version and build, including validated CI overrides")
-    bump = commands.add_parser("bump", help="increment patch and build once per completed change batch; never change major/minor")
+    next_build = commands.add_parser("next-build", help="advance and save version/build for one build invocation; print the resolved values")
+    next_build.add_argument("--version", help="explicit release version; must exceed the checked-in version")
+    bump = commands.add_parser("bump", help="manually increment patch and build; normal builds already advance automatically")
     bump.add_argument("part", nargs="?", default="patch", choices=("patch",))
     args = parser.parse_args()
     data = read_version()
-    if args.command == "resolve":
-        data = resolve(data, os.environ)
+    if args.command in ("resolve", "next-build"):
+        data = prepare_build(data, os.environ, args.version) if args.command == "next-build" else resolve(data, os.environ)
+        if args.command == "next-build":
+            save(data)
         print(data["version"])
         print(data["build"])
     else:

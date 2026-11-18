@@ -1,0 +1,95 @@
+Building for debugging...
+[Using on-disk description]
+[2 / 20] CleanerCore
+[5 / 23] CleanerCore
+[8 / 22] CleanerCore
+[15 / 16] CleanerCore-product
+[15 / 17] CleanerHelper-product
+[21 / 21] CoreContractChecks-product
+Build complete! (2.98秒)
+Test Suite 'Selected tests' started at 2026-11-17 11:30:55.157.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 11:30:55.158.
+Test Suite 'ContentChangeCleanupTests' started at 2026-11-17 11:30:55.158.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testApprovedScopesAcceptWritesAndRemainRecoverable]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testApprovedScopesAcceptWritesAndRemainRecoverable]' passed (0.169 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHelperMoveAllowsWritesButRejectsReplacement]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHelperMoveAllowsWritesButRejectsReplacement]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHistoricalResidueValidatorAllowsContentUpdates]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testHistoricalResidueValidatorAllowsContentUpdates]' passed (0.004 seconds).
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testNonCacheAgentContentStillRequiresUnchangedSnapshot]' started.
+Test Case '-[CleanerCoreTests.ContentChangeCleanupTests testNonCacheAgentContentStillRequiresUnchangedSnapshot]' passed (0.000 seconds).
+Test Suite 'ContentChangeCleanupTests' passed at 2026-11-17 11:30:55.333.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.174 (0.175) seconds
+Test Suite 'ExecutionTests' started at 2026-11-17 11:30:55.333.
+Test Case '-[CleanerCoreTests.ExecutionTests testChangedIdentityIsSkippedWithoutMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testChangedIdentityIsSkippedWithoutMutation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRefusalPreventsMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRefusalPreventsMutation]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchReusesValidationAndCoalescesGeneralActivityLookup]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchReusesValidationAndCoalescesGeneralActivityLookup]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRuleChangePreventsMutation]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testPreparedBatchRuleChangePreventsMutation]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ExecutionTests testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks]' started.
+Test Case '-[CleanerCoreTests.ExecutionTests testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks]' passed (0.026 seconds).
+Test Suite 'ExecutionTests' passed at 2026-11-17 11:30:55.363.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.030 (0.030) seconds
+Test Suite 'FileIdentityParityTests' started at 2026-11-17 11:30:55.363.
+Test Case '-[CleanerCoreTests.FileIdentityParityTests testNativeIdentityMatchesFoundationForFilesDirectoriesAndLinks]' started.
+Test Case '-[CleanerCoreTests.FileIdentityParityTests testNativeIdentityMatchesFoundationForFilesDirectoriesAndLinks]' passed (0.004 seconds).
+Test Suite 'FileIdentityParityTests' passed at 2026-11-17 11:30:55.367.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'HelperExecutionSafetyTests' started at 2026-11-17 11:30:55.367.
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' started.
+Test Case '-[CleanerCoreTests.HelperExecutionSafetyTests testRestartedInputMethodCannotReachPrivilegedMove]' passed (0.001 seconds).
+Test Suite 'HelperExecutionSafetyTests' passed at 2026-11-17 11:30:55.368.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LocalAIModelExecutionTests' started at 2026-11-17 11:30:55.368.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testDeepWeightChangeDuringQuarantinePreparationPreventsDirectoryMove]' passed (0.024 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testFileChangeDuringHelperFallbackPreservesStrictIdentity]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove]' passed (0.024 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testProviderStartDuringPreparationPreventsSingleModelFileMove]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testUnchangedModelDirectoriesAndFilesRemainExecutable]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelExecutionTests testUnchangedModelDirectoriesAndFilesRemainExecutable]' passed (0.038 seconds).
+Test Suite 'LocalAIModelExecutionTests' passed at 2026-11-17 11:30:55.483.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.114 (0.114) seconds
+Test Suite 'LocalAIModelScannerTests' started at 2026-11-17 11:30:55.483.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testCancellationIsPropagated]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testCancellationIsPropagated]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testCredentialsInsideModelUnitBlockWholeUnit]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testCredentialsInsideModelUnitBlockWholeUnit]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testEntryBudgetRetainsBlockedPartialCandidateAndLimitation]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testEntryBudgetRetainsBlockedPartialCandidateAndLimitation]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExecutionRejectsChangedContentsAndNewSymlinkAncestor]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExecutionRejectsChangedContentsAndNewSymlinkAncestor]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExecutionRevalidatesProviderScopeActivityAndIdentity]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExecutionRevalidatesProviderScopeActivityAndIdentity]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExhaustedBudgetStopsBeforeInspectingFurtherModelCandidates]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExhaustedBudgetStopsBeforeInspectingFurtherModelCandidates]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testGenericReadErrorDoesNotMisreportPermissionDenial]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testGenericReadErrorDoesNotMisreportPermissionDenial]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testHuggingFaceSnapshotLinksDoNotDoubleCountBlobContent]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testHuggingFaceSnapshotLinksDoNotDoubleCountBlobContent]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testMissingChildIdentityReportsLimitationAndBlocksParent]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testMissingChildIdentityReportsLimitationAndBlocksParent]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderLayoutsKeepModelUnitsAndRequireManualSelection]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderLayoutsKeepModelUnitsAndRequireManualSelection]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderProcessesAndUnverifiedActivityBlockModels]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderProcessesAndUnverifiedActivityBlockModels]' passed (0.005 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderRootsExcludeUnsupportedFilesAndUnrecognizedBinaryNames]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testProviderRootsExcludeUnsupportedFilesAndUnrecognizedBinaryNames]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testRealFileSystemFixtureLeavesConfigOutsideModelScopeAndSkipsSnapshotLinks]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testRealFileSystemFixtureLeavesConfigOutsideModelScopeAndSkipsSnapshotLinks]' passed (0.024 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testRootAndCandidateSymlinksAreExcludedWithoutFollowingTargets]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testRootAndCandidateSymlinksAreExcludedWithoutFollowingTargets]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testUnreadableContentIsBlockedAndReportsCoverageInsteadOfSafeZero]' started.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testUnreadableContentIsBlockedAndReportsCoverageInsteadOfSafeZero]' passed (0.001 seconds).
+Test Suite 'LocalAIModelScannerTests' passed at 2026-11-17 11:30:55.540.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.056 (0.057) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-17 11:30:55.540.
+	 Executed 31 tests, with 0 failures (0 unexpected) in 0.379 (0.381) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 11:30:55.540.
+	 Executed 31 tests, with 0 failures (0 unexpected) in 0.379 (0.382) seconds

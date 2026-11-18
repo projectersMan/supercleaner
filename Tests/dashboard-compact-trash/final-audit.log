@@ -1,0 +1,7 @@
+PASS: 344 valid local Markdown links; no new broken links
+Preserved historical missing generated-output links: 1
+doc/agent-only-scope.md: ../build/SuperCleaner-0.2.25-58.dmg
+PASS: generated fixtures, standalone test binary and old installation backup removed
+PASS: git diff --check
+PASS: final release log: 300 tests / 0 failures; Core contracts and packaged resource/trash checks passed
+Production source remained unchanged after final build; only documentation and verification records were finalized.

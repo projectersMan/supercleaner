@@ -1,0 +1,23 @@
+{
+  "version": {
+    "version": "0.4.16",
+    "build": 130
+  },
+  "installed_version_match": true,
+  "source_unchanged_after_final_build": true,
+  "checks": {
+    "git diff --check": {
+      "exit": 0,
+      "output": ""
+    },
+    "current doc links": {
+      "exit": 0,
+      "output": "PASS: current documentation local links in 9 files"
+    }
+  },
+  "project_root_configuration_unchanged": true,
+  "head": "1062a42",
+  "worktree_status_entries": 106,
+  "commit_or_push_performed": false,
+  "native_observations": "Project 5 items / 4.71 GB; Models 3 / 2.08 GB; default total 8 / 6.79 GB. Deselecting DMG synchronized project 4 / 4.41 GB and total 7 / 6.49 GB. Restored; no header actions; no duplicate large-file DMG. Other read-only modules still running at observation; no cleanup executed."
+}

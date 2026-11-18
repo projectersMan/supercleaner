@@ -1,0 +1,5 @@
+PASS: 0.5.0 (145), verified DMG and staged LFS pointer agree
+PASS: 246 build inputs unchanged after full verification
+PASS: current user/developer/architecture/release/QA document links resolve
+PASS: staged and working diffs pass whitespace checks; no unstaged changes; required author email configured
+BASE: 1062a42d4aeeb94f9734e6acea794747cc89cbbf

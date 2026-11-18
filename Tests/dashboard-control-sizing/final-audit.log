@@ -1,0 +1,13 @@
+PASS: 450 local Markdown links checked; no newly broken links.
+Pre-existing missing historical artifact: doc/agent-only-scope.md -> ../build/SuperCleaner-0.2.25-58.dmg
+PASS: git diff --check and per-file review; source/translation edits are limited to the requested controls and title.
+PASS: 305 Release tests, core contracts, 1259 bilingual messages, complete package verification and DMG checks.
+PASS: installed 0.4.9 (123) strict signature checked after reopening; versions and hashes recorded in installation.log.
+PASS: native ordinary-window screenshot confirms 56pt visible scan button, same left edge/width range and six rows.
+PASS: native system-quarter minimum window confirms elapsed text below taller disabled scan button and all six rows without scrolling.
+PASS: Local AI Models and Project Artifacts Select All labels and counts visible at ordinary/minimum widths; native project select-all selected 4 eligible items then restored zero, protected items unchanged.
+PASS: Project Artifacts capitalization in sidebar, page title and dashboard.
+PASS: Return to Previous Size restored original window; own read-only scan exited normally and final app reopened idle.
+PASS: own prior-install backup and self-check homes removed; app data/preferences directories preserved.
+Scanning explanation verified against source and native results: fixed model locations/metadata, configured project roots, parallel modules; model limitations relate to tool activity/verification.
+No user cleanup, Trash emptying, permission grant, Helper registration, commit or push performed.

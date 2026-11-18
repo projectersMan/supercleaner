@@ -1,0 +1,27 @@
+Building for debugging...
+[Using on-disk description]
+[2 / 17] CleanerCore
+[5 / 20] CleanerCore
+[15 / 16] CleanerCore-product
+[15 / 17] CleanerHelper-product
+[20 / 21] CleanerApp-product
+Build complete! (2.45秒)
+Test Suite 'Selected tests' started at 2026-11-17 14:24:34.320.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 14:24:34.321.
+Test Suite 'DefaultCleanupSelectionTests' started at 2026-11-17 14:24:34.321.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeOnlyStillSelectedRecommendationsAndAutomaticAgentItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeOnlyStillSelectedRecommendationsAndAutomaticAgentItems]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' passed (0.000 seconds).
+Test Suite 'DefaultCleanupSelectionTests' passed at 2026-11-17 14:24:34.342.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.021 (0.021) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-17 14:24:34.342.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.021 (0.021) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 14:24:34.342.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.021 (0.022) seconds

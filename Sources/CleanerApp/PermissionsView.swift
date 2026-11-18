@@ -1,4 +1,5 @@
 import CleanerCore
+import Foundation
 import SwiftUI
 
 struct PermissionsView: View {
@@ -6,12 +7,14 @@ struct PermissionsView: View {
     @State private var confirmsHelperInstall = false
     @State private var confirmsHelperRegistration = false
     @AppStorage(AppLanguage.preferenceKey) private var languagePreference = AppLanguage.english.rawValue
+    @AppStorage(TrashReminderState.suppressionPreferenceKey) private var suppressTrashReminder = false
+    @State private var projectRootsDraft: [URL] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("设置")).font(.largeTitle.bold())
-                Text(L10n.text("管理扫描权限、大文件标准和已删除项目保留时间。"))
+                Text(L10n.text("管理扫描权限、项目目录、大文件标准和已删除项目保留时间。"))
                     .foregroundColor(.secondary)
             }
             .padding(24)
@@ -19,6 +22,8 @@ struct PermissionsView: View {
             Form {
                 languageSection
                 versionSection
+                trashReminderSection
+                projectScanRootsSection
                 agentOverlapSection
                 PermissionAccessSection(model: model)
                 helperSection
@@ -31,7 +36,12 @@ struct PermissionsView: View {
                 quarantineSection
             }
             .formStyle(.grouped)
-            .task { await model.loadPermissions() }
+            .task {
+                await model.loadProjectScanRoots()
+                projectRootsDraft = model.projectScanRoots
+                await model.loadPermissions()
+            }
+            .onChange(of: model.projectScanRoots) { projectRootsDraft = $0 }
             .alert(L10n.text("安装受限 Helper？"), isPresented: $confirmsHelperInstall) {
                 Button(L10n.text("取消"), role: .cancel) {}
                 Button(L10n.text("请求系统注册")) { model.helper.install() }
@@ -78,6 +88,85 @@ struct PermissionsView: View {
             LabeledContent(L10n.text("应用版本"), value: AppVersion.current.version)
             LabeledContent(L10n.text("构建号"), value: AppVersion.current.build)
         }
+    }
+
+    private var trashReminderSection: some View {
+        Section(L10n.text("清理提醒")) {
+            Toggle(L10n.text("关闭窗口或退出时提醒清空废纸篓"), isOn: Binding(
+                get: { !suppressTrashReminder }, set: { suppressTrashReminder = !$0 }
+            ))
+            Text(L10n.text("仅控制自动提醒；手动点击清空废纸篓始终需要确认。"))
+                .font(.caption).foregroundColor(.secondary)
+        }
+    }
+
+    private var projectRootsHaveChanges: Bool {
+        Set(projectRootsDraft.map(\.standardizedFileURL)) != Set(model.projectScanRoots.map(\.standardizedFileURL))
+    }
+
+    private var projectScanRootsSection: some View {
+        Section(L10n.text("项目扫描目录")) {
+            Toggle(L10n.text("默认勾选项目编译产物（包括 Git 跟踪项）"), isOn: Binding(
+                get: { model.preselectProjectArtifacts },
+                set: { model.updateProjectArtifactPreselection($0) }
+            ))
+            .disabled(!model.canConfigureProjectScanRoots)
+            Text(L10n.text("关闭时请手动选择；开启后自动勾选通过安全检查的项目产物。正在使用或无法完整验证的项目仍保持保护。"))
+                .font(.caption).foregroundColor(.secondary)
+            Text(L10n.text("保存后仅刷新项目产物结果；尚未扫描时，在下次扫描使用。"))
+                .font(.caption).foregroundColor(.secondary)
+            Text(L10n.text("{0} 个扫描目录", String(projectRootsDraft.count)))
+                .font(.caption).foregroundColor(.secondary)
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 0) {
+                    if projectRootsDraft.isEmpty {
+                        Text(L10n.text("尚未配置项目扫描目录"))
+                            .foregroundColor(.secondary).frame(maxWidth: .infinity, minHeight: 132)
+                    }
+                    ForEach(projectRootsDraft, id: \.self) { root in
+                        HStack(spacing: 10) {
+                            Image(systemName: "folder").foregroundColor(.secondary)
+                            Text(root.path).font(.caption.monospaced()).textSelection(.enabled)
+                                .lineLimit(1).truncationMode(.middle).help(root.path)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button(L10n.text("移除")) { projectRootsDraft.removeAll { $0 == root } }
+                                .buttonStyle(.borderless)
+                                .help(L10n.text("仅移出扫描范围，不删除磁盘目录"))
+                                .accessibilityLabel(L10n.text("移除扫描目录 {0}", root.path))
+                        }
+                        .frame(height: 44)
+                        .overlay(alignment: .bottom) { Divider() }
+                    }
+                }
+            }
+            .frame(height: 132)
+            .disabled(!model.canConfigureProjectScanRoots)
+            HStack {
+                Button(L10n.text("添加目录…")) { addProjectScanRoots() }
+                Button(L10n.text("保存扫描目录")) {
+                    let roots = projectRootsDraft
+                    Task { await model.saveProjectScanRoots(roots, startInitialScan: false) }
+                }
+                .disabled(!projectRootsHaveChanges)
+                Button(L10n.text("撤销更改")) { projectRootsDraft = model.projectScanRoots }
+                    .disabled(!projectRootsHaveChanges)
+                if projectRootsHaveChanges {
+                    Text(L10n.text("有未保存的更改")).font(.caption).foregroundColor(.secondary)
+                }
+            }
+            .disabled(!model.canConfigureProjectScanRoots)
+            if let error = model.projectScanRootsError {
+                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundColor(.red)
+                Button(L10n.text("重新读取目录配置")) { Task { await model.loadProjectScanRoots() } }
+                    .disabled(model.projectRootsOperationInProgress)
+            }
+        }
+    }
+
+    private func addProjectScanRoots() {
+        guard let roots = model.selectProjectRootFolders() else { return }
+        projectRootsDraft = Array(Set((projectRootsDraft + roots).map(\.standardizedFileURL)))
+            .sorted { $0.path < $1.path }
     }
 
     private var agentOverlapSection: some View {

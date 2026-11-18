@@ -188,7 +188,8 @@ private extension CleanupCandidate {
         case .agentWorkspace: .agentEnvironment
         case .diskAnalysis: .largeFiles
         case .application: .applications
-        case .projectArtifacts: .general
+        case .projectArtifacts: .projects
+        case .localAIModels: .localAIModels
         }
     }
 }

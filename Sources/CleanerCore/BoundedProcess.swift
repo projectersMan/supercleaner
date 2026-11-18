@@ -125,6 +125,14 @@ public struct ActivitySnapshot: Sendable {
 }
 
 public enum ProjectActivityProbe {
+    static func activeFilePaths(in paths: Set<URL>) -> Set<URL> {
+        Set(paths.filter { url in
+            var isDirectory: ObjCBool = false
+            let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            return !exists || !isDirectory.boolValue
+        })
+    }
+
     static let toolNames: Set<String> = ["node", "npm", "pnpm", "yarn", "bun", "cargo", "rustc", "swift", "swift-frontend", "xcodebuild", "gradle", "java", "cmake", "ninja", "make", "clang", "gcc", "python", "python3"]
 
     public static func capture(activity: ActivitySnapshot, roots: [URL]) async -> (paths: Set<URL>, isAvailable: Bool) {

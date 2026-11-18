@@ -1,7 +1,7 @@
 import Foundation
 
 public struct TrashReminderState {
-    private static let suppressionPreferenceKey = "cleanup.suppressTrashReminder"
+    public static let suppressionPreferenceKey = "cleanup.suppressTrashReminder"
     private let preferences: UserDefaults
     private var acknowledgedBytes: UInt64 = 0
 
@@ -14,8 +14,11 @@ public struct TrashReminderState {
             && !preferences.bool(forKey: Self.suppressionPreferenceKey)
     }
 
-    public mutating func acknowledge(cleanedBytes: UInt64, suppressReminders: Bool) {
+    public func setRemindersSuppressed(_ suppressed: Bool) {
+        preferences.set(suppressed, forKey: Self.suppressionPreferenceKey)
+    }
+
+    public mutating func recordTrashEmptied(cleanedBytes: UInt64) {
         acknowledgedBytes = max(acknowledgedBytes, cleanedBytes)
-        preferences.set(suppressReminders, forKey: Self.suppressionPreferenceKey)
     }
 }

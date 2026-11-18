@@ -4,70 +4,70 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var model: AppModel
+    @EnvironmentObject private var trashReminder: TrashReminderController
     @State private var hoveredModule: ScanModuleID?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                hero
-                scanCoverage
-                preScanTrust
-            }
-            .padding(.horizontal, 34).padding(.vertical, 28)
+        VStack(alignment: .leading, spacing: 10) {
+            hero
+            scanCoverage
+                .frame(maxHeight: .infinity)
         }
+        .padding(.horizontal, 24).padding(.vertical, 12)
     }
 
     private var hero: some View {
-        HStack(alignment: .center, spacing: 26) {
-            Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 54)).foregroundStyle(.tint).frame(width: 72)
-            VStack(alignment: .leading, spacing: 9) {
-                Text(L10n.text("先完整扫描，再决定清理什么")).font(.system(size: 34, weight: .semibold))
-                Text(L10n.text("扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、重复大文件和 Agent 环境报告。扫描过程零写入。"))
-                    .foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 18) {
-                        scanControls
-                        Spacer(minLength: 12)
-                        sessionCleanupMetric
-                    }
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 18) { scanControls }
-                        sessionCleanupMetric
-                    }
-                }
-                .padding(.top, 8)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 32)).foregroundStyle(.tint).frame(width: 40)
+                Text(L10n.text("先完整扫描，再决定清理什么"))
+                    .font(.system(size: 24, weight: .semibold))
+                Spacer(minLength: 0)
             }
-            Spacer()
+            VStack(alignment: .leading, spacing: 10) {
+                preScanTrust
+                HStack(spacing: 12) {
+                    scanControls
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    sessionCleanupMetric
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                }
+                .frame(height: 112)
+            }
+            .padding(.leading, 52)
+            .padding(.trailing, 24)
         }
-        .padding(.vertical, 14)
     }
 
-    @ViewBuilder private var scanControls: some View {
-        Button(action: model.startFullScan) {
-            Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
-                .font(.headline).padding(.horizontal, 8).padding(.vertical, 4)
+    private var scanControls: some View {
+        HStack(spacing: 16) {
+            Button(action: model.startFullScan) {
+                Label(L10n.text("开始完整扫描"), systemImage: "magnifyingglass")
+                    .font(.headline).padding(.horizontal, 21).frame(height: 56)
+            }
+            .buttonStyle(ScanButtonStyle())
+            .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
+            .accessibilityHint(L10n.text("只读扫描全部六个清理维度"))
+            fullScanElapsed
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(model.isScanRunning || model.bootstrapInProgress || model.oneClickCleanupIsRunning)
-        .accessibilityHint(L10n.text("只读扫描系统清理、应用、重复大文件和 Agent 环境"))
-        fullScanElapsed
     }
 
     private var sessionCleanupMetric: some View {
-        VStack(alignment: .trailing, spacing: 4) {
+        VStack(spacing: 3) {
             Text(L10n.text("本次累计清理")).font(.caption).foregroundColor(.secondary)
             Text(ByteCountFormatter.cleanerString(bytes: model.sessionCleanupSummary.bytes))
-                .font(.system(size: 26, weight: .semibold)).monospacedDigit().foregroundStyle(.tint)
+                .font(.system(size: 22, weight: .semibold)).monospacedDigit().foregroundStyle(.tint)
             Text(L10n.text("全部模块 · {0} 项", String(model.sessionCleanupSummary.itemCount)))
                 .font(.caption).foregroundColor(.secondary)
-            Text(L10n.text("清空废纸篓，即可立即释放磁盘空间。"))
-                .font(.caption2.bold()).foregroundColor(.secondary)
+            Button(trashReminder.isEmptyingTrash ? L10n.text("正在清空…") : L10n.text("清空废纸篓…")) {
+                trashReminder.requestEmptyTrash(model: model)
+            }
+                .font(.body.weight(.medium))
+                .controlSize(.large)
+                .disabled(!trashReminder.canEmptyTrash(model: model))
         }
-        .multilineTextAlignment(.trailing)
-        .frame(width: 240, alignment: .trailing)
-        .fixedSize(horizontal: true, vertical: true)
+        .multilineTextAlignment(.center)
         .help(L10n.text("统计本次打开软件后的成功清理量，重新扫描不清零；不含失败或跳过项。恢复区和废纸篓中的文件可能仍占空间。"))
     }
 
@@ -85,8 +85,8 @@ struct DashboardView: View {
                 Text(L10n.text("扫描用时：{0}", "00:00:00")).hidden()
             }
         }
-        .font(.subheadline).foregroundColor(.secondary).monospacedDigit()
-        .lineLimit(1).frame(width: 180, alignment: .leading)
+        .font(.caption).foregroundColor(.secondary).monospacedDigit()
+        .lineLimit(1)
     }
 
     private func elapsedText(from startedAt: Date, to current: Date) -> Text {
@@ -96,55 +96,57 @@ struct DashboardView: View {
     }
 
     private var scanCoverage: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.text("一次扫描包含")).font(.title2.bold())
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text("一次扫描包含")).font(.headline)
             VStack(spacing: 0) {
                 ForEach(ScanModuleID.allCases, id: \.self) { module in
                     moduleScopeRow(module)
-                    if module != .agentEnvironment { Divider() }
+                    if module != ScanModuleID.allCases.last { Divider() }
                 }
             }
             .padding(.horizontal, 8)
-            Label(L10n.text("扫描受支持的位置，不声称遍历启动磁盘的每一个字节"), systemImage: "info.circle")
-                .font(.caption).foregroundColor(.secondary)
+            .frame(maxHeight: .infinity)
         }
     }
 
     private func moduleScopeRow(_ module: ScanModuleID) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                model.openScanResult(module)
-            } label: {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: module.icon).font(.title2).foregroundColor(module.color).frame(width: 28)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(module.resultDestinationTitle).fontWeight(.semibold)
-                        Text(module.scopeDetail).font(.caption).foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 12)
-                    HStack {
-                        if let status = model.scanProgressByModule[module] {
-                            ScanModuleStateView(state: status.state)
-                        }
-                    }
-                    .frame(width: 150, alignment: .trailing)
+        Button {
+            model.openScanResult(module)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: module.icon).font(.title3).foregroundColor(module.color).frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(module.resultDestinationTitle).fontWeight(.semibold)
+                    Text(module.scopeDetail).font(.caption).foregroundColor(.secondary)
+                        .lineLimit(1).help(module.scopeDetail)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 14)
-                .frame(minHeight: 66)
-                .background(hoveredModule == module ? Color.accentColor.opacity(0.08) : Color.clear)
-                .contentShape(Rectangle())
+                Spacer(minLength: 12)
+                if let summary = model.defaultCleanupSummary(for: module) {
+                    Text(L10n.text("清理 {0} 项 · {1}", String(summary.itemCount),
+                        ByteCountFormatter.cleanerString(bytes: summary.bytes)))
+                        .font(.caption.weight(.medium)).foregroundColor(.secondary)
+                        .monospacedDigit().lineLimit(1)
+                }
+                HStack {
+                    if let status = model.scanProgressByModule[module] {
+                        ScanModuleStateView(state: status.state)
+                    }
+                }
+                .frame(width: 150, alignment: .trailing)
             }
-            .buttonStyle(.plain)
-            .onHover { hoveredModule = $0 ? module : nil }
-            .accessibilityHint(L10n.text("打开{0}扫描结果", module.resultDestinationTitle))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+            .frame(minHeight: 40, maxHeight: .infinity)
+            .background(hoveredModule == module ? Color.accentColor.opacity(0.08) : Color.clear)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .onHover { hoveredModule = $0 ? module : nil }
+        .accessibilityHint(L10n.text("打开{0}扫描结果", module.resultDestinationTitle))
     }
 
-
     private var preScanTrust: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             TrustItem(icon: "eye", title: L10n.text("扫描可解释"), detail: L10n.text("每项都显示路径和发现依据"))
             TrustItem(icon: "play.circle", title: L10n.text("删除前检查"), detail: L10n.text("自动复验，跳过变化或占用项"))
             TrustItem(icon: "arrow.uturn.backward.circle", title: L10n.text("默认可恢复"), detail: L10n.text("删除后可恢复，恢复不覆盖原文件"))
@@ -152,6 +154,23 @@ struct DashboardView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
+}
+
+private struct ScanButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isFocused) private var isFocused
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(isEnabled ? .white : .secondary)
+            .background(isEnabled ? Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1)
+                : Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 2)
+                    .padding(-3).allowsHitTesting(false)
+            }
+    }
 }
 
 private struct ScanModuleStateView: View {
@@ -169,13 +188,13 @@ private struct TrustItem: View {
     let icon: String, title: String, detail: String
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon).foregroundStyle(.tint).frame(width: 20)
+            Image(systemName: icon).foregroundStyle(.tint).frame(width: 16)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).fontWeight(.semibold)
-                Text(detail).font(.caption).foregroundColor(.secondary)
+                Text(title).font(.caption.weight(.semibold))
+                Text(detail).font(.caption).foregroundColor(.secondary).lineLimit(1).help(detail)
             }
         }
-        .padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(10).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 12))
     }
 }
@@ -187,20 +206,22 @@ private extension ScanModuleID {
         case .applications: L10n.text("以 App 为单位，展开应用本体与精确关联项")
         case .largeFiles: L10n.text("识别安装包，核验相同副本和已完整解压的 ZIP")
         case .agentEnvironment: L10n.text("按真实目录和 Skill 标记动态组织，再逐条决定删或不删")
+        case .localAIModels: L10n.text("识别本地模型与下载缓存，保留共享存储关系")
+        case .projects: L10n.text("按源码工程识别依赖、构建输出与项目活动")
         }
     }
 
     var title: String {
-        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
+        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境"); case .localAIModels: L10n.text("本地 AI 模型"); case .projects: L10n.text("项目产物") }
     }
     var icon: String {
-        switch self { case .general: "trash"; case .applications: "app.dashed"; case .largeFiles: "doc.text.magnifyingglass"; case .agentEnvironment: "terminal" }
+        switch self { case .general: "trash"; case .applications: "app.dashed"; case .largeFiles: "doc.text.magnifyingglass"; case .agentEnvironment: "terminal"; case .localAIModels: "brain"; case .projects: "shippingbox" }
     }
     var color: Color {
-        switch self { case .general: .green; case .applications: .blue; case .largeFiles: .orange; case .agentEnvironment: .purple }
+        switch self { case .general: .green; case .applications: .blue; case .largeFiles: .orange; case .agentEnvironment: .purple; case .localAIModels: .indigo; case .projects: .teal }
     }
     var resultDestinationTitle: String {
-        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用卸载"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境") }
+        switch self { case .general: L10n.text("系统清理"); case .applications: L10n.text("应用卸载"); case .largeFiles: L10n.text("重复大文件"); case .agentEnvironment: L10n.text("Agent 环境"); case .localAIModels: L10n.text("本地 AI 模型"); case .projects: L10n.text("项目产物") }
     }
 }
 

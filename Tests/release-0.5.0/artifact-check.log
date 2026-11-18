@@ -1,0 +1,22 @@
+预计CRC32 $DD520713
+hdiutil: WARNING: 'hdiutil attach -readonly -nobrowse -mountpoint ...' is deprecated. Please use 'diskutil image attach --readOnly --mountOptions nobrowse --mountPoint ...' instead.
+/dev/disk6          	GUID_partition_scheme          	
+/dev/disk6s1        	Apple_HFS                      	/Users/bytedance/code/supercleaner/Tests/release-0.5.0/dmg-mount
+hdiutil: WARNING: 'hdiutil detach ...' is deprecated. Please use 'diskutil eject ...' instead.
+"disk6" ejected.
+{
+  "version": {
+    "version": "0.5.0",
+    "build": 145
+  },
+  "dmg_bytes": 299014026,
+  "dmg_sha256": "b2a1281026ddf0949902c998f0d1e4eb6e037ede95c2d6ced3ac0e60efb5cdfe",
+  "executable_sha256": {
+    "Contents/MacOS/CleanerApp": "414ff7d6369430d96ef2d806ea7dbd65db66dc33da0c0f1d8828c4e9a65d64a2",
+    "Contents/MacOS/AgentInference": "e19a0e8f20412039f45b1ddbc6b4ff2cd4c3b655bf13154913e1703bd006ab54",
+    "Contents/Library/LaunchServices/com.example.SuperCleaner.helper": "babee3784a69176b680b2b00ccec8c71d5997292f5d7e65b820a79df554f793f"
+  },
+  "installed_version": "0.4.29",
+  "installation_replaced": false
+}
+PASS: built and mounted DMG metadata, strict signatures, entitlement, and three executable hashes match; existing installation is unchanged

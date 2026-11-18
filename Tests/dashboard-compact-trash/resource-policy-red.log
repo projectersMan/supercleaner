@@ -1,0 +1,97 @@
+Building for debugging...
+[Using on-disk description]
+[5 / 44] CleanerCore
+[7 / 46] CleanerCore
+[15 / 51] CleanerCore
+[19 / 51] CleanerCoreTests-product
+[26 / 48] CoreContractChecks-product
+[36 / 61] CoreContractChecks-product
+[38 / 75] CoreContractChecks-product
+[42 / 88] CleanerApp-product
+[42 / 88] CleanerHelper-product
+[46 / 90] CoreContractChecks-product
+[47 / 90] CoreContractChecks-product
+[51 / 90] CleanerCoreTests-product
+[53 / 90] CleanerCoreTests-product
+[54 / 90] CleanerCoreTests-product
+[62 / 90] CleanerCoreTests-product
+[65 / 90] CleanerApp-product
+[65 / 90] CleanerCoreTests-product
+[67 / 90] CleanerApp-product
+[70 / 90] CleanerApp-product
+[71 / 90] CleanerApp-product
+[72 / 90] CleanerApp-product
+[74 / 90] CleanerApp-product
+[75 / 90] CleanerApp-product
+[75 / 90] AllIncludingTests
+[77 / 91] AllIncludingTests
+[77 / 91] CleanerApp-product
+[77 / 91] CleanerCoreTests-product
+[79 / 91] CleanerApp-product
+[79 / 91] CleanerCoreTests-product
+[83 / 91] CleanerApp-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:93:51: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 91 |                 if updater == nil {
+ 92 |                     let driver = ImmediateUpdateDriver(hostBundle: .main, delegate: nil)
+ 93 |                     driver.validateItem = { [weak self] item in
+    |                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                   `- note: explicitly assign the capture list item to silence
+ 94 |                         guard let self else { throw ApplicationUpdateError.busy }
+ 95 |                         try validate(item)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:97:47: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 95 |                         try validate(item)
+ 96 |                     }
+ 97 |                     driver.rejected = { [weak self] error in self?.validationFailure = error }
+    |                                               |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                               `- note: explicitly assign the capture list item to silence
+ 98 |                     self.driver = driver
+ 99 |                     let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[85 / 91] CleanerApp-product
+[87 / 91] CoreContractChecks-product
+[89 / 91] CoreContractChecks-product
+Build complete! (11.36秒)
+Test Suite 'Selected tests' started at 2026-11-17 12:32:20.005.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 12:32:20.006.
+Test Suite 'ResourceCleanupListPolicyTests' started at 2026-11-17 12:32:20.006.
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:13: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems] : XCTAssertEqual failed: ("[08A4938E-A4A7-4274-8E04-7A5ADFAE8DFA, AB820B98-D55C-4874-B0D6-2D6DC875B72E, 70C69777-DA26-49B9-B523-244AAFF0D4CE, 8A1ACB52-40A5-495B-AA32-2555C5212821]") is not equal to ("[08A4938E-A4A7-4274-8E04-7A5ADFAE8DFA]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:15: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems] : XCTAssertEqual failed: ("[08A4938E-A4A7-4274-8E04-7A5ADFAE8DFA, AB820B98-D55C-4874-B0D6-2D6DC875B72E, 70C69777-DA26-49B9-B523-244AAFF0D4CE, 8A1ACB52-40A5-495B-AA32-2555C5212821]") is not equal to ("[8A1ACB52-40A5-495B-AA32-2555C5212821, 70C69777-DA26-49B9-B523-244AAFF0D4CE, AB820B98-D55C-4874-B0D6-2D6DC875B72E]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:17: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems] : XCTAssertEqual failed: ("[08A4938E-A4A7-4274-8E04-7A5ADFAE8DFA, AB820B98-D55C-4874-B0D6-2D6DC875B72E, 70C69777-DA26-49B9-B523-244AAFF0D4CE, 8A1ACB52-40A5-495B-AA32-2555C5212821]") is not equal to ("[08A4938E-A4A7-4274-8E04-7A5ADFAE8DFA]")
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testScopesIncludeManualResourcesButProtectActiveBlockedAndIncompleteItems]' failed (0.267 seconds).
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:44: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory] : XCTAssertEqual failed: ("[DAF8DEA9-F412-4676-B380-590BBB618723, 110E722F-497B-416D-AB14-6B94F1EB62B8]") is not equal to ("[110E722F-497B-416D-AB14-6B94F1EB62B8]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:48: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory] : XCTAssertEqual failed: ("[DAF8DEA9-F412-4676-B380-590BBB618723, 110E722F-497B-416D-AB14-6B94F1EB62B8]") is not equal to ("[110E722F-497B-416D-AB14-6B94F1EB62B8, DAF8DEA9-F412-4676-B380-590BBB618723]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:50: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory] : XCTAssertEqual failed: ("[DAF8DEA9-F412-4676-B380-590BBB618723, 110E722F-497B-416D-AB14-6B94F1EB62B8]") is not equal to ("[110E722F-497B-416D-AB14-6B94F1EB62B8, DAF8DEA9-F412-4676-B380-590BBB618723]")
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testSearchFindsEvidenceAndSortsBySelectionSizeOrDirectory]' failed (0.001 seconds).
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:31: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices] : XCTAssertEqual failed: ("partial") is not equal to ("none")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:33: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices] : XCTAssertEqual failed: ("[94EAFE41-1A54-4E59-9C24-96204BB86658, 1ABDF877-8DF7-402E-8D47-AFFB2717EE33, B0874086-2376-4848-BFAD-32B289E829BD, 9B784332-B5CA-49FD-AF24-433D0B9F0A15]") is not equal to ("[B0874086-2376-4848-BFAD-32B289E829BD, 1ABDF877-8DF7-402E-8D47-AFFB2717EE33, 94EAFE41-1A54-4E59-9C24-96204BB86658]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift:36: error: -[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices] : XCTAssertEqual failed: ("[94EAFE41-1A54-4E59-9C24-96204BB86658]") is not equal to ("[1ABDF877-8DF7-402E-8D47-AFFB2717EE33, 94EAFE41-1A54-4E59-9C24-96204BB86658]")
+Test Case '-[CleanerCoreTests.ResourceCleanupListPolicyTests testVisibleGroupSelectionPreservesHiddenAndOtherDimensionChoices]' failed (0.001 seconds).
+Test Suite 'ResourceCleanupListPolicyTests' failed at 2026-11-17 12:32:20.275.
+	 Executed 3 tests, with 9 failures (0 unexpected) in 0.268 (0.269) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 12:32:20.275.
+	 Executed 3 tests, with 9 failures (0 unexpected) in 0.268 (0.269) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 12:32:20.275.
+	 Executed 3 tests, with 9 failures (0 unexpected) in 0.268 (0.269) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

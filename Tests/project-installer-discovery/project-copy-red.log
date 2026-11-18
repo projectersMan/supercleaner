@@ -1,0 +1,28 @@
+Building for debugging...
+[Using on-disk description]
+[3 / 19]
+[4 / 10] CleanerCoreTests-product
+[7 / 13] CleanerCoreTests-product
+[12 / 14] CleanerCoreTests-product
+Build complete! (1.75秒)
+Test Suite 'Selected tests' started at 2026-11-17 19:59:27.887.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 19:59:27.888.
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 19:59:27.888.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:122: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertEqual failed: ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/, file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/A.dmg, file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/B.dmg]") is not equal to ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/B.dmg]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:123: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertNotNil failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:128: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertEqual failed: ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/, file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/A.dmg, file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/B.dmg]") is not equal to ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/B.dmg]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:129: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertNotNil failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:130: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertEqual failed: ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/]") is not equal to ("[file:///Users/bytedance/code/supercleaner/Tests/cleanup-center-resource-sync/fixtures/40A7061C-87B4-421B-8E98-EB3FA6787B1E/code/Example/build/B.dmg]")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:132: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertEqual failed: ("review") is not equal to ("blocked")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:134: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertEqual failed: ("review") is not equal to ("blocked")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:135: error: -[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent] : XCTAssertThrowsError failed: did not throw an error
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' failed (0.260 seconds).
+Test Suite 'ProjectInstallerTests' failed at 2026-11-17 19:59:28.149.
+	 Executed 1 test, with 8 failures (0 unexpected) in 0.260 (0.261) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 19:59:28.149.
+	 Executed 1 test, with 8 failures (0 unexpected) in 0.260 (0.261) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 19:59:28.149.
+	 Executed 1 test, with 8 failures (0 unexpected) in 0.260 (0.262) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

@@ -1,0 +1,1 @@
+Stopped owned build process tree to fix the newly reproduced nested Git repository protection failure. Allocated 0.4.15 (129) retained; final rebuild will automatically increment.

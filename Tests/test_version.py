@@ -1,4 +1,5 @@
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -8,6 +9,8 @@ import unittest
 spec = importlib.util.spec_from_file_location("version", Path(__file__).resolve().parents[1] / "Scripts/version.py")
 version = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(version)
+TEST_ROOT = Path(__file__).resolve().parent / "build-auto-version"
+TEST_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class VersionTests(unittest.TestCase):
@@ -47,7 +50,7 @@ class VersionTests(unittest.TestCase):
                 version.resolve(original, {"SUPERCLEANER_VERSION": value})
 
     def test_default_bump_command_changes_the_checked_in_source_once(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
             root = Path(directory)
             (root / "Scripts").mkdir()
             script = root / "Scripts/version.py"
@@ -63,7 +66,7 @@ class VersionTests(unittest.TestCase):
                 self.assertEqual(version.read_version(path), {"version": "0.0.1", "build": 2})
 
     def test_round_trip_and_invalid_writes_preserve_previous_version(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
             path = Path(directory) / "Version.json"
             original = {"version": "1.2.3", "build": 8}
             version.save(original, path)
@@ -79,12 +82,104 @@ class VersionTests(unittest.TestCase):
             version.increment({"version": "1.2.3", "build": version.MAX_BUILD}, "patch")
 
     def test_invalid_source_is_rejected(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
             path = Path(directory) / "Version.json"
             for value in ['{"version":"1.0.0","build":true}', '{"version":"1.0.0","build":1,"extra":2}', "[]"]:
                 path.write_text(value)
                 with self.assertRaises(ValueError):
                     version.read_version(path)
+
+    def test_prepare_build_advances_patch_and_requires_a_newer_resolved_build(self):
+        original = {"version": "2.3.4", "build": 99}
+        self.assertEqual(version.prepare_build(original, {}), {"version": "2.3.5", "build": 100})
+        self.assertEqual(version.prepare_build(original, {"SUPERCLEANER_VERSION": "2.3.5", "SUPERCLEANER_BUILD_NUMBER": "500"}),
+                         {"version": "2.3.5", "build": 500})
+        for environment in [{"SUPERCLEANER_VERSION": "2.3.4"}, {"SUPERCLEANER_BUILD_NUMBER": "99"},
+                            {"SUPERCLEANER_BUILD_NUMBER": "98"}]:
+            with self.assertRaises(ValueError):
+                version.prepare_build(original, environment)
+        self.assertEqual(original, {"version": "2.3.4", "build": 99})
+
+    def test_explicit_release_version_is_exact_and_must_increase(self):
+        original = {"version": "0.4.30", "build": 144}
+        self.assertEqual(version.prepare_build(original, {}, "0.5.0"),
+                         {"version": "0.5.0", "build": 145})
+        self.assertEqual(version.prepare_build(original, {"SUPERCLEANER_BUILD_NUMBER": "500"}, "1.0.0"),
+                         {"version": "1.0.0", "build": 500})
+        for requested in ["0.4.30", "0.4.9", "0.3.99", "0.5", "v0.5.0", "00.5.0"]:
+            with self.assertRaises(ValueError):
+                version.prepare_build(original, {}, requested)
+        self.assertEqual(original, {"version": "0.4.30", "build": 144})
+
+    def test_next_build_accepts_explicit_release_then_resumes_patch_bumps(self):
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
+            root = Path(directory)
+            (root / "Scripts").mkdir()
+            script = root / "Scripts/version.py"
+            script.write_text(Path(version.__file__).read_text())
+            path = root / "Version.json"
+            version.save({"version": "0.4.30", "build": 144}, path)
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in {"SUPERCLEANER_VERSION", "SUPERCLEANER_BUILD_NUMBER"}}
+            for requested in ["0.4.30", "0.4.9", "invalid"]:
+                result = subprocess.run([sys.executable, str(script), "next-build", "--version", requested],
+                                        env=environment, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(version.read_version(path), {"version": "0.4.30", "build": 144})
+            result = subprocess.run([sys.executable, str(script), "next-build", "--version", "0.5.0"],
+                                    env=environment, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["0.5.0", "145"])
+            self.assertEqual(version.read_version(path), {"version": "0.5.0", "build": 145})
+            result = subprocess.run([sys.executable, str(script), "next-build"], env=environment,
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["0.5.1", "146"])
+
+    def test_next_build_command_advances_each_run_but_resolve_is_read_only(self):
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
+            root = Path(directory)
+            (root / "Scripts").mkdir()
+            script = root / "Scripts/version.py"
+            script.write_text(Path(version.__file__).read_text())
+            path = root / "Version.json"
+            version.save({"version": "0.0.0", "build": 1}, path)
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in {"SUPERCLEANER_VERSION", "SUPERCLEANER_BUILD_NUMBER"}}
+            for patch in [1, 2]:
+                result = subprocess.run([sys.executable, str(script), "next-build"], env=environment,
+                                        capture_output=True, text=True, check=True)
+                self.assertEqual(result.stdout.splitlines(), [f"0.0.{patch}", str(patch + 1)])
+                self.assertEqual(version.read_version(path), {"version": f"0.0.{patch}", "build": patch + 1})
+            result = subprocess.run([sys.executable, str(script), "resolve"], env=environment,
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["0.0.2", "3"])
+            self.assertEqual(version.read_version(path), {"version": "0.0.2", "build": 3})
+
+    def test_next_build_rejects_invalid_environment_without_writing_and_persists_ci_build(self):
+        with tempfile.TemporaryDirectory(dir=TEST_ROOT) as directory:
+            root = Path(directory)
+            (root / "Scripts").mkdir()
+            script = root / "Scripts/version.py"
+            script.write_text(Path(version.__file__).read_text())
+            path = root / "Version.json"
+            original = {"version": "2.3.4", "build": 99}
+            version.save(original, path)
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in {"SUPERCLEANER_VERSION", "SUPERCLEANER_BUILD_NUMBER"}}
+            for overrides in [{"SUPERCLEANER_VERSION": "2.3.4"}, {"SUPERCLEANER_BUILD_NUMBER": "99"},
+                              {"SUPERCLEANER_BUILD_NUMBER": "bad"}]:
+                result = subprocess.run([sys.executable, str(script), "next-build"], env=environment | overrides,
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(version.read_version(path), original)
+            result = subprocess.run([sys.executable, str(script), "next-build"],
+                                    env=environment | {"SUPERCLEANER_VERSION": "2.3.5", "SUPERCLEANER_BUILD_NUMBER": "500"},
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["2.3.5", "500"])
+            self.assertEqual(version.read_version(path), {"version": "2.3.5", "build": 500})
+            result = subprocess.run([sys.executable, str(script), "next-build"], env=environment,
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["2.3.6", "501"])
+            self.assertEqual(version.read_version(path), {"version": "2.3.6", "build": 501})
 
 
 if __name__ == "__main__":

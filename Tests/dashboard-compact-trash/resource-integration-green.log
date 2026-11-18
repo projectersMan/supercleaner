@@ -1,0 +1,2 @@
+PASS: resource receipt/protection reconciliation, independent filters, focus, hidden counts and visible-only bulk selection
+PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: 0.00010204315185546875s; selection, cleanup and scan-state invalidation; model/project refresh and cancellation

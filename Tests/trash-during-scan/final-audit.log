@@ -1,0 +1,5 @@
+PASS: whitespace clean, unchanged HEAD, empty index; no commit or push
+PASS: production sources, resources and build scripts match the pre-build snapshot
+PASS: 196 local documentation links in 10 current documents
+PASS: version, DMG checksum, executable hashes and signature match; existing 0.4.29 installation unchanged
+PASS: generated test apps/sources and read-only DMG mount removed; no real Trash emptying

@@ -19,7 +19,9 @@ struct CleanupReviewView: View {
             }
             .padding(24)
             Divider()
-            if !model.hasScanResult(for: .general) {
+            if let message = model.moduleScanProgressMessage(for: .general) {
+                ModuleProgressView(message: message)
+            } else if !model.hasScanResult(for: .general) {
                 ScanRequiredView(destinationTitle: title) { model.navigateToScan() }
             } else if destination == .systemCleanup {
                 GuidedCleanupView(model: model)

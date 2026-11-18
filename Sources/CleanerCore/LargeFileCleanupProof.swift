@@ -16,7 +16,8 @@ public struct LargeFileCleanupProof: Codable, Hashable, Sendable {
     }
 
     func matches(_ candidate: CleanupCandidate) -> Bool {
-        candidate.category == .largeFile && candidate.source == .diskAnalysis
+        ((candidate.category == .largeFile && candidate.source == .diskAnalysis)
+            || (candidate.category == .installerArtifact && candidate.source == .projectArtifacts && candidate.url.pathExtension.lowercased() == "dmg"))
             && candidate.url.standardizedFileURL.path == target.url.path
             && candidate.identity.device == target.device && candidate.identity.inode == target.inode
             && candidate.identity.size == target.bytes && !retained.isEmpty

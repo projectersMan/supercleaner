@@ -28,7 +28,6 @@ struct SelectionActionBar<Actions: View>: View {
         .tint(Color.accentColor)
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .background(.bar)
     }
 }
 
@@ -39,8 +38,10 @@ struct DimensionActionBar: View {
         Divider()
         if model.selection == .applications {
             applicationSelectionBar
+                .background(.bar)
         } else {
             candidateSelectionBar
+                .background(.bar)
         }
     }
 
@@ -143,7 +144,7 @@ struct OneClickCleanupActionBar: View {
 
     var body: some View {
         let defaults = model.defaultCleanupSelection
-        let candidates = CleanupSelection.executionCandidates(from: defaults?.systemCleanup ?? [])
+        let candidates = defaults?.candidates ?? []
         let candidateCount = candidates.count
         let bytes = candidates.reduce(UInt64(0)) { $0 + $1.bytes }
 
@@ -157,32 +158,36 @@ struct OneClickCleanupActionBar: View {
                 ProgressView().controlSize(.small)
             }
             Button { model.runOneClickCleanup() } label: {
-                Label(model.oneClickCleanupIsRunning ? L10n.text("系统清理中") : L10n.text("一键系统清理"), systemImage: "sparkles")
+                Label(model.oneClickCleanupIsRunning ? L10n.text("正在清理默认项…") : L10n.text("清理全部默认项"), systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(!model.canRunOneClickCleanup)
-            .accessibilityHint(L10n.text("仅处理系统清理中默认勾选的项目"))
+            .accessibilityHint(L10n.text("清理各维度仍默认勾选的内容，不包含手动选择的项目"))
         }
+        .background(SidebarSurface())
     }
 
     private func title(candidateCount: Int) -> String {
-        if model.oneClickCleanupIsRunning { return L10n.text("正在执行系统清理") }
-        guard model.hasScanResult(for: .general) else { return L10n.text("等待系统清理扫描完成") }
+        if model.oneClickCleanupIsRunning { return L10n.text("正在清理默认项…") }
         if candidateCount > 0 {
-            return L10n.text("系统清理已就绪 · ") + String(candidateCount) + L10n.text(" 项")
+            return L10n.text("默认清理已就绪 · {0} 项", String(candidateCount))
         }
-        return L10n.text("当前无需默认系统清理")
+        guard ScanModuleID.allCases.contains(where: { model.hasScanResult(for: $0) }) else {
+            return L10n.text("等待默认项扫描完成")
+        }
+        return L10n.text("当前无需默认清理")
     }
 
     private func detail(candidateCount: Int, bytes: UInt64) -> String {
         if model.oneClickCleanupIsRunning {
             return model.executionProgressDescription
         }
-        guard model.hasScanResult(for: .general) else { return L10n.text("系统清理扫描完成后可处理默认勾选项。") }
+        if case .failed = model.phase, let message = model.statusMessage { return message }
         guard candidateCount > 0 else {
-            return L10n.text("应用、重复大文件和 Agent 环境可进入对应页面核对和确认。")
+            return L10n.text("默认项就绪后可清理；手动选择的内容请到对应页面确认。")
         }
-        return L10n.text("约 ") + ByteCountFormatter.cleanerString(bytes: bytes) + L10n.text("；仅处理系统默认项，可从恢复记录找回。")
+        return L10n.text("约 {0}；清理所有已默认勾选的项目，可从恢复记录找回。",
+            ByteCountFormatter.cleanerString(bytes: bytes))
     }
 }

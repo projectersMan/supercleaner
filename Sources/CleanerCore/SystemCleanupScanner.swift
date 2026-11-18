@@ -1,6 +1,6 @@
 import Foundation
 
-/// The GUI and read-only CLI use the same discovery, bounds and selection facts.
+/// System cleanup uses shared discovery, bounds and selection facts.
 public struct SystemCleanupScanner: Sendable {
     public let applicationScanner: ApplicationScanner
     public let coordinator: ScanCoordinator

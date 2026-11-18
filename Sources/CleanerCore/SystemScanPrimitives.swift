@@ -5,6 +5,8 @@ public enum ScanModuleID: String, Codable, CaseIterable, Hashable, Sendable {
     case applications
     case largeFiles
     case agentEnvironment
+    case localAIModels
+    case projects
 }
 
 public enum ScanModuleState: String, Codable, Hashable, Sendable {

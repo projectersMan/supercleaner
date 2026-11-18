@@ -9,9 +9,11 @@ struct AgentEnvironmentView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let message = model.agentEnvironmentProgressMessage,
+            if let message = model.moduleScanProgressMessage(for: .agentEnvironment) {
+                ModuleProgressView(message: message)
+            } else if let message = model.agentEnvironmentProgressMessage,
                model.preparingAgentSkillPresentation || !model.hasScanResult(for: .agentEnvironment) {
-                AgentEnvironmentProgressView(message: message)
+                ModuleProgressView(message: message)
             } else if !model.hasScanResult(for: .agentEnvironment) {
                 ScanRequiredView(destinationTitle: L10n.text("Agent 环境")) { model.navigateToScan() }
             } else {
@@ -115,7 +117,7 @@ struct AgentEnvironmentView: View {
             mcpToolbar
             if model.visibleAgentMCPConfigurations.isEmpty {
                 if let message = model.agentEnvironmentProgressMessage {
-                    AgentEnvironmentProgressView(message: message)
+                    ModuleProgressView(message: message)
                 } else { EmptyState(
                     title: model.agentItemsSelectionFilter == .selected ? L10n.text("没有已选中的 MCP 配置") : L10n.text("没有 MCP 配置"),
                     message: L10n.text("未发现符合条件的 MCP 配置。"),
@@ -178,7 +180,7 @@ struct AgentEnvironmentView: View {
             skillsToolbar
             if model.visibleAgentSkillSections.isEmpty {
                 if let message = model.agentEnvironmentProgressMessage {
-                    AgentEnvironmentProgressView(message: message)
+                    ModuleProgressView(message: message)
                 } else { EmptyState(
                     title: model.agentItemsSelectionFilter == .selected ? L10n.text("没有已选中的 Skill") : L10n.text("没有 Skill"),
                     message: L10n.text("未发现符合条件的 Skill。"),

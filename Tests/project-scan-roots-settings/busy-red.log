@@ -1,0 +1,9 @@
+Building for debugging...
+[Using on-disk description]
+[5 / 10] SuperCleaner_CleanerCore
+[5 / 8] CleanerApp-product
+[8 / 11] CleanerApp-product
+[9 / 11] CleanerApp-product
+[11 / 13] CleanerApp-product
+Build complete! (4.46秒)
+FAIL: root operations must block scan and Trash entry points

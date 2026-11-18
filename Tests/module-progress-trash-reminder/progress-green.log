@@ -1,0 +1,6 @@
+PASS: manual models, project defaults, dashboard totals/plan, deselection/protection/root-change gates, protected/empty All fallback, scoped refresh and retained decisions; no execution
+PASS: project preference off/on persistence, tracked manual selection, retained manual decisions, instant dashboard cache invalidation and busy gate; no execution
+PASS: resource receipt/protection reconciliation, independent filters, focus, hidden counts and visible-only bulk selection
+PASS: all-default mixed-plan totals, manual exclusions, deselection, Agent-only cleanup, auto-selection cache invalidation and scan/protection gates; no execution
+PASS: six module progress states, missing state, prior scan results and stopped scan
+PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: 0.00025093555450439453s; selection, cleanup and scan-state invalidation; model/project refresh and cancellation

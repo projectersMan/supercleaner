@@ -1,0 +1,19 @@
+CONFIRM: closeOption=false, priorCount=0
+CONFIRM: closeOption=true, priorCount=1
+CONFIRM: closeOption=true, priorCount=2
+CONFIRM: closeOption=true, priorCount=3
+CONFIRM: closeOption=true, priorCount=4
+CONFIRM: closeOption=true, priorCount=5
+CONFIRM: closeOption=false, priorCount=6
+CONFIRM: closeOption=true, priorCount=7
+PASS: actual red close button skips the dialog at zero cleanup bytes
+PASS: dashboard entry uses exactly Cancel / Empty Trash and no suppression option
+PASS: closing an unrelated panel does not request the Trash dialog
+PASS: red close invokes the same dialog factory and buttons; Cancel leaves the app session in the background with its reminder intact
+PASS: the existing NSWindow delegate and scan model are retained; no Finder commands were sent
+PASS: repeated red close during cleanup finalization retains exactly one reminder after delayed cleanup accounting
+PASS: a deferred close with no successful cleanup produces no dialog
+PASS: independent Helper completion wakes the pending close without a parent model change
+PASS: actual hosted SwiftUI close prompts while scanning continues and its Empty Trash action is enabled
+PASS: Don't remind again persists and skips later closes; manual Empty Trash still confirms without that option
+PASS: restoring the same preference re-enables close reminders without faking emptying or changing cleanup accounting

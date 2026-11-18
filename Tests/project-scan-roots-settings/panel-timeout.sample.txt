@@ -1,0 +1,70 @@
+Analysis of sampling CleanerApp (pid 54164) every 1 millisecond
+Process:         CleanerApp [54164]
+Path:            /Applications/SuperCleaner.app/Contents/MacOS/CleanerApp
+Load Address:    0x1004ac000
+Identifier:      com.example.SuperCleaner
+Version:         0.4.10 (124)
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  launchd [1]
+Target Type:     live task
+
+Date/Time:       2026-11-17 16:47:21.995 +0800
+Launch Time:     2026-11-17 16:43:58.219 +0800
+OS Version:      macOS 27.0.1 (26A434)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         63.6M
+Physical footprint (peak):  95.4M
+Idle exit:                  untracked
+----
+
+Call graph:
+    1748 Thread_1849072   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 1748 start  (in dyld) + 6688  [0x18cb4fe80]
+    +   1748 main  (in CleanerApp) + 12  [0x1005c80c4]  CleanerApp.swift:0
+    +     1748 specialized static CleanerMain.main()  (in CleanerApp) + 1216  [0x1005cb738]  CleanerApp.swift:100
+    +       1748 static App.main()  (in SwiftUI) + 224  [0x1c5c8e8b8]
+    +         1748 runApp<A>(_:)  (in SwiftUI) + 108  [0x1c59b3c68]
+    +           1748 specialized runApp(_:)  (in SwiftUI) + 140  [0x1c55a0c84]
+    +             1748 NSApplicationMain  (in AppKit) + 880  [0x191567c4c]
+    +               1748 -[NSApplication run]  (in AppKit) + 396  [0x19158f90c]
+    +                 1748 -[NSApplication(NSEventRouting) nextEventMatchingMask:untilDate:inMode:dequeue:]  (in AppKit) + 292  [0x191e1426c]
+    +                   1748 -[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:]  (in AppKit) + 780  [0x191e14748]
+    +                     1748 _DPSNextEvent  (in AppKit) + 580  [0x19159c4fc]
+    +                       1748 _DPSBlockUntilNextEventMatchingListInMode  (in AppKit) + 292  [0x1918df29c]
+    +                         1748 _BlockUntilNextEventMatchingListInMode  (in HIToolbox) + 48  [0x19a59e380]
+    +                           1748 ReceiveNextEventCommon  (in HIToolbox) + 492  [0x19a41b91c]
+    +                             1748 RunCurrentEventLoopInMode  (in HIToolbox) + 320  [0x19a418590]
+    +                               1748 _CFRunLoopRunSpecificWithOptions  (in CoreFoundation) + 536  [0x18d0bf82c]
+    +                                 1748 __CFRunLoopRun  (in CoreFoundation) + 1172  [0x18cfe5334]
+    +                                   1748 __CFRunLoopServiceMachPort  (in CoreFoundation) + 160  [0x18cfe6aec]
+    +                                     1748 mach_msg  (in libsystem_kernel.dylib) + 24  [0x18cee0fac]
+    +                                       1748 mach_msg_overwrite  (in libsystem_kernel.dylib) + 480  [0x18cee9a28]
+    +                                         1748 mach_msg2_internal  (in libsystem_kernel.dylib) + 76  [0x18cef38e0]
+    +                                           1748 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x18cee0c20]
+    1748 Thread_1849138: com.apple.NSEventThread
+    + 1748 thread_start  (in libsystem_pthread.dylib) + 8  [0x18cf20cec]
+    +   1748 _pthread_start  (in libsystem_pthread.dylib) + 136  [0x18cf25d00]
+    +     1748 _NSEventThread  (in AppKit) + 184  [0x1916c0844]
+    +       1748 _CFRunLoopRunSpecificWithOptions  (in CoreFoundation) + 536  [0x18d0bf82c]
+    +         1748 __CFRunLoopRun  (in CoreFoundation) + 1172  [0x18cfe5334]
+    +           1748 __CFRunLoopServiceMachPort  (in CoreFoundation) + 160  [0x18cfe6aec]
+    +             1748 mach_msg  (in libsystem_kernel.dylib) + 24  [0x18cee0fac]
+    +               1748 mach_msg_overwrite  (in libsystem_kernel.dylib) + 480  [0x18cee9a28]
+    +                 1748 mach_msg2_internal  (in libsystem_kernel.dylib) + 76  [0x18cef38e0]
+    +                   1748 mach_msg2_trap  (in libsystem_kernel.dylib) + 8  [0x18cee0c20]
+    1748 Thread_1853224
+      1748 start_wqthread  (in libsystem_pthread.dylib) + 8  [0x18cf20ce0]
+        1748 _pthread_wqthread  (in libsystem_pthread.dylib) + 368  [0x18cf21fe8]
+          1748 __workq_kernreturn  (in libsystem_kernel.dylib) + 8  [0x18cee29ec]
+
+Total number in stack (recursive counted multiple, when >=5):
+
+Sort by top of stack, same collapsed (when >= 5):
+        mach_msg2_trap  (in libsystem_kernel.dylib)        3496
+        __workq_kernreturn  (in libsystem_kernel.dylib)        1748
+
+
+Binary images omitted; retained process/version and complete sampled call graph.

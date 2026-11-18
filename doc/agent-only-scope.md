@@ -1,5 +1,11 @@
 # 已授权改动范围审计
 
+## 当前范围说明
+
+以下按版本排列的审计是历史记录，其中“四模块/四行”和 CLI 构建、测试、签名结论仅说明当时范围。当前已按用户新授权增加本地 AI 模型、项目产物，形成系统、应用、重复大文件、Agent、本地 AI 模型、项目产物六个维度；保留首页稳定布局、标题栏对齐和每个模块独立取消/继续，不再把旧四行数量作为当前约束。
+
+独立 `CleanerCLI` / `ReadOnlyInterface` 已退役，生产 App 不再嵌入用户命令 `supercleaner`；历史提到的旧源码和只读 CLI 契约不再是当前文件入口。对应行为现由 [CoreReadOnlyContract](../Sources/CoreContractChecks/CoreReadOnlyContract.swift)、[ReviewRegressionContract](../Sources/CoreContractChecks/ReviewRegressionContract.swift) 和 [PackagedRuleConfigurationContract](../Sources/CoreContractChecks/PackagedRuleConfigurationContract.swift) 直接验证，保留Core、Helper、规则配置、保护、覆盖和正式签名门禁。两个新页面复用 [ResourceCleanupView](../Sources/CleanerApp/ResourceCleanupView.swift)，模型与项目均人工选择、零预选；卷容量来自 [DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift)，不把逻辑清理量当物理释放量。本批范围见 [实施计划](local-ai-projects-disk-plan.md)，最终测试与产物事实以本批记录为准，后文历史记录不作本批验收声明。
+
 ## 范围修正
 
 GitHub基线为origin/main `75c9c262b46ae41e3e99daef6fb0d0225056885c`。0.2.24把“未要求的部分不变”误解为仅保留Agent变更，撤销了用户此前明确要求的界面和扫描控制；此解释已被用户纠正。本批0.2.25（58）恢复这些要求，并继续保留Agent能力分析。
@@ -470,3 +476,5 @@ Release编译通过，仅有既存ApplicationUpdateModel弱引用捕获警告，
 Release编译通过，仅有既存ApplicationUpdateModel弱引用捕获警告；双语检查与git diff --check通过，未运行自动测试套件。App/安装副本/DMG共123项文件与链接一致，旧安装DR接受新包，深层签名及模型长度/SHA/许可通过；DMG SHA-256为1a6100b747b5fa984840b19650c8099999c30ed01a113305922b0f3f4dd3b840，见[包证据](../Tests/agent-column-alignment/package-verification.txt)。镜像已正常卸载。新版设置页实机确认0.3.2（76）、FDA Available，无重新授权或配置窗口；只读扫描已开始，等待Agent库存核对布局，不执行清理、提交或推送。
 
 本批最终列表视觉核对受锁屏阻塞：CUA报告Mac已锁定且物理输入后自动解锁暂停，要求本人解锁。已请求用户解锁，不尝试自动解锁、改系统权限或宣称Skill/MCP最终画面通过。编译/包/签名及设置FDA核对结果仍有效。
+
+后续全屏复核：此前透明标题栏桥接与隐藏工具栏背景只通过普通窗口检查，全屏仍有材料边缘错位；本轮已删除该桥接及隐藏处理，改由系统原生分栏统一管理，见[当前计划](project-installer-discovery-plan.md)与[验证记录](../Tests/project-installer-discovery/README.md)。

@@ -1,0 +1,147 @@
+Building for debugging...
+[Using on-disk description]
+[1 / 1]
+[4 / 9] SuperCleaner_CleanerCore
+[4 / 7] CleanerApp-product
+[11 / 14] CleanerApp-product
+error: SwiftCompile normal arm64 failed with a nonzero exit code. Command line:     cd /Users/bytedance/code
+
+[21 / 26] CleanerApp-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3566:21: error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3564 |         let model = AppModel(home: root)
+3565 |         model.bootstrapInProgress = false
+3566 |         await model.loadProjectScanRoots()
+     |                     `- error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3567 |         guard model.projectScanRootsLoaded, model.projectScanRoots.count > 3 else {
+3568 |             throw Failure(description: "settings must load the full root list, not only three visible entries")
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3567:21: error: value of type 'AppModel' has no member 'projectScanRootsLoaded'
+3565 |         model.bootstrapInProgress = false
+3566 |         await model.loadProjectScanRoots()
+3567 |         guard model.projectScanRootsLoaded, model.projectScanRoots.count > 3 else {
+     |                     `- error: value of type 'AppModel' has no member 'projectScanRootsLoaded'
+3568 |             throw Failure(description: "settings must load the full root list, not only three visible entries")
+3569 |         }
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3567:51: error: value of type 'AppModel' has no member 'projectScanRoots'
+3565 |         model.bootstrapInProgress = false
+3566 |         await model.loadProjectScanRoots()
+3567 |         guard model.projectScanRootsLoaded, model.projectScanRoots.count > 3 else {
+     |                                                   `- error: value of type 'AppModel' has no member 'projectScanRoots'
+3568 |             throw Failure(description: "settings must load the full root list, not only three visible entries")
+3569 |         }
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3570:33: error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3568 |             throw Failure(description: "settings must load the full root list, not only three visible entries")
+3569 |         }
+3570 |         let saved = await model.saveProjectScanRoots([second, first, first], startInitialScan: false)
+     |                                 `- error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3571 |         let stored = try await model.runtime.projectRoots.roots()
+3572 |         guard saved, model.projectScanRoots == [first, second], stored == [first, second],
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3572:28: error: value of type 'AppModel' has no member 'projectScanRoots'
+3570 |         let saved = await model.saveProjectScanRoots([second, first, first], startInitialScan: false)
+3571 |         let stored = try await model.runtime.projectRoots.roots()
+3572 |         guard saved, model.projectScanRoots == [first, second], stored == [first, second],
+     |                            `- error: value of type 'AppModel' has no member 'projectScanRoots'
+3573 |               !model.isScanRunning, !model.checkingScanPermissions else {
+3574 |             throw Failure(description: "settings must deduplicate/persist all roots without starting the first scan")
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3577:24: error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3575 |         }
+3576 |         let reopened = AppModel(home: root)
+3577 |         await reopened.loadProjectScanRoots()
+     |                        `- error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3578 |         guard reopened.projectScanRoots == [first, second] else { throw Failure(description: "roots did not reload") }
+3579 |         model.oneClickCleanupIsRunning = true
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3578:24: error: value of type 'AppModel' has no member 'projectScanRoots'
+3576 |         let reopened = AppModel(home: root)
+3577 |         await reopened.loadProjectScanRoots()
+3578 |         guard reopened.projectScanRoots == [first, second] else { throw Failure(description: "roots did not reload") }
+     |                        `- error: value of type 'AppModel' has no member 'projectScanRoots'
+3579 |         model.oneClickCleanupIsRunning = true
+3580 |         let blocked = await model.saveProjectScanRoots([], startInitialScan: false)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3580:35: error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3578 |         guard reopened.projectScanRoots == [first, second] else { throw Failure(description: "roots did not reload") }
+3579 |         model.oneClickCleanupIsRunning = true
+3580 |         let blocked = await model.saveProjectScanRoots([], startInitialScan: false)
+     |                                   `- error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3581 |         model.oneClickCleanupIsRunning = false
+3582 |         guard !blocked, try await model.runtime.projectRoots.roots() == stored else {
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3585:36: error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3583 |             throw Failure(description: "cleanup must block root mutation")
+3584 |         }
+3585 |         let rejected = await model.saveProjectScanRoots([URL(fileURLWithPath: "/")], startInitialScan: false)
+     |                                    `- error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3586 |         guard !rejected, model.projectScanRootsError != nil,
+3587 |               try await model.runtime.projectRoots.roots() == stored, !model.projectRootsOperationInProgress else {
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3586:32: error: value of type 'AppModel' has no member 'projectScanRootsError'
+3584 |         }
+3585 |         let rejected = await model.saveProjectScanRoots([URL(fileURLWithPath: "/")], startInitialScan: false)
+3586 |         guard !rejected, model.projectScanRootsError != nil,
+     |                                `- error: value of type 'AppModel' has no member 'projectScanRootsError'
+3587 |               try await model.runtime.projectRoots.roots() == stored, !model.projectRootsOperationInProgress else {
+3588 |             throw Failure(description: "invalid roots must show an error without changing the saved configuration")
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3587:78: error: value of type 'AppModel' has no member 'projectRootsOperationInProgress'
+3585 |         let rejected = await model.saveProjectScanRoots([URL(fileURLWithPath: "/")], startInitialScan: false)
+3586 |         guard !rejected, model.projectScanRootsError != nil,
+3587 |               try await model.runtime.projectRoots.roots() == stored, !model.projectRootsOperationInProgress else {
+     |                                                                              `- error: value of type 'AppModel' has no member 'projectRootsOperationInProgress'
+3588 |             throw Failure(description: "invalid roots must show an error without changing the saved configuration")
+3589 |         }
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3595:37: error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3593 |         model.selection = .projects
+3594 |         model.selectedIDs = [report.projectScanReport!.artifacts[0].id]
+3595 |         let refreshed = await model.saveProjectScanRoots([first], startInitialScan: false)
+     |                                     `- error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3596 |         guard refreshed, model.isScanRunning, model.scanProgressByModule[.projects]?.state == .waiting,
+3597 |               model.scanProgressByModule[.general] == report.modules[.general] else {
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3603:21: error: value of type 'AppModel' has no member 'projectScanRootsNeedRefresh'
+3601 |         model.cancelScan()
+3602 |         await task?.value
+3603 |         guard model.projectScanRootsNeedRefresh, !model.canExecuteSelection else {
+     |                     `- error: value of type 'AppModel' has no member 'projectScanRootsNeedRefresh'
+3604 |             throw Failure(description: "cancelling the refresh cannot make old-scope project results executable")
+3605 |         }
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3607:33: error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3605 |         }
+3606 |         model.systemReport = nil
+3607 |         let empty = await model.saveProjectScanRoots([], startInitialScan: false)
+     |                                 `- error: value of type 'AppModel' has no member 'saveProjectScanRoots'
+3608 |         guard empty, try await model.runtime.projectRoots.roots().isEmpty else {
+3609 |             throw Failure(description: "explicit empty roots must remain empty")
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3613:21: error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3611 |         let config = root.appendingPathComponent("Library/Application Support/SuperCleaner/project-scan-roots.json")
+3612 |         try Data("invalid JSON".utf8).write(to: config)
+3613 |         await model.loadProjectScanRoots()
+     |                     `- error: value of type 'AppModel' has no member 'loadProjectScanRoots'
+3614 |         guard !model.projectScanRootsLoaded, model.projectScanRootsError != nil else {
+3615 |             throw Failure(description: "corrupt configuration must not silently load defaults")
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3614:22: error: value of type 'AppModel' has no member 'projectScanRootsLoaded'
+3612 |         try Data("invalid JSON".utf8).write(to: config)
+3613 |         await model.loadProjectScanRoots()
+3614 |         guard !model.projectScanRootsLoaded, model.projectScanRootsError != nil else {
+     |                      `- error: value of type 'AppModel' has no member 'projectScanRootsLoaded'
+3615 |             throw Failure(description: "corrupt configuration must not silently load defaults")
+3616 |         }
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift:3614:52: error: value of type 'AppModel' has no member 'projectScanRootsError'
+3612 |         try Data("invalid JSON".utf8).write(to: config)
+3613 |         await model.loadProjectScanRoots()
+3614 |         guard !model.projectScanRootsLoaded, model.projectScanRootsError != nil else {
+     |                                                    `- error: value of type 'AppModel' has no member 'projectScanRootsError'
+3615 |             throw Failure(description: "corrupt configuration must not silently load defaults")
+3616 |         }
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -emit-module -experimental-skip-non-inlinable-function-bodies-without-types /Users/bytedance/code/supercleaner/Sources/CleanerApp/AgentContainmentLabel.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AgentEnvironmentProgressView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AgentEnvironmentView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AgentItemsSelectionFilter.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AgentSelectionFixture.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AppInfrastructure.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AppModel.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/AppRuntimeIdentity.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationIconView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationPresentationFixture.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationRefreshFixture.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationScopePicker.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationsView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/CleanerApp.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/CleanerSmokeTest.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/CleanupActionBars.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/CleanupReviewView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/Components.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ContentView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/DashboardView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/DeletionOperationSheet.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/DeletionResultSheet.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/DiskSpaceView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/DiskUsageOutlineView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/GuidedCleanupView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/HelperSettingsModel.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/HistoryView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ImmediateLinearProgressStyle.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/NavigationPresentationFixture.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/PermissionsView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ResourceCleanupPresentationFixture.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ResourceCleanupView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ReviewWorkspaceState.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ReviewWorkspaceView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ScanAccessTracking.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ScanPermissionPreparationView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/ScanRequiredView.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/SidebarToolbarAlignment.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/TrashEmptyingCheck.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/TrashReminderController.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/TrashReminderWindowObserver.swift /Users/bytedance/code/supercleaner/Sources/CleanerApp/UpdateSettingsView.swift -target arm64-apple-macos13.0 -disable-cross-import-overlay-search -swift-module-cross-import Darwin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/Darwin.swiftcrossimport/xlocale.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.2.sdk -I /Users/bytedance/code/supercleaner/.build/out/Products/Debug -Isystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/bytedance/code/supercleaner/.build/out/Products/Debug/PackageFrameworks -F /Users/bytedance/code/supercleaner/.build/out/Products/Debug -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -module-cache-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SwiftExplicitPrecompiledModules -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -swift-version 6 -Onone -D SWIFT_PACKAGE -D DEBUG -D Xcode -serialize-debugging-options -enable-experimental-feature DebugDescriptionMacro -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/bytedance/code/supercleaner/.build/out/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/bytedance/code -enable-anonymous-context-mangled-names -file-compilation-dir /Users/bytedance/code -Xcc -fmodule-map-file\=/Users/bytedance/code/supercleaner/Sources/CleanerZIP/module.modulemap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/bytedance/code/supercleaner/.build/out/SDKStatCaches.noindex/macosx27.2-26B118-a0facfad118c1a7a18f0aad9463f6549a7ff82d74745d5ef33555b35c4238456.sdkstatcache -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -Xcc -I/Users/bytedance/code/supercleaner/.build/out/Products/Debug/include -Xcc -I/Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/DerivedSources-normal/arm64 -Xcc -I/Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/DerivedSources/arm64 -Xcc -I/Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name CleanerApp -package-name supercleaner -const-gather-protocols-file /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp_const_extract_protocols.json -disable-clang-spi -clang-target arm64-apple-macos27.2 -target-sdk-version 27.2 -target-sdk-name macosx27.2 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -emit-module-doc-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp.swiftdoc -emit-module-source-info-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp.swiftsourceinfo -serialize-diagnostics-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp-primary-emit-module.dia -emit-dependencies-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp-primary-emit-module.d -parse-as-library -o /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp.swiftmodule -emit-abi-descriptor-path /Users/bytedance/code/supercleaner/.build/out/Intermediates.noindex/SuperCleaner.build/Debug/CleanerApp-p.build/Objects-normal/arm64/CleanerApp.abi.json
+error: Build failed

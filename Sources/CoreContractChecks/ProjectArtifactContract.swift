@@ -37,7 +37,7 @@ func runProjectArtifactContracts() async throws {
     require(Set(report.artifacts.map { $0.candidate.displayName }) == Set(names), "project scanner must find all five requested artifact classes")
     require(report.artifacts.allSatisfy { $0.projectURL.lastPathComponent == "example" && $0.candidate.defaultSelection == false }, "project results must retain ownership and require explicit selection")
     func candidate(_ name: String) -> CleanupCandidate { report.artifacts.first { $0.candidate.displayName == name }!.candidate }
-    require(candidate("build").risk == .blocked && candidate("build").evidence.contains { $0.code == "git-status" && $0.summary == L10n.text("包含 Git 跟踪文件，保持保护") }, "Git tracked artifacts must be protected")
+    require(candidate("build").risk == .review && candidate("build").requiresExplicitSelection == true && candidate("build").evidence.contains { $0.code == "git-status" && $0.summary == L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") }, "Git tracked artifacts must allow explicit review")
     require(candidate(".build").risk == .blocked && candidate(".build").evidence.contains { $0.code == "nested-git" }, "nested repositories must be protected")
     require(candidate("dist").risk == .blocked && candidate("dist").evidence.contains { $0.code == "deployment-key" }, "deployment keys must protect artifact directory")
     require(candidate("target").risk == .review && candidate("target").evidence.contains { $0.code == "recent-activity" }, "recent artifacts must remain unselected but manually reviewable")
@@ -71,7 +71,7 @@ func runProjectArtifactContracts() async throws {
     let cancelled = Task { try await scanner.scan(context: context) }
     cancelled.cancel()
     do { _ = try await cancelled.value; require(false, "cancelled project scan cannot publish results") } catch is CancellationError {}
-    print("PASS: grouped project artifacts, Git/nested-repo/key/activity protection, roots and recoverable execution")
+    print("PASS: grouped project artifacts, Git manual review, nested-repo/key/activity protection, roots and recoverable execution")
 }
 
 private func ageProjectFixture(_ project: URL, at date: Date) throws {

@@ -1,0 +1,123 @@
+ M Package.swift
+ M README.md
+ M Resources/AppInfo.plist
+ M Resources/en.lproj/InfoPlist.strings
+ M Resources/zh-Hans.lproj/InfoPlist.strings
+ M Scripts/build-app.sh
+ M Scripts/check-production-signing.sh
+ M Scripts/verify-app.sh
+ M Scripts/version.py
+ M Sources/CleanerApp/AppModel.swift
+ M Sources/CleanerApp/CleanerApp.swift
+ M Sources/CleanerApp/CleanupActionBars.swift
+ M Sources/CleanerApp/Components.swift
+ M Sources/CleanerApp/ContentView.swift
+ M Sources/CleanerApp/DashboardView.swift
+ M Sources/CleanerApp/PermissionsView.swift
+ M Sources/CleanerApp/ScanAccessTracking.swift
+ D Sources/CleanerApp/SidebarToolbarAlignment.swift
+ M Sources/CleanerApp/TrashReminderController.swift
+ D Sources/CleanerCLI/main.swift
+ M Sources/CleanerCore/AppNavigationPolicy.swift
+ M Sources/CleanerCore/BoundedProcess.swift
+ M Sources/CleanerCore/CleanupReportReconciliation.swift
+ M Sources/CleanerCore/CleanupRuntime.swift
+ M Sources/CleanerCore/CleanupScopePolicy.swift
+ M Sources/CleanerCore/CleanupSessionSummary.swift
+ M Sources/CleanerCore/DefaultCleanupPolicy.swift
+ M Sources/CleanerCore/Execution.swift
+ M Sources/CleanerCore/LargeFileCleanupProof.swift
+ M Sources/CleanerCore/LargeFileContentAnalyzer.swift
+ M Sources/CleanerCore/Models.swift
+ M Sources/CleanerCore/ProjectArtifacts.swift
+ D Sources/CleanerCore/ReadOnlyInterface.swift
+ M Sources/CleanerCore/Resources/en.lproj/Localizable.strings
+ M Sources/CleanerCore/Resources/zh-Hans.lproj/Localizable.strings
+ M Sources/CleanerCore/ScanDiscoverySummary.swift
+ M Sources/CleanerCore/Scanner.swift
+ M Sources/CleanerCore/SystemCleanupScanner.swift
+ M Sources/CleanerCore/SystemScanCoordinator.swift
+ M Sources/CleanerCore/SystemScanPrimitives.swift
+ M Sources/CleanerCore/SystemScanReport.swift
+ M Sources/CleanerCore/TrashReminderState.swift
+ M Sources/CoreContractChecks/AppNavigationContract.swift
+ M Sources/CoreContractChecks/PackagedRuleConfigurationContract.swift
+ M Sources/CoreContractChecks/ProjectArtifactContract.swift
+ D Sources/CoreContractChecks/ReadOnlyInterfaceContract.swift
+ M Sources/CoreContractChecks/ReviewRegressionContract.swift
+ M Sources/CoreContractChecks/main.swift
+ M Tests/CleanerCoreTests/DuplicateLargeFileTests.swift
+ M Tests/CleanerCoreTests/TrashReminderStateTests.swift
+ M Tests/test_version.py
+ M Version.json
+ M doc/agent-only-scope.md
+ M doc/architecture.md
+ M doc/development.md
+ M doc/large-file-duplicates-plan.md
+ M docs/architecture.md
+ M docs/development.md
+ M docs/production-release-checklist.md
+ M docs/system-cleanup-scanning.md
+?? Resources/App.entitlements
+?? Sources/CleanerApp/ResourceCleanupPresentationFixture.swift
+?? Sources/CleanerApp/ResourceCleanupView.swift
+?? Sources/CleanerApp/TrashEmptyingCheck.swift
+?? Sources/CleanerCore/DiskCapacitySnapshot.swift
+?? Sources/CleanerCore/LocalAIModelScanner.swift
+?? Sources/CleanerCore/ProjectInstallerOwnership.swift
+?? Sources/CleanerCore/ResourceCleanupListPolicy.swift
+?? Sources/CoreContractChecks/CoreReadOnlyContract.swift
+?? Tests/CleanerCoreTests/DefaultCleanupSelectionTests.swift
+?? Tests/CleanerCoreTests/DiskCapacitySnapshotTests.swift
+?? Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift
+?? Tests/CleanerCoreTests/LocalAIModelScannerTests.swift
+?? Tests/CleanerCoreTests/NewCleanupDimensionsTests.swift
+?? Tests/CleanerCoreTests/ProjectInstallerTests.swift
+?? Tests/CleanerCoreTests/ResourceCleanupListPolicyTests.swift
+?? Tests/agent-empty-default-scope/
+?? Tests/build-auto-version/
+?? Tests/cleanup-center-resource-sync/
+?? Tests/dashboard-all-default/
+?? Tests/dashboard-column-alignment/
+?? Tests/dashboard-compact-trash/
+?? Tests/dashboard-control-sizing/
+?? Tests/dashboard-heading-copy/
+?? Tests/dashboard-plain-summary/
+?? Tests/dashboard-sidebar-footer/
+?? Tests/local-ai-projects-disk/
+?? Tests/project-installer-discovery/
+?? Tests/project-scan-roots-settings/
+?? Tests/project-selection-preferences/
+?? Tests/resource-cleanable-defaults/
+?? doc/agent-empty-default-scope-plan.md
+?? doc/build-auto-version-plan.md
+?? doc/cleanup-center-resource-sync-plan.md
+?? doc/dashboard-all-default-plan.md
+?? doc/dashboard-compact-trash-plan.md
+?? doc/dashboard-heading-copy-plan.md
+?? doc/dashboard-sidebar-footer-plan.md
+?? doc/local-ai-projects-disk-plan.md
+?? doc/project-installer-discovery-plan.md
+?? doc/project-scan-roots-settings-plan.md
+?? doc/project-selection-preferences-plan.md
+?? doc/release-0.4.10.md
+?? doc/release-0.4.11.md
+?? doc/release-0.4.12.md
+?? doc/release-0.4.13.md
+?? doc/release-0.4.14.md
+?? doc/release-0.4.16.md
+?? doc/release-0.4.17.md
+?? doc/release-0.4.18.md
+?? doc/release-0.4.19.md
+?? doc/release-0.4.20.md
+?? doc/release-0.4.22.md
+?? doc/release-0.4.23.md
+?? doc/release-0.4.24.md
+?? doc/release-0.4.4.md
+?? doc/release-0.4.5.md
+?? doc/release-0.4.6.md
+?? doc/release-0.4.7.md
+?? doc/release-0.4.8.md
+?? doc/release-0.4.9.md
+?? doc/resource-cleanable-defaults-plan.md
+?? doc/vervain-reference-research.md

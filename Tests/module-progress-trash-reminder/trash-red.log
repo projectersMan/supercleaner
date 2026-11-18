@@ -1,0 +1,1 @@
+ExactTrashDialogHarness/main.swift:144: Precondition failed: close during cleanup finalization must defer exactly one reminder until the model is idle

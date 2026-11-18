@@ -36,6 +36,7 @@ final class TrashReminderWindowView: NSView {
 
     @objc private func windowWillClose(_ notification: Notification) {
         guard let model else { return }
-        controller?.remindIfNeeded(cleanedBytes: model.sessionCleanupSummary.bytes, isQuitting: false)
+        // Closing the window keeps the session alive; Cancel only stops emptying.
+        controller?.remindAfterWindowClose(model: model)
     }
 }

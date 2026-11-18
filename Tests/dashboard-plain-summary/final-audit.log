@@ -1,0 +1,6 @@
+PASS: checked 368 local Markdown links; no newly broken targets.
+Pre-existing missing historical artifact: doc/agent-only-scope.md -> ../build/SuperCleaner-0.2.25-58.dmg
+PASS: git diff --check.
+PASS: own temporary installation backup and generated test homes removed.
+Production source delta for this batch: removed one shared top-summary background modifier in DashboardView.hero.
+No commit or push performed.

@@ -8,9 +8,13 @@ public struct ScanDiscoverySummary: Equatable, Sendable {
     public let agentCount: Int
     public let skillCount: Int
     public let mcpCount: Int
+    public let localAIModelCount: Int
+    public let projectArtifactCount: Int
 
     public init(report: SystemScanReport) {
         applicationCount = report.applicationInventory.applications.count
+        localAIModelCount = report.localAIModelInventory?.models.count ?? 0
+        projectArtifactCount = report.projectScanReport?.artifacts.count ?? 0
         largeFileCount = report.diskUsageTree.largeFiles.count
         duplicateLargeFileCount = report.largeFileCandidates.filter { $0.largeFileProof != nil && $0.risk.isSelectable }.count
         // Shared resources, Git worktrees and generic MCP stores are not Agent apps.
@@ -32,6 +36,8 @@ public struct ScanDiscoverySummary: Equatable, Sendable {
         case .applications: L10n.text("发现 {0} 个应用", String(describing: applicationCount))
         case .largeFiles: L10n.text("发现 {0} 个可清理的重复大文件", String(duplicateLargeFileCount))
         case .agentEnvironment: L10n.text("发现 {0} 个 Agent · {1} 个 Skill · {2} 个 MCP", String(describing: agentCount), String(describing: skillCount), String(describing: mcpCount))
+        case .localAIModels: L10n.text("发现 {0} 项本地模型资源", String(localAIModelCount))
+        case .projects: L10n.text("发现 {0} 项项目产物", String(projectArtifactCount))
         }
     }
 }

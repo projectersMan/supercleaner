@@ -98,13 +98,24 @@ extension SystemScanReport {
         let general = generalCandidates.filter { !isRemoved($0.url) }
         let removedGeneralRoots = Set(generalCandidates.filter { isRemoved($0.url) }.map { $0.url.standardizedFileURL.path })
         let otherScannedRoots = Set((applicationInventory.coverage.scannedRoots + diskUsageTree.coverage.scannedRoots
-            + agentScanCoverage.scannedRoots).map(\.path))
+            + agentScanCoverage.scannedRoots + (localAIModelInventory?.coverage.scannedRoots ?? [])
+            + (projectScanReport?.roots ?? [])).map(\.path))
+        let models = localAIModelInventory.map {
+            LocalAIModelInventory(models: $0.models.filter { !isRemoved($0.candidate.url) },
+                coverage: $0.coverage, limitations: $0.limitations, scannedAt: $0.scannedAt)
+        }
+        let projects = projectScanReport.map {
+            ProjectScanReport(startedAt: $0.startedAt, completedAt: $0.completedAt, roots: $0.roots,
+                artifacts: $0.artifacts.filter { !isRemoved($0.candidate.url) }, limitations: $0.limitations)
+        }
         return SystemScanReport(snapshot: self,
             generalCandidates: general,
             applicationInventory: apps, applicationUninstallInventory: uninstall, diskUsageTree: disk,
             largeFileCandidates: largeFileCandidates.filter { !isRemoved($0.url) }.map(updatingProof),
             agentAssets: agentAssets.filter { !isRemoved($0.candidate.url) },
             agentSkills: agentSkills.filter { !isRemoved($0.skillRootURL) },
+            localAIModelInventory: models,
+            projectScanReport: projects,
             candidates: candidates.filter { !isRemoved($0.url) }.map(updatingProof),
             coverage: coverage.removingScannedRoots(removedGeneralRoots.subtracting(otherScannedRoots)))
     }

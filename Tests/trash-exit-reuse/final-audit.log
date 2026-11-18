@@ -1,0 +1,7 @@
+PASS: 0.4.25 (139) remains unchanged after app verification, DMG and installation
+PASS: functional sources match build-source-hashes.json; native-probe delegate matches final source
+PASS: built/installed/mounted versions, signatures, entitlement and executable hashes match
+PASS: source diff whitespace check and current documentation links resolve
+PASS: HEAD 1062a42d4aeeb94f9734e6acea794747cc89cbbf unchanged, staged diff empty, no commit or push
+PASS: this batch native probe binary/generated source and installation backup removed; delivered DMG retained
+PASS: no dependency additions; no AGENTS.md or .trae/rules/project_rules.md exists; prior work retained

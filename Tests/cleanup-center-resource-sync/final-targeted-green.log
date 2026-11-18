@@ -1,0 +1,76 @@
+Building for debugging...
+[Using on-disk description]
+[2 / 18] CleanerCore
+[5 / 21] CleanerCore
+[15 / 16] CleanerCore-product
+[15 / 17] CleanerHelper-product
+[19 / 21] CleanerApp-product
+Build complete! (2.35秒)
+Test Suite 'Selected tests' started at 2026-11-17 19:22:19.492.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 19:22:19.493.
+Test Suite 'DefaultCleanupSelectionTests' started at 2026-11-17 19:22:19.493.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' passed (0.011 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testResourcesExcludeActiveBlockedAndIncompleteCandidates]' passed (0.000 seconds).
+Test Suite 'DefaultCleanupSelectionTests' passed at 2026-11-17 19:22:19.516.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.022 (0.023) seconds
+Test Suite 'DuplicateLargeFileTests' started at 2026-11-17 19:22:19.516.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' passed (0.009 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' passed (0.218 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' passed (0.018 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' passed (0.092 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' passed (0.015 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' passed (0.035 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' passed (0.066 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' passed (0.127 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' passed (0.027 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' passed (0.092 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' passed (0.381 seconds).
+Test Suite 'DuplicateLargeFileTests' passed at 2026-11-17 19:22:20.611.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 1.094 (1.095) seconds
+Test Suite 'NewCleanupDimensionsTests' started at 2026-11-17 19:22:20.611.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' passed (0.029 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' passed (0.054 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' passed (0.000 seconds).
+Test Suite 'NewCleanupDimensionsTests' passed at 2026-11-17 19:22:20.694.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.083 (0.083) seconds
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 19:22:20.694.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' passed (0.052 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' passed (0.085 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectRoutingPreservesCopyProofAndKeepsItsRetainedFileAndParent]' passed (0.050 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' passed (0.099 seconds).
+Test Suite 'ProjectInstallerTests' passed at 2026-11-17 19:22:20.980.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.286 (0.287) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-17 19:22:20.980.
+	 Executed 25 tests, with 0 failures (0 unexpected) in 1.485 (1.488) seconds
+Test Suite 'Selected tests' passed at 2026-11-17 19:22:20.980.
+	 Executed 25 tests, with 0 failures (0 unexpected) in 1.485 (1.488) seconds

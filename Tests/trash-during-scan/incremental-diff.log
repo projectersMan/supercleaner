@@ -1,0 +1,235 @@
+--- Tests/trash-during-scan/before-Controller.swift.txt	2026-11-18 12:46:47
++++ Sources/CleanerApp/TrashReminderController.swift	2026-11-18 12:48:43
+@@ -17,7 +17,7 @@
+     private var applicationIsTerminating = false
+     @Published private(set) var isEmptyingTrash = false
+     private(set) var emptyingTask: Task<Bool, Never>?
+-    private let confirmEmptyTrash: @MainActor (Bool, Bool) -> TrashEmptyingConfirmation
++    private let confirmEmptyTrash: @MainActor (Bool) -> TrashEmptyingConfirmation
+     private let emptyTrash: @Sendable () async throws -> Void
+     private let reportFailure: @MainActor (String) -> Void
+ 
+@@ -26,7 +26,7 @@
+                   emptyTrash: FinderTrashEmptying.execute, reportFailure: Self.presentFailure)
+     }
+ 
+-    init(preferences: UserDefaults, confirmEmptyTrash: @escaping @MainActor (Bool, Bool) -> TrashEmptyingConfirmation,
++    init(preferences: UserDefaults, confirmEmptyTrash: @escaping @MainActor (Bool) -> TrashEmptyingConfirmation,
+          emptyTrash: @escaping @Sendable () async throws -> Void, reportFailure: @escaping @MainActor (String) -> Void) {
+         state = TrashReminderState(preferences: preferences)
+         self.confirmEmptyTrash = confirmEmptyTrash
+@@ -50,18 +50,15 @@
+     }
+ 
+     private func requestEmptyTrash(model: AppModel, showsSuppressionOption: Bool) -> Task<Bool, Never> {
+-        guard !isPresenting, !isEmptyingTrash, !model.trashEmptyingInProgress else { return Task { false } }
+-        let allowsEmptying = model.canBeginTrashEmptying
+-        guard allowsEmptying || (showsSuppressionOption && model.canPresentTrashCloseReminder) else { return Task { false } }
+-        let reserved = allowsEmptying && model.beginTrashEmptying()
++        guard canEmptyTrash(model: model), model.beginTrashEmptying() else { return Task { false } }
+         pendingCloseReminder = nil
+         let cleanedBytes = model.sessionCleanupSummary.bytes
+         isPresenting = true
+-        let confirmation = confirmEmptyTrash(reserved, showsSuppressionOption)
++        let confirmation = confirmEmptyTrash(showsSuppressionOption)
+         isPresenting = false
+         if showsSuppressionOption && confirmation.suppressReminders { state.setRemindersSuppressed(true) }
+-        guard confirmation.shouldEmptyTrash, reserved else {
+-            if reserved { model.cancelTrashEmptyingConfirmation() }
++        guard confirmation.shouldEmptyTrash else {
++            model.cancelTrashEmptyingConfirmation()
+             return Task { false }
+         }
+         isEmptyingTrash = true
+@@ -85,30 +82,26 @@
+         return emptyingTask!
+     }
+ 
+-    static func makeEmptyingAlert(allowsEmptying: Bool, showsSuppressionOption: Bool) -> NSAlert {
++    static func makeEmptyingAlert(showsSuppressionOption: Bool) -> NSAlert {
+         let alert = NSAlert()
+         alert.alertStyle = .warning
+         alert.messageText = L10n.text("要永久清空废纸篓吗？")
+         alert.informativeText = L10n.text("废纸篓中的所有项目都将永久删除，无法恢复。此操作由 Finder 执行，可能需要授权。")
+-        if !allowsEmptying {
+-            alert.informativeText += "\n\n" + L10n.text("扫描仍在进行，结束后可清空废纸篓。关闭窗口不会停止扫描。")
+-        }
+         alert.showsSuppressionButton = showsSuppressionOption
+         if showsSuppressionOption { alert.suppressionButton?.title = L10n.text("不再提醒") }
+         let cancel = alert.addButton(withTitle: L10n.text("取消"))
+         cancel.keyEquivalent = "\u{1b}"
+         let empty = alert.addButton(withTitle: L10n.text("清空废纸篓"))
+         empty.keyEquivalent = ""
+-        empty.isEnabled = allowsEmptying
+         // Return and Escape both keep the irreversible operation cancelled.
+         alert.window.defaultButtonCell = cancel.cell as? NSButtonCell
+         return alert
+     }
+ 
+-    static func confirmEmptying(allowsEmptying: Bool, showsSuppressionOption: Bool) -> TrashEmptyingConfirmation {
+-        let alert = makeEmptyingAlert(allowsEmptying: allowsEmptying, showsSuppressionOption: showsSuppressionOption)
++    static func confirmEmptying(showsSuppressionOption: Bool) -> TrashEmptyingConfirmation {
++        let alert = makeEmptyingAlert(showsSuppressionOption: showsSuppressionOption)
+         let approved = alert.runModal() == .alertSecondButtonReturn
+-        return TrashEmptyingConfirmation(shouldEmptyTrash: approved && allowsEmptying,
++        return TrashEmptyingConfirmation(shouldEmptyTrash: approved,
+             suppressReminders: showsSuppressionOption && alert.suppressionButton?.state == .on)
+     }
+ 
+@@ -142,7 +135,7 @@
+         // A closed window cannot display its completed result sheet. The model
+         // keeps execution protected and only dismisses results after it finishes.
+         if model.showsDeletionSheet { model.dismissDeletionSheet() }
+-        if model.canPresentTrashCloseReminder {
++        if model.canBeginTrashEmptying {
+             pendingCloseReminder = nil
+             if state.shouldRemind(cleanedBytes: model.sessionCleanupSummary.bytes) {
+                 _ = requestEmptyTrash(model: model, showsSuppressionOption: true)
+
+--- Tests/trash-during-scan/before-AppModel.swift.txt	2026-11-18 12:46:47
++++ Sources/CleanerApp/AppModel.swift	2026-11-18 12:49:44
+@@ -408,12 +408,12 @@
+         model.isScanRunning = true
+         model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .scanning)
+         controller.remindAfterWindowClose(model: model)
+-        guard presentation.confirmationCount == 1, presentation.suppressionOptions == [true], presentation.emptyingAllowed == [false], model.isScanRunning,
++        guard presentation.confirmationCount == 1, presentation.suppressionOptions == [true], model.isScanRunning,
+               model.scanProgressByModule[.agentEnvironment]?.state == .scanning,
+-              !model.trashEmptyingInProgress, !model.canBeginTrashEmptying else {
+-            throw TrashEmptyingCheckFailure(description: "closing after Project cleanup must prompt immediately while unrelated scanning continues")
++              !model.trashEmptyingInProgress, model.canBeginTrashEmptying else {
++            throw TrashEmptyingCheckFailure(description: "confirmed Trash emptying must stay available while unrelated scanning continues")
+         }
+-        print("PASS: real AppModel close reminder appears during scanning without pausing scanning or allowing premature emptying")
++        print("PASS: real AppModel close reminder and Empty Trash stay available while scanning continues")
+         presentation.suppressReminders = true
+         controller.remindAfterWindowClose(model: model)
+         let reopened = TrashReminderController(preferences: preferences, confirmEmptyTrash: presentation.confirm,
+@@ -421,10 +421,9 @@
+         guard presentation.confirmationCount == 2, !reopened.shouldRemind(cleanedBytes: UInt64.max) else {
+             throw TrashEmptyingCheckFailure(description: "close suppression must persist without clearing Trash")
+         }
+-        model.isScanRunning = false
+         _ = controller.requestEmptyTrash(model: model)
+         guard presentation.confirmationCount == 3, presentation.suppressionOptions.last == false,
+-              presentation.emptyingAllowed.last == true, model.sessionCleanupSummary.bytes == 1_024 else {
++              model.isScanRunning, model.sessionCleanupSummary.bytes == 1_024 else {
+             throw TrashEmptyingCheckFailure(description: "manual emptying must confirm without suppression even when automatic reminders are suppressed")
+         }
+         TrashReminderState(preferences: preferences).setRemindersSuppressed(false)
+@@ -443,6 +442,57 @@
+         }
+         // Simulate a new receipt arriving after the button captured its reminder baseline.
+         sessionCleanupSummary = CleanupSessionSummary(itemCount: 2, bytes: 2_048)
++    }
++
++    static func checkTrashExecutionDuringScanning() async throws {
++        let domain = "SuperCleaner.TrashDuringScan.\(UUID())"
++        let preferences = UserDefaults(suiteName: domain)!
++        defer { preferences.removePersistentDomain(forName: domain) }
++        for closing in [true, false] {
++            for success in [true, false] {
++                let execution = TrashEmptyingFixture()
++                let presentation = TrashEmptyingPresentationFixture(approved: true)
++                let model = makeTrashEmptyingCheckModel(fixture: execution)
++                let controller = TrashReminderController(preferences: preferences, confirmEmptyTrash: presentation.confirm,
++                    emptyTrash: execution.execute, reportFailure: presentation.reportFailure)
++                let generation = model.systemReport!.generationID
++                let token = UUID()
++                model.phase = .scanning
++                model.isScanRunning = true
++                model.activeScanGenerationID = generation
++                model.moduleScanTokens[.agentEnvironment] = token
++                model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .scanning)
++                let completion: Task<Bool, Never>?
++                if closing {
++                    controller.remindAfterWindowClose(model: model)
++                    completion = controller.emptyingTask
++                } else {
++                    completion = controller.requestEmptyTrash(model: model)
++                }
++                await execution.waitUntilStarted()
++                guard model.isScanRunning, model.trashEmptyingInProgress, controller.isEmptyingTrash,
++                      presentation.suppressionOptions == [closing], await execution.calls == 1 else {
++                    throw TrashEmptyingCheckFailure(description: "closing and manual Empty Trash must execute immediately while scanning remains active")
++                }
++                model.receiveModuleScanProgress(.init(generationID: generation, module: .agentEnvironment, state: .scanning,
++                    completedModules: 5, totalModules: 6, message: "scan-advanced-during-trash"), token: token)
++                _ = await controller.requestEmptyTrash(model: model).value
++                guard model.scanProgressByModule[.agentEnvironment]?.message == "scan-advanced-during-trash",
++                      model.moduleScanTokens[.agentEnvironment] == token, presentation.confirmationCount == 1,
++                      await execution.calls == 1 else {
++                    throw TrashEmptyingCheckFailure(description: "scan progress must continue during emptying and duplicate requests must not execute again")
++                }
++                await execution.finish(success ? .success(()) : .failure(FinderTrashEmptyingError.unconfirmed))
++                guard await completion?.value == success, await execution.capacityReads == 1,
++                      model.isScanRunning, model.moduleScanTokens[.agentEnvironment] == token,
++                      !model.trashEmptyingInProgress, model.canBeginTrashEmptying,
++                      model.sessionCleanupSummary.bytes == 1_024, presentation.failures.count == (success ? 0 : 1),
++                      controller.shouldRemind(cleanedBytes: 1_024) == !success else {
++                    throw TrashEmptyingCheckFailure(description: "emptying completion must preserve scanning, accounting and success/failure reminder semantics")
++                }
++            }
++        }
++        print("PASS: close/manual Empty Trash executes during scanning; module progress continues, duplicate execution is blocked, success/failure refreshes capacity without cancelling scans")
+     }
+ 
+     func updateAgentOverlapThreshold(_ value: Double) {
+@@ -1385,7 +1435,7 @@
+         }
+     }
+ 
+-    var canPresentTrashCloseReminder: Bool {
++    var canBeginTrashEmptying: Bool {
+         !trashEmptyingInProgress && !projectRootsOperationInProgress && !bootstrapInProgress && !maintenanceInProgress && !updateInProgress
+             && !helper.isChanging && !isLoadingApplications && deepScanningApplicationID == nil
+             && !isDeletionInProgress && recoveryActionReceiptID == nil
+@@ -1393,8 +1443,6 @@
+             && quittingApplicationIDs.isEmpty && !showsDeletionSheet
+     }
+ 
+-    var canBeginTrashEmptying: Bool { canPresentTrashCloseReminder && !isScanRunning }
+-
+     func beginTrashEmptying() -> Bool {
+         guard canBeginTrashEmptying else { return false }
+         trashEmptyingInProgress = true
+
+--- Tests/trash-during-scan/before-Check.swift.txt	2026-11-18 12:46:47
++++ Sources/CleanerApp/TrashEmptyingCheck.swift	2026-11-18 12:48:43
+@@ -81,16 +81,14 @@
+     private(set) var terminationReplies: [Bool] = []
+     var suppressReminders = false
+     private(set) var suppressionOptions: [Bool] = []
+-    private(set) var emptyingAllowed: [Bool] = []
+ 
+     init(approved: Bool) { self.approved = approved }
+ 
+-    func confirm(allowsEmptying: Bool, showsSuppressionOption: Bool) -> TrashEmptyingConfirmation {
++    func confirm(showsSuppressionOption: Bool) -> TrashEmptyingConfirmation {
+         confirmationCount += 1
+         suppressionOptions.append(showsSuppressionOption)
+-        emptyingAllowed.append(allowsEmptying)
+         if let checkConfirmation { confirmationWasBusy = checkConfirmation() }
+-        return TrashEmptyingConfirmation(shouldEmptyTrash: approved && allowsEmptying,
++        return TrashEmptyingConfirmation(shouldEmptyTrash: approved,
+             suppressReminders: showsSuppressionOption && suppressReminders)
+     }
+ 
+@@ -108,6 +106,7 @@
+         let preferences = UserDefaults(suiteName: domain)!
+         defer { preferences.removePersistentDomain(forName: domain) }
+         try checkScanningWindowCloseReminder(preferences: preferences)
++        try await checkTrashExecutionDuringScanning()
+         try checkClosedWindowTrashResultGate(preferences: preferences)
+         try await checkSuppressedCloseEmptying()
+         let cancelled = TrashEmptyingPresentationFixture(approved: false)
+@@ -294,7 +293,7 @@
+             controller.remindAfterWindowClose(model: model)
+             await execution.waitUntilStarted()
+             let completion = controller.emptyingTask
+-            guard presentation.suppressionOptions == [true], presentation.emptyingAllowed == [true],
++            guard presentation.suppressionOptions == [true], model.trashEmptyingInProgress,
+                   !controller.shouldRemind(cleanedBytes: UInt64.max) else {
+                 throw TrashEmptyingCheckFailure(description: "approved close emptying must share one executor and preserve chosen suppression")
+             }
+

@@ -1,0 +1,8 @@
+Another instance of SwiftPM (PID: 52384) is already running using '/Users/bytedance/code/supercleaner/.build', waiting until that process has finished execution...PASS: actual red close button skips the dialog at zero cleanup bytes
+PASS: dashboard entry uses exactly Cancel / Empty Trash and no suppression option
+PASS: closing an unrelated panel does not request the Trash dialog
+PASS: red close invokes the same dialog factory and buttons; Cancel leaves the app session in the background with its reminder intact
+PASS: the existing NSWindow delegate and scan model are retained; no Finder commands were sent
+PASS: repeated red close during cleanup finalization retains exactly one reminder after delayed cleanup accounting
+PASS: a deferred close with no successful cleanup produces no dialog
+PASS: independent Helper completion wakes the pending close without a parent model change

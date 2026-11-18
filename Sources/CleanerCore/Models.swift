@@ -38,6 +38,7 @@ public enum CandidateSource: String, Codable, Sendable, CaseIterable, Hashable {
     case application
     case diskAnalysis
     case projectArtifacts
+    case localAIModels
 }
 
 public struct Evidence: Codable, Hashable, Sendable {
@@ -437,6 +438,8 @@ extension CleanupCandidate {
             return [.cache, .log, .temporaryFile, .installerArtifact, .developerCache].contains(category)
         case .application, .historicalApplicationResidue, .projectArtifacts:
             return true
+        case .localAIModels:
+            return false
         case .diskAnalysis:
             return category == .largeFile
         case .agentWorkspace:

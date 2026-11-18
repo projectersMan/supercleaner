@@ -76,6 +76,8 @@ private enum SystemScanOutcome: Sendable {
     case applications(ApplicationUninstallInventory, ScanModuleStatus)
     case largeFiles(DiskUsageTree, [CleanupCandidate], ScanModuleStatus)
     case agentEnvironment(AgentAssetInventory, ScanModuleStatus)
+    case localAIModels(LocalAIModelInventory, ScanModuleStatus)
+    case projects(ProjectScanReport, ScanModuleStatus)
 
     func moduleResult(generationID: UUID) -> SystemScanModuleResult {
         switch self {
@@ -87,6 +89,10 @@ private enum SystemScanOutcome: Sendable {
             return SystemScanModuleResult(generationID: generationID, status: status, payload: .largeFiles(tree, candidates))
         case let .agentEnvironment(inventory, status):
             return SystemScanModuleResult(generationID: generationID, status: status, payload: .agentEnvironment(inventory))
+        case let .localAIModels(inventory, status):
+            return SystemScanModuleResult(generationID: generationID, status: status, payload: .localAIModels(inventory))
+        case let .projects(report, status):
+            return SystemScanModuleResult(generationID: generationID, status: status, payload: .projects(report))
         }
     }
 }
@@ -217,9 +223,15 @@ public struct SystemScanCoordinator: Sendable {
                             try Task.checkCancellation()
                             tree = try await diskUsageScanner.scan(context: context)
                         }
+                        let support = context.homeDirectory.appendingPathComponent("Library/Application Support/SuperCleaner")
+                        let roots = try await ProjectScanRootsStore(url: support.appendingPathComponent("project-scan-roots.json"),
+                            home: context.homeDirectory).roots()
+                        let projectInstallers = try await ProjectArtifactScanner(roots: roots)
+                            .installerPaths(in: tree.largeFiles.map(\.url), context: context)
+                        let reviewTree = tree.excludingFiles(at: projectInstallers)
                         let candidates = try await LargeFileScanner(
                             minimumBytes: tree.minimumFileBytes
-                        ).candidates(from: tree, context: context)
+                        ).candidates(from: reviewTree, context: context)
                         await progress(await tracker.event(module: module, state: .scanning,
                             message: L10n.text("正在核验重复副本和已解压 ZIP")))
                         let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: tree.minimumFileBytes,
@@ -237,7 +249,7 @@ public struct SystemScanCoordinator: Sendable {
                             : (tree.analysisState == .indexedResults ? L10n.text("使用 Spotlight 索引完成大文件扫描") : nil)
                         let status = ScanModuleStatus(module: module, state: state, startedAt: moduleStartedAt,
                             completedAt: Date(), message: message, limitations: limitations)
-                        let outcome = SystemScanOutcome.largeFiles(tree, analysis.candidates, status)
+                        let outcome = SystemScanOutcome.largeFiles(reviewTree, analysis.candidates, status)
                         await moduleResult(outcome.moduleResult(generationID: generationID))
                         await progress(await tracker.event(module: module, state: state, message: message, limitations: limitations))
                         return outcome
@@ -288,6 +300,62 @@ public struct SystemScanCoordinator: Sendable {
                 }
             }
 
+            if requestedModules.contains(.localAIModels) {
+                group.addTask {
+                    let module = ScanModuleID.localAIModels
+                    let started = Date()
+                    await progress(await tracker.event(module: module, state: .scanning))
+                    let result = await cancellableScanResult(Task { try await LocalAIModelScanner().scan(context: context) })
+                    let inventory: LocalAIModelInventory
+                    let status: ScanModuleStatus
+                    switch result {
+                    case let .success(value):
+                        inventory = value
+                        status = ScanModuleStatus(module: module, state: value.limitations.isEmpty ? .completed : .limited,
+                            startedAt: started, completedAt: Date(), limitations: value.limitations)
+                    case let .failure(error):
+                        inventory = LocalAIModelInventory(models: [], coverage: CoverageSummary(), limitations: [], scannedAt: Date())
+                        status = ScanModuleStatus(module: module, state: error is CancellationError ? .cancelled : .failed,
+                            startedAt: started, completedAt: Date(), message: error.localizedDescription)
+                    }
+                    let outcome = SystemScanOutcome.localAIModels(inventory, status)
+                    await moduleResult(outcome.moduleResult(generationID: generationID))
+                    await progress(await tracker.event(module: module, state: status.state,
+                        message: status.message, limitations: status.limitations))
+                    return outcome
+                }
+            }
+            if requestedModules.contains(.projects) {
+                group.addTask {
+                    let module = ScanModuleID.projects
+                    let started = Date()
+                    await progress(await tracker.event(module: module, state: .scanning))
+                    let result = await cancellableScanResult(Task {
+                        let support = context.homeDirectory.appendingPathComponent("Library/Application Support/SuperCleaner")
+                        let roots = try await ProjectScanRootsStore(
+                            url: support.appendingPathComponent("project-scan-roots.json"), home: context.homeDirectory).roots()
+                        return try await ProjectArtifactScanner(roots: roots).scan(context: context)
+                    })
+                    let report: ProjectScanReport
+                    let status: ScanModuleStatus
+                    switch result {
+                    case let .success(value):
+                        report = value
+                        status = ScanModuleStatus(module: module, state: value.isComplete ? .completed : .limited,
+                            startedAt: started, completedAt: Date(), limitations: value.limitations)
+                    case let .failure(error):
+                        report = ProjectScanReport(startedAt: started, completedAt: Date(), roots: [], artifacts: [], limitations: [])
+                        status = ScanModuleStatus(module: module, state: error is CancellationError ? .cancelled : .failed,
+                            startedAt: started, completedAt: Date(), message: error.localizedDescription)
+                    }
+                    let outcome = SystemScanOutcome.projects(report, status)
+                    await moduleResult(outcome.moduleResult(generationID: generationID))
+                    await progress(await tracker.event(module: module, state: status.state,
+                        message: status.message, limitations: status.limitations))
+                    return outcome
+                }
+            }
+
             for await outcome in group {
                 outcomes.append(outcome)
             }
@@ -306,8 +374,12 @@ public struct SystemScanCoordinator: Sendable {
         var agentProviderCoverage: [AgentProvider: AgentProviderCoverage] = [:]
         var agentScanCoverage = CoverageSummary()
         var agentSkillDuplicatesCollapsedCount = 0
+        var localAIModels: LocalAIModelInventory?
+        var projects: ProjectScanReport?
         for outcome in outcomes {
             switch outcome {
+            case let .localAIModels(value, status): localAIModels = value; modules[status.module] = status
+            case let .projects(value, status): projects = value; modules[status.module] = status
             case let .general(report, status): generalCandidates = report.candidates; modules[.general] = status
             case let .applications(value, status):
                 applicationAnalysis = value
@@ -343,11 +415,21 @@ public struct SystemScanCoordinator: Sendable {
             agentMCPConfigurations: agentMCPConfigurations,
             agentProviderCoverage: agentProviderCoverage,
             agentSkillDuplicatesCollapsedCount: agentSkillDuplicatesCollapsedCount,
-            agentScanCoverage: agentScanCoverage
+            agentScanCoverage: agentScanCoverage,
+            localAIModelInventory: localAIModels,
+            projectScanReport: projects
         )
         if requestedModules == Set(ScanModuleID.allCases) {
             return report.isCommitEligible ? report : nil
         }
         return requestedModules.allSatisfy { report.modules[$0]?.state.isTerminal == true } ? report : nil
+    }
+}
+
+private func cancellableScanResult<Value: Sendable>(_ task: Task<Value, Error>) async -> Result<Value, Error> {
+    await withTaskCancellationHandler {
+        await task.result
+    } onCancel: {
+        task.cancel()
     }
 }

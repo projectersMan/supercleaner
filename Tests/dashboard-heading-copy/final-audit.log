@@ -1,0 +1,5 @@
+Reviewed task changes by file: DashboardView, two localizations, Version.json, README, doc/docs architecture and development, plan/release and QA records. Existing uncommitted changes preserved.
+PASS: native screenshot and AX tree show removed lines, compact heading, all cards/controls and six modules; idle Cleanup Center.
+PASS: previous install and self-check temporary homes cleaned; no cleanup, Trash emptying, Helper registration, commit or push.
+PASS: 509 local Markdown links; only pre-existing missing historical DMG preserved.
+PASS: Release305, localization1271, package verification, final DMG and installed0.4.11(125) cross-checked. No Swift source changes after build.

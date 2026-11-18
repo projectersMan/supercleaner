@@ -1,0 +1,27 @@
+Building for debugging...
+[Using on-disk description]
+[3 / 10] CoreContractChecks-product
+[9 / 16] CoreContractChecks-product
+[9 / 16] CleanerCoreTests-product
+[11 / 16] CoreContractChecks-product
+[18 / 20] CoreContractChecks-product
+[19 / 20] CleanerCoreTests-product
+Build complete! (1.60秒)
+Test Suite 'Selected tests' started at 2026-11-17 11:17:37.233.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 11:17:37.234.
+Test Suite 'NewCleanupDimensionsTests' started at 2026-11-17 11:17:37.234.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' passed (0.036 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/NewCleanupDimensionsTests.swift:20: error: -[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup] : failed - A model must reach its dedicated scope validator: failure(CleanerCore.RuleScanError.ruleUnavailable("local-ai-model.huggingFace"))
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' failed (0.232 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' passed (0.000 seconds).
+Test Suite 'NewCleanupDimensionsTests' failed at 2026-11-17 11:17:37.503.
+	 Executed 3 tests, with 1 failure (0 unexpected) in 0.269 (0.269) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 11:17:37.503.
+	 Executed 3 tests, with 1 failure (0 unexpected) in 0.269 (0.269) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 11:17:37.503.
+	 Executed 3 tests, with 1 failure (0 unexpected) in 0.269 (0.270) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

@@ -1,0 +1,79 @@
+PASS: 13 changed/new Markdown documents; 293 existing local links; no new broken links
+Historical unavailable generated-output links retained: 1
+doc/agent-only-scope.md: ../build/SuperCleaner-0.2.25-58.dmg
+PASS: temporary test fixtures and previous installation backup removed
+PASS: git diff --check
+Changed tracked files:
+Package.swift
+README.md
+Scripts/build-app.sh
+Scripts/check-production-signing.sh
+Sources/CleanerApp/AppModel.swift
+Sources/CleanerApp/Components.swift
+Sources/CleanerApp/ContentView.swift
+Sources/CleanerApp/DashboardView.swift
+Sources/CleanerApp/ScanAccessTracking.swift
+Sources/CleanerCLI/main.swift
+Sources/CleanerCore/AppNavigationPolicy.swift
+Sources/CleanerCore/CleanupReportReconciliation.swift
+Sources/CleanerCore/CleanupRuntime.swift
+Sources/CleanerCore/CleanupScopePolicy.swift
+Sources/CleanerCore/CleanupSessionSummary.swift
+Sources/CleanerCore/Execution.swift
+Sources/CleanerCore/Models.swift
+Sources/CleanerCore/ReadOnlyInterface.swift
+Sources/CleanerCore/Resources/en.lproj/Localizable.strings
+Sources/CleanerCore/Resources/zh-Hans.lproj/Localizable.strings
+Sources/CleanerCore/ScanDiscoverySummary.swift
+Sources/CleanerCore/SystemCleanupScanner.swift
+Sources/CleanerCore/SystemScanCoordinator.swift
+Sources/CleanerCore/SystemScanPrimitives.swift
+Sources/CleanerCore/SystemScanReport.swift
+Sources/CoreContractChecks/AppNavigationContract.swift
+Sources/CoreContractChecks/PackagedRuleConfigurationContract.swift
+Sources/CoreContractChecks/ReadOnlyInterfaceContract.swift
+Sources/CoreContractChecks/ReviewRegressionContract.swift
+Sources/CoreContractChecks/main.swift
+Version.json
+doc/agent-only-scope.md
+doc/architecture.md
+doc/development.md
+doc/large-file-duplicates-plan.md
+docs/architecture.md
+docs/development.md
+docs/production-release-checklist.md
+docs/system-cleanup-scanning.md
+New files:
+Sources/CleanerApp/ResourceCleanupView.swift
+Sources/CleanerCore/DiskCapacitySnapshot.swift
+Sources/CleanerCore/LocalAIModelScanner.swift
+Sources/CoreContractChecks/CoreReadOnlyContract.swift
+Tests/CleanerCoreTests/DiskCapacitySnapshotTests.swift
+Tests/CleanerCoreTests/LocalAIModelExecutionTests.swift
+Tests/CleanerCoreTests/LocalAIModelScannerTests.swift
+Tests/CleanerCoreTests/NewCleanupDimensionsTests.swift
+Tests/local-ai-projects-disk/README.md
+Tests/local-ai-projects-disk/cli/package.json
+Tests/local-ai-projects-disk/contracts.log
+Tests/local-ai-projects-disk/dimensions-red.log
+Tests/local-ai-projects-disk/disk-red.log
+Tests/local-ai-projects-disk/disk/main.swift
+Tests/local-ai-projects-disk/disk/standalone.log
+Tests/local-ai-projects-disk/dmg-first.log
+Tests/local-ai-projects-disk/dmg.log
+Tests/local-ai-projects-disk/final-audit.log
+Tests/local-ai-projects-disk/installation.log
+Tests/local-ai-projects-disk/model-budget-red.log
+Tests/local-ai-projects-disk/model-execution-green.log
+Tests/local-ai-projects-disk/model-execution-red.log
+Tests/local-ai-projects-disk/model-tests-green.log
+Tests/local-ai-projects-disk/model-tests-red.log
+Tests/local-ai-projects-disk/navigation-green.log
+Tests/local-ai-projects-disk/navigation-red.log
+Tests/local-ai-projects-disk/package.log
+Tests/local-ai-projects-disk/suite.log
+Tests/local-ai-projects-disk/ui-sample.txt
+Tests/local-ai-projects-disk/verification.log
+doc/local-ai-projects-disk-plan.md
+doc/release-0.4.4.md
+doc/vervain-reference-research.md

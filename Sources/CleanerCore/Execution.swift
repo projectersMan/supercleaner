@@ -321,7 +321,8 @@ public actor CleanupExecutor {
                 }
                 // Both Helper and local moves must observe the latest running
                 // state and rules, including after a permission-recovery retry.
-                if allowsContentChanges(candidate), candidate.identity.kind == .directory {
+                if (candidate.source == .localAIModels && privilegedApplications != nil)
+                    || (allowsContentChanges(candidate) && candidate.identity.kind == .directory) {
                     do {
                         let check = finalCandidateCheck ?? validateCandidate
                         if candidate.source == .application {
@@ -357,7 +358,7 @@ public actor CleanupExecutor {
                         results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在权限操作回退前已过期，请重新扫描")))
                         continue
                     }
-                    if allowsContentChanges(candidate) {
+                    if allowsContentChanges(candidate) || candidate.source == .localAIModels {
                         // Preparation/fallback can suspend. Recheck immediately
                         // before moving; rotation is not a content-only change.
                         guard let current = try? await fileSystem.identity(at: candidate.url),
@@ -370,6 +371,18 @@ public actor CleanupExecutor {
                         results.append(result(for: candidate, disposition: .skipped, status: .skippedIdentityChanged,
                             message: L10n.text("副本或保留内容已变化，请刷新重复大文件")))
                         continue
+                    }
+                    if candidate.source == .localAIModels {
+                        // Preparation, Helper fallback and identity reads can suspend.
+                        // Keep the live model check last before the local move.
+                        do {
+                            let check = finalCandidateCheck ?? validateCandidate
+                            try await check(candidate)
+                        } catch {
+                            results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
+                                message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
+                            continue
+                        }
                     }
                     if Task.isCancelled { stoppedByCancellation = true; break }
                     guard !plan.isExpired(at: now()) else {

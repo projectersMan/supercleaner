@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-/// Shared production configuration for GUI, read-only CLI and final execution.
+/// Shared production configuration for GUI and final execution.
 /// Stores reload durable state; UI snapshots cannot grant authority after a
 /// rule or protection entry changes on disk.
 public struct CleanupRuntime: Sendable {
@@ -59,13 +59,15 @@ public struct CleanupRuntime: Sendable {
             [home.appendingPathComponent("Library/Caches/\(id)")]
         })
         var projectActivityAvailable = true
+        var projectActivePaths = Set<URL>()
         if includeProjectActivity {
             let projectActivity = try await ProjectActivityProbe.capture(activity: activity, roots: projectRoots.roots())
-            paths.formUnion(projectActivity.paths)
+            projectActivePaths = projectActivity.paths
+            paths.formUnion(ProjectActivityProbe.activeFilePaths(in: projectActivity.paths))
             projectActivityAvailable = projectActivity.isAvailable
         }
         return (ScanContext(
-            homeDirectory: home, fileSystem: fileSystem, activePaths: paths,
+            homeDirectory: home, fileSystem: fileSystem, activePaths: paths, projectActivePaths: projectActivePaths,
             protectionPolicy: protection, runningBundleIdentifiers: bundleIDs,
             activeProcessNames: activity.processNames, activityProbeAvailable: activity.isAvailable,
             projectActivityAvailable: projectActivityAvailable, enforcesEntryBudgets: enforcesEntryBudgets
@@ -112,7 +114,7 @@ public struct CleanupRuntime: Sendable {
         do { protection = try await protections.snapshot() }
         catch { protection = ProtectionPolicy(homeDirectory: home, isAvailable: false) }
         let needsProjectActivity = candidates.contains { $0.source == .projectArtifacts }
-        let needsProcessActivity = candidates.contains { $0.source == .projectArtifacts || $0.source == .agentWorkspace || $0.source == .historicalApplicationResidue }
+        let needsProcessActivity = candidates.contains { $0.source == .projectArtifacts || $0.source == .agentWorkspace || $0.source == .historicalApplicationResidue || $0.source == .localAIModels }
         let configuration = try await configuration(
             pack: snapshot.pack,
             protection: protection,
@@ -188,7 +190,8 @@ public struct CleanupRuntime: Sendable {
         )
     }
 
-    /// Final move check reuses the completed analysis; it never rebuilds ownership or sizes a cache.
+    /// Application moves reuse ownership analysis; shared resources and models
+    /// repeat their content and activity checks against the current filesystem.
     public func validateImmediatelyBeforeMove(_ candidate: CleanupCandidate) async throws {
         try Task.checkCancellation()
         try await protections.snapshot().validate(candidate.url)
@@ -210,7 +213,7 @@ public struct CleanupRuntime: Sendable {
         // live NSWorkspace state and its own targeted process checks. Neither
         // needs a fresh system-wide process listing for every individual file.
         let configuration = try await configuration(includeProjectActivity: candidate.source == .projectArtifacts,
-            includeProcessActivity: candidate.source == .projectArtifacts || candidate.source == .agentWorkspace || candidate.source == .historicalApplicationResidue,
+            includeProcessActivity: candidate.source == .projectArtifacts || candidate.source == .agentWorkspace || candidate.source == .historicalApplicationResidue || candidate.source == .localAIModels,
             enforcesEntryBudgets: false)
         try await validateForExecution(candidate, configuration: configuration)
     }
@@ -224,6 +227,10 @@ public struct CleanupRuntime: Sendable {
         try await InputMethodProtection.validate(candidate, context: configuration.context)
         if let ruleID = candidate.ruleID, configuration.pack.revokedRuleIDs.contains(ruleID) {
             throw RuleScanError.ruleUnavailable(ruleID)
+        }
+        if candidate.source == .localAIModels {
+            try await LocalAIModelScanner().validateForExecution(candidate, context: configuration.context)
+            return
         }
         if candidate.ruleID?.hasPrefix("system-cleanup.v1.") == true {
             guard let owner = candidate.cleanupApplication, let url = owner.bundleURL,

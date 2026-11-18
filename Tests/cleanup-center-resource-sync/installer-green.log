@@ -1,0 +1,152 @@
+Building for debugging...
+[Pre-planning 1 / 271]
+[Planning 1 / 271]
+[Planning deferred tasks]
+[1 / 18]
+[6 / 35]
+[7 / 36] CleanerCore
+[15 / 44] CleanerCore
+[19 / 48] CleanerCore
+[25 / 60] CleanerCore
+[27 / 60] CleanerCore
+[29 / 60] CleanerCore
+[30 / 60] CleanerCore
+[31 / 60] CleanerCore
+[36 / 59] CleanerCore
+[40 / 63] AgentOverlapAI
+[44 / 66] AgentOverlapAI
+[45 / 66] CleanerCore
+[46 / 67] CleanerApp-product
+[56 / 80] CleanerApp-product
+[57 / 80] CleanerApp-product
+[60 / 80] CoreContractChecks-product
+[61 / 82] CleanerApp-product
+[62 / 82] CleanerCore
+[64 / 83] CleanerCore
+[67 / 99] CoreContractChecks-product
+[69 / 99] CleanerHelper-product
+[71 / 99] CoreContractChecks-product
+[73 / 99] CoreContractChecks-product
+[74 / 99] CleanerApp-product
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:93:51: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 91 |                 if updater == nil {
+ 92 |                     let driver = ImmediateUpdateDriver(hostBundle: .main, delegate: nil)
+ 93 |                     driver.validateItem = { [weak self] item in
+    |                                                   |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                                   `- note: explicitly assign the capture list item to silence
+ 94 |                         guard let self else { throw ApplicationUpdateError.busy }
+ 95 |                         try validate(item)
+
+/Users/bytedance/code/supercleaner/Sources/CleanerApp/ApplicationUpdateModel.swift:97:47: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+ 85 |         ApplicationUpdateTerminationGuard.allowsTermination = false
+ 86 |         message = L10n.text("正在关闭特权会话并解除 Helper 注册…")
+ 87 |         Task {
+    |              |- note: 'self' implicitly strongly captured here
+    |              `- note: add 'self' as a capture list item to silence
+ 88 |             do {
+ 89 |                 try await prepareHelper()
+    :
+ 95 |                         try validate(item)
+ 96 |                     }
+ 97 |                     driver.rejected = { [weak self] error in self?.validationFailure = error }
+    |                                               |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                               `- note: explicitly assign the capture list item to silence
+ 98 |                     self.driver = driver
+ 99 |                     let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: self)
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[76 / 99] CoreContractChecks-product
+[78 / 99] CleanerHelper-product
+[81 / 97] CleanerCore-product
+[82 / 98] CleanerHelper-product
+[84 / 98] CoreContractChecks-product
+[84 / 98] CleanerHelper-product
+[86 / 101] CleanerCoreTests-product
+[94 / 115] CleanerCoreTests-product
+[95 / 115] CleanerCoreTests-product
+[98 / 115] CleanerCoreTests-product
+[101 / 114] CleanerCoreTests-product
+[105 / 115] CleanerCoreTests-product
+[107 / 115] CleanerCoreTests-product
+[109 / 113] CoreContractChecks-product
+[113 / 115] CoreContractChecks-product
+[116 / 117] CleanerApp-product
+Build complete! (11.31秒)
+Test Suite 'Selected tests' started at 2026-11-17 19:06:03.500.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 19:06:03.500.
+Test Suite 'DefaultCleanupSelectionTests' started at 2026-11-17 19:06:03.500.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAggregateAndModuleTotalsUseExecutableParentOperations]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAllDefaultsIncludeStillSelectedResourcesAndAutomaticRecommendations]' passed (0.013 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testAutomaticAgentSelectionCannotIncludeBlockedOrActiveItems]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation]' passed (0.010 seconds).
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' started.
+Test Case '-[CleanerCoreTests.DefaultCleanupSelectionTests testModuleSummariesDoNotCountItemsCoveredByAnotherModule]' passed (0.000 seconds).
+Test Suite 'DefaultCleanupSelectionTests' passed at 2026-11-17 19:06:03.526.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.025 (0.025) seconds
+Test Suite 'DuplicateLargeFileTests' started at 2026-11-17 19:06:03.526.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionAllowsExplicitlySelectedRuntimeFile]' passed (0.008 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testExecutionSkipsCopyWhenRetainedFileChangesAndRejectsRemovingBoth]' passed (0.012 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testLargeInstallerDefaultsKeepVerifiedCopiesAndExcludeBlockedFiles]' passed (0.237 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testManualScopeAllowsCustomDirectoriesButRejectsHomeEscape]' passed (0.014 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testOverlappingZIPAndCopyEvidenceKeepsOneRecommendationPerGroup]' passed (0.095 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectBuildInstallersArePreselectedWithoutSelectingProjectData]' passed (0.016 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testProjectDataIsManualOnlyAndCanBeQuarantinedAndRestored]' passed (0.030 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testRuntimeCopiesAreManualOnlyInBothScanPaths]' passed (0.058 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScanRecommendsOneCopyOfAnyFormatAndACompleteSiblingZIP]' passed (0.111 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testScopeAllowsPersonalFoldersButRejectsSymlinkEscapeAndExecutables]' passed (0.030 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testVerifiedZIPCanBeQuarantinedAndRestoredWhileKeepingExtractedFiles]' passed (0.090 seconds).
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' started.
+Test Case '-[CleanerCoreTests.DuplicateLargeFileTests testZIPUsesFolderTotalAndStillVerifiesSmallMembers]' passed (0.379 seconds).
+Test Suite 'DuplicateLargeFileTests' passed at 2026-11-17 19:06:04.610.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 1.083 (1.084) seconds
+Test Suite 'NewCleanupDimensionsTests' started at 2026-11-17 19:06:04.610.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/NewCleanupDimensionsTests.swift:62: error: -[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup]' failed (0.291 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup]' passed (0.052 seconds).
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' started.
+Test Case '-[CleanerCoreTests.NewCleanupDimensionsTests testNewDimensionsHaveIndependentNavigationAndActionBars]' passed (0.000 seconds).
+Test Suite 'NewCleanupDimensionsTests' failed at 2026-11-17 19:06:04.953.
+	 Executed 3 tests, with 1 failure (0 unexpected) in 0.343 (0.344) seconds
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 19:06:04.953.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes]' passed (0.055 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:21: error: -[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:27: error: -[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild] : XCTAssertTrue failed
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:32: error: -[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild] : XCTAssertTrue failed
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testProjectDMGsAreDiscoveredAtRootAndInsideBuild]' failed (0.087 seconds).
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' started.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' passed (0.079 seconds).
+Test Suite 'ProjectInstallerTests' failed at 2026-11-17 19:06:05.175.
+	 Executed 3 tests, with 3 failures (0 unexpected) in 0.221 (0.221) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 19:06:05.175.
+	 Executed 23 tests, with 4 failures (0 unexpected) in 1.672 (1.674) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 19:06:05.175.
+	 Executed 23 tests, with 4 failures (0 unexpected) in 1.672 (1.675) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

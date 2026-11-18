@@ -1,0 +1,22 @@
+PASS: current documentation local links in 9 files
+PASS: version 0.4.20 (134), build and package snapshots, and final DMG SHA-256 agree
+PASS: installed actual SDK 27.2 and minimum macOS 13.0 remain separate
+/Applications/SuperCleaner.app/Contents/MacOS/CleanerApp:
+Load command 11
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform MACOS
+    minos 13.0
+      sdk 27.2
+   ntools 1
+     tool LD
+  version 27106.1
+
+PASS: real project scan root configuration unchanged
+Removed only own superseded 0.4.18 DMG after checksum validation
+Removed only own superseded 0.4.19 DMG after checksum validation
+Removed only own 0.4.16 installation backup after final native acceptance
+Removed only own 0.4.19 installation backup after final native acceptance
+PASS: current documentation links and git diff --check
+PASS: per-file changes reviewed; ineffective titlebar workarounds removed; all earlier workspace changes retained; no commit or push
+PASS: native ordinary/fullscreen/sidebar alignment and zero-model-preselection observed; no user cleanup, Trash emptying, permission, or Helper registration performed

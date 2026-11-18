@@ -1,0 +1,4 @@
+CONFIRM: closeOption=false, allowsEmptying=true, priorCount=0
+PASS: actual NSApplication will terminate, cleanup=true, confirmations=1; no Finder execution, capacity read or cleanup accounting change
+CONFIRM: closeOption=true, allowsEmptying=true, priorCount=1
+QuitWithoutEmptyingHarness/ExistingCancelFixture.swift:67: Precondition failed

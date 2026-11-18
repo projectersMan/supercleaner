@@ -32,4 +32,6 @@
   <string>Scan your Documents for supported cleanup items and large files. Files are only removed after your confirmation.</string>
   <key>NSDownloadsFolderUsageDescription</key>
   <string>Scan your Downloads for installers and large files. Files are only removed after your confirmation.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Ask Finder to empty the Trash only after you confirm permanent deletion.</string>
 </dict></plist>

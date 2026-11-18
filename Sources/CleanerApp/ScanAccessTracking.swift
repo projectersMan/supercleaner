@@ -110,6 +110,8 @@ struct ScanAccessPresentation {
         case let .agentEnvironment(inventory):
             limited = inventory.reachedBudget || inventory.coverage.unavailableRoots.contains { !skips($0) }
                 || inventory.limitations.contains(where: shows)
+        case .localAIModels, .projects:
+            return original
         }
         return ScanModuleStatus(module: original.module, state: limited ? .limited : .completed,
             startedAt: original.startedAt, completedAt: original.completedAt,

@@ -1,0 +1,21 @@
+Building for debugging...
+[Using on-disk description]
+[4 / 17] SuperCleaner_CleanerCore
+[7 / 18] CleanerCoreTests-product
+[10 / 21] CleanerCoreTests-product
+[16 / 20] CleanerCoreTests-product
+Build complete! (1.55秒)
+Test Suite 'Selected tests' started at 2026-11-17 11:15:50.173.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 11:15:50.173.
+Test Suite 'LocalAIModelScannerTests' started at 2026-11-17 11:15:50.173.
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExhaustedBudgetStopsBeforeInspectingFurtherModelCandidates]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/LocalAIModelScannerTests.swift:191: error: -[CleanerCoreTests.LocalAIModelScannerTests testExhaustedBudgetStopsBeforeInspectingFurtherModelCandidates] : XCTAssertEqual failed: ("5") is not equal to ("1")
+Test Case '-[CleanerCoreTests.LocalAIModelScannerTests testExhaustedBudgetStopsBeforeInspectingFurtherModelCandidates]' failed (0.195 seconds).
+Test Suite 'LocalAIModelScannerTests' failed at 2026-11-17 11:15:50.369.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.195 (0.195) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 11:15:50.369.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.195 (0.195) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 11:15:50.369.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.195 (0.196) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

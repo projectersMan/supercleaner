@@ -309,7 +309,7 @@
 "权限、活跃状态或资产类型不允许自动处理，此项目不会进入计划。" = "Permissions, activity, or asset type prevent automatic processing. This item will not enter the plan.";
 "通用扫描" = "General scan";
 "磁盘分析" = "Disk analysis";
-"项目产物" = "Project artifacts";
+"项目产物" = "Project Artifacts";
 "应用缓存" = "Application cache";
 "日志" = "Logs";
 "临时文件" = "Temporary files";
@@ -378,7 +378,6 @@
 "以 App 为单位，展开应用本体与精确关联项" = "Expand each application to review its bundle and exact associated items";
 "按目录展开具体文件，不按体积自动清理" = "Browse individual files by directory; size alone never triggers automatic cleanup";
 "按真实目录和 Skill 标记动态组织，再逐条决定删或不删" = "Organized by actual directories and Skill markers; decide on each item individually";
-"扫描受支持的位置，不声称遍历启动磁盘的每一个字节" = "Scans supported locations; does not claim to inspect every byte on the startup disk";
 "维度状态" = "Module status";
 "待系统清理 {0} 项 · {1}" = "System cleanup pending: {0} items · {1}";
 "新扫描完成前，上一次完整报告仍被安全保留。" = "Your previous complete report remains available until the new scan finishes.";
@@ -531,6 +530,7 @@
 "打开系统设置…" = "Open System Settings…";
 "App 管理" = "App Management";
 "可用" = "Available";
+"可用空间：{0}" = "{0} available";
 "需要授权" = "Authorization required";
 "尚未验证" = "Not verified";
 "检查中" = "Checking";
@@ -799,7 +799,7 @@
 "内容未完整验证，保持保护" = "Content not fully verified; protected";
 "达到产物检查预算，保持保护" = "Artifact inspection budget reached; protected";
 "未包含 Git 跟踪文件" = "Contains no Git-tracked files";
-"包含 Git 跟踪文件，保持保护" = "Contains Git-tracked files; protected";
+"包含 Git 跟踪文件，默认勾选由设置决定" = "Contains Git-tracked files; preselection follows Settings";
 "无法验证 Git 状态，保持保护" = "Cannot verify Git status; protected";
 "7 天内有文件活动，默认保留；可明确审查后选择" = "File activity within 7 days; kept by default, selectable after explicit review";
 "构建工具正在运行或活动状态无法验证" = "Build tools are running or activity cannot be verified";
@@ -1105,15 +1105,7 @@
 "全部模块 · {0} 项" = "All modules · {0} items";
 
 "清空废纸篓，即可立即释放磁盘空间。" = "Empty the Trash to free up disk space immediately.";
-"清空废纸篓，释放磁盘空间" = "Empty the Trash to Free Up Space";
-"本次已清理 {0}，清空废纸篓以释放空间。" = "Cleaned {0} this session. Empty the Trash to free up space.";
-"打开废纸篓" = "Open Trash";
-"继续退出" = "Continue Quitting";
-"直接关闭" = "Close Window";
-"不再提醒" = "Don't remind me again";
-"无法打开废纸篓" = "Unable to Open the Trash";
 "好" = "OK";
-"请点击 Dock 中的废纸篓图标，检查内容后手动清空。" = "Click the Trash icon in the Dock, review its contents, then empty it manually.";
 
 "统计本次打开软件后的成功清理量，重新扫描不清零；不含失败或跳过项。恢复区和废纸篓中的文件可能仍占空间。" = "Successful cleanup since opening the app, across all modules. Rescanning does not reset the total. Failed and skipped items are excluded. Recovery and Trash may still occupy disk space.";
 
@@ -1350,3 +1342,97 @@
 
 "受保护" = "Protected";
 "输入法运行缓存受保护；卸载应用时保留，避免影响系统输入服务。" = "Input method runtime caches are protected and retained during uninstall to avoid disrupting system input services.";
+
+"本地 AI 模型" = "Local AI Models";
+"磁盘空间" = "Disk Space";
+"刷新磁盘空间" = "Refresh Disk Space";
+"总容量" = "Total Capacity";
+"已用" = "Used";
+"无法读取磁盘空间" = "Unable to Read Disk Space";
+"正在读取磁盘空间…" = "Reading disk space…";
+"只读扫描全部六个清理维度" = "Read-only scan of all six cleanup modules";
+"识别本地模型与下载缓存，保留共享存储关系" = "Identify local models and download caches while respecting shared storage";
+"按源码工程识别依赖、构建输出与项目活动" = "Identify project dependencies, build output, and activity";
+"发现 {0} 项本地模型资源" = "Found {0} local model resources";
+"发现 {0} 项项目产物" = "Found {0} project artifacts";
+"请手动选择要清理的项目" = "Select items to clean manually";
+"按工具查看本地模型与下载缓存，请手动选择要清理的项目。" = "Review local models and download caches by tool, then select what to clean.";
+"按源码工程查看依赖与构建产物，清理后可能需要重新安装或构建。" = "Review dependencies and build output by project. Cleaning may require reinstalling dependencies or rebuilding.";
+"选择扫描目录…" = "Choose Scan Folders…";
+"选择存放源码工程的目录，仅识别其中的依赖与构建产物。" = "Choose folders containing source projects. Only recognized dependencies and build output are listed.";
+"无法保存项目扫描目录：{0}" = "Unable to save project scan folders: {0}";
+"未发现本地模型资源" = "No Local Model Resources Found";
+"未发现项目产物" = "No Project Artifacts Found";
+"已检查常见模型工具的默认存储位置。" = "Checked the default storage locations of supported model tools.";
+"可选择源码工程所在目录后重新扫描。" = "Choose folders containing source projects, then scan again.";
+"Ollama 模型共享存储，选择此项会清理整个模型库。" = "Ollama models share storage. Selecting this item cleans the entire model library.";
+"清理后可能需要重新下载。" = "Cleaning may require downloading again.";
+"项目来源无法验证" = "Project Source Could Not Be Verified";
+"部分目录未完整检查，受影响项目保持保护" = "Some folders could not be fully checked; affected items remain protected";
+"模型存储：{0}" = "Model storage: {0}";
+"本地模型缓存需明确选择，清理后可能需要重新下载" = "Local model caches require explicit selection and may need to be downloaded again";
+"模型工具正在运行或活动状态无法验证，保持保护" = "A model tool is running or its activity could not be verified; kept protected";
+"模型范围或路径无法验证，保持保护" = "Model scope or path could not be verified; kept protected";
+"模型目录含凭据，保持保护" = "The model folder contains credentials; kept protected";
+"模型内容已验证，执行前将重新检查" = "Model contents were verified and will be checked again before cleanup";
+"达到模型扫描预算，保持保护" = "Model scan limit reached; kept protected";
+"模型内容未完整验证，保持保护" = "Model contents could not be fully verified; kept protected";
+"模型检查范围不完整；受影响的模型不会清理" = "Model checks are incomplete; affected models will not be cleaned";
+"关闭相关模型工具并检查目录权限后重新扫描" = "Close the related model tools, check folder permissions, then scan again";
+"重新扫描" = "Rescan";
+"清空废纸篓…" = "Empty Trash…";
+"正在清空…" = "Emptying…";
+"清空废纸篓" = "Empty Trash";
+"要永久清空废纸篓吗？" = "Permanently Empty the Trash?";
+"废纸篓中的所有项目都将永久删除，无法恢复。此操作由 Finder 执行，可能需要授权。" = "All items in the Trash will be permanently deleted and cannot be recovered. Finder performs this action and may request permission.";
+"未能确认废纸篓已清空" = "Could Not Confirm the Trash Is Empty";
+"清空废纸篓超时。请在 Finder 中检查剩余项目；未记录清空成功。" = "Emptying the Trash timed out. Check the remaining items in Finder; emptying has not been recorded as successful.";
+"清空废纸篓已取消。请在 Finder 中检查剩余项目；未记录清空成功。" = "Emptying the Trash was cancelled. Check the remaining items in Finder; emptying has not been recorded as successful.";
+"Finder 返回的信息超出安全限制。请检查废纸篓；未记录清空成功。" = "The Finder response exceeded the safety limit. Check the Trash; emptying has not been recorded as successful.";
+"清空废纸篓失败：{0}。请在 Finder 中检查剩余项目；未记录清空成功。" = "Emptying the Trash failed: {0}. Check the remaining items in Finder; emptying has not been recorded as successful.";
+"Finder 操作失败（退出码 {0}）：{1}" = "Finder operation failed (exit code {0}): {1}";
+"Finder 尚未确认废纸篓为空" = "Finder has not confirmed that the Trash is empty";
+
+/* Resource cleanup lists */
+"可清理" = "Cleanable";
+"查看详情" = "Show details";
+"收起详情" = "Hide details";
+"全选当前筛选中可清理的项目" = "Select all cleanable items in the current filter";
+"{0} / {1} 项" = "{0} / {1} items";
+"{0} 项" = "{0} items";
+"调整搜索或范围后再查看。已勾选项目不会因此取消。" = "Adjust the search or scope to view items. Existing selections are retained.";
+"正在执行全部默认清理" = "Running cleanup of all default items";
+"默认清理完成" = "Default cleanup complete";
+"无法开始默认清理：{0}" = "Could not start default cleanup: {0}";
+"清理 {0} 项 · {1}" = "Cleanup: {0} items · {1}";
+"清理全部默认项" = "Clean All Defaults";
+"清理各维度仍默认勾选的内容，不包含手动选择的项目" = "Clean items still selected by default across modules; manually selected items are excluded";
+"默认清理已就绪 · {0} 项" = "Default cleanup ready · {0} items";
+"等待默认项扫描完成" = "Waiting for default cleanup results";
+"当前无需默认清理" = "No default cleanup needed";
+"默认项就绪后可清理；手动选择的内容请到对应页面确认。" = "Clean default items when ready; review manual selections on their module pages.";
+"约 {0}；清理所有已默认勾选的项目，可从恢复记录找回。" = "Approximately {0}; clean all items selected by default, with recovery available.";
+"项目扫描目录" = "Project Scan Folders";
+"保存后仅刷新项目产物结果；尚未扫描时，在下次扫描使用。" = "Saving refreshes only Project Artifacts when results are available. Otherwise, these folders are used on the next scan.";
+"{0} 个扫描目录" = "{0} scan folders";
+"尚未配置项目扫描目录" = "No project scan folders configured";
+"仅移出扫描范围，不删除磁盘目录" = "Remove from scan scope only; keep the folder on disk";
+"移除扫描目录 {0}" = "Remove scan folder {0}";
+"添加目录…" = "Add Folders…";
+"保存扫描目录" = "Save Scan Folders";
+"撤销更改" = "Discard Changes";
+"有未保存的更改" = "Unsaved changes";
+"重新读取目录配置" = "Reload Folder Configuration";
+"无法读取项目扫描目录：{0}" = "Could not read project scan folders: {0}";
+"扫描目录已更改，请重新扫描项目产物。" = "Scan folders have changed. Rescan Project Artifacts.";
+"管理扫描权限、项目目录、大文件标准和已删除项目保留时间。" = "Manage scan permissions, project folders, large-file thresholds, and retention for deleted items.";
+
+"默认勾选项目编译产物（包括 Git 跟踪项）" = "Preselect project build artifacts (including Git-tracked items)";
+
+"关闭时请手动选择；开启后自动勾选通过安全检查的项目产物。正在使用或无法完整验证的项目仍保持保护。" = "When off, select items manually. When on, preselect project artifacts that pass safety checks. Active or incompletely verified items remain protected.";
+"正在等待扫描{0}…" = "Waiting to scan {0}…";
+"正在扫描{0}…" = "Scanning {0}…";
+"不再提醒" = "Don't remind me again";
+"清理提醒" = "Cleanup Reminders";
+"关闭窗口或退出时提醒清空废纸篓" = "Remind me to empty the Trash when closing or quitting";
+"仅控制自动提醒；手动点击清空废纸篓始终需要确认。" = "Controls automatic reminders only. Emptying the Trash manually always requires confirmation.";

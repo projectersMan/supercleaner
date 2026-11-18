@@ -1,0 +1,43 @@
+Another instance of SwiftPM (PID: 78261) is already running using '/Users/bytedance/code/supercleaner/.build', waiting until that process has finished execution...Building for debugging...
+[Pre-planning 1 / 271]
+[Planning 1 / 271]
+[Planning deferred tasks]
+[1 / 19]
+[9 / 18] CleanerHelper-product
+[16 / 23]
+[18 / 23] CleanerHelper-product
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/TrashReminderStateTests.swift:47:13: warning: variable 'state' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+45 |         let preferences = UserDefaults(suiteName: domain)!
+46 |         defer { preferences.removePersistentDomain(forName: domain) }
+47 |         var state = TrashReminderState(preferences: preferences)
+   |             `- warning: variable 'state' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+48 | 
+49 |         state.setRemindersSuppressed(true)
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[19 / 25] CleanerHelper-product
+[23 / 34] CleanerCoreTests-product
+[29 / 33] CleanerCoreTests-product
+[31 / 32] CoreContractChecks-product
+Build complete! (2.20秒)
+Test Suite 'Selected tests' started at 2026-11-18 12:06:27.637.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-18 12:06:27.639.
+Test Suite 'TrashReminderStateTests' started at 2026-11-18 12:06:27.639.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testAcknowledgementAvoidsDuplicateWindowAndQuitRemindersUntilMoreCleanup]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testAcknowledgementAvoidsDuplicateWindowAndQuitRemindersUntilMoreCleanup]' passed (0.002 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testEmptyingAcknowledgesOnlyTheCapturedCleanupAndAllowsNewCleanupReminder]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testEmptyingAcknowledgesOnlyTheCapturedCleanupAndAllowsNewCleanupReminder]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testEmptyingKeepsTheExistingPersistentSuppressionPreference]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testEmptyingKeepsTheExistingPersistentSuppressionPreference]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testOnlyPositiveCleanupBytesRequireReminder]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testOnlyPositiveCleanupBytesRequireReminder]' passed (0.000 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionCanBeRestoredWithoutAcknowledgingUnemptiedCleanup]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionCanBeRestoredWithoutAcknowledgingUnemptiedCleanup]' passed (0.001 seconds).
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionPersistsWhenPreferencesAreReopened]' started.
+Test Case '-[CleanerCoreTests.TrashReminderStateTests testSuppressionPersistsWhenPreferencesAreReopened]' passed (0.001 seconds).
+Test Suite 'TrashReminderStateTests' passed at 2026-11-18 12:06:27.646.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.006 (0.007) seconds
+Test Suite 'CleanerCoreTests.xctest' passed at 2026-11-18 12:06:27.646.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.006 (0.007) seconds
+Test Suite 'Selected tests' passed at 2026-11-18 12:06:27.646.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.006 (0.009) seconds

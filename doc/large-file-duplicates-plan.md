@@ -1,5 +1,7 @@
 # 重复大文件实施与验收
 
+当前实现说明：清理中心已有系统、应用、重复大文件、Agent、本地 AI 模型、项目产物六个维度。本文件的版本、测试数量和产物段落保留各历史批次语境，不代表本批已验收。独立用户 CLI 现已退役；大文件扫描继续由 [SystemScanCoordinator](../Sources/CleanerCore/SystemScanCoordinator.swift) 调度，只读、保护和覆盖行为改由 [CoreReadOnlyContract](../Sources/CoreContractChecks/CoreReadOnlyContract.swift) 与 [ReviewRegressionContract](../Sources/CoreContractChecks/ReviewRegressionContract.swift) 直接验证。当前整体接线见 [架构](architecture.md)。
+
 清理中心和侧栏使用「重复大文件」。全量扫描、单模块刷新和取消后继续均执行大文件发现、精确查重、ZIP 核验三个顺序阶段。Spotlight 与递归发现共用后续阶段，同一次扫描发布一份大文件模块结果。入口见 [SystemScanCoordinator.swift](../Sources/CleanerCore/SystemScanCoordinator.swift)。
 
 ## 完全相同的文件
@@ -48,7 +50,7 @@
 | 文件 | 改动原因 |
 | --- | --- |
 | [SystemScanCoordinator.swift](../Sources/CleanerCore/SystemScanCoordinator.swift) | 索引和递归发现汇入同一核验流程，发布一个模块终态及真实覆盖。 |
-| [ReadOnlyInterface.swift](../Sources/CleanerCore/ReadOnlyInterface.swift) | CLI 单模块扫描和桌面入口复用同一个大文件协调器。 |
+| 旧 CLI 适配（已退役）；现为 [SystemScanCoordinator.swift](../Sources/CleanerCore/SystemScanCoordinator.swift) | 当时 CLI 单模块与桌面共用大文件协调器；当前删除独立入口，桌面和直接 Core 契约继续使用协调器。 |
 | [LargeFileContentAnalyzer.swift](../Sources/CleanerCore/LargeFileContentAnalyzer.swift) | 按大小分桶并分块比较所有格式，合并两层推荐和保留关系。 |
 | [ExtractedZIPAnalyzer.swift](../Sources/CleanerCore/ExtractedZIPAnalyzer.swift) | 有界读取 ZIP 清单和内容，核对同级目录的完整结构和字节。 |
 | [CleanerZIP.h](../Sources/CleanerZIP/CleanerZIP.h)、[module.modulemap](../Sources/CleanerZIP/module.modulemap)、[Package.swift](../Package.swift) | 分别声明所用系统 ABI、让 Swift 导入并链接系统库，以及在 CleanerCore 注册构建依赖。 |
@@ -66,7 +68,7 @@
 | [CleanerApp.swift](../Sources/CleanerApp/CleanerApp.swift) | 通过已有自检入口接收只读夹具，验证应用层选择流程。 |
 | [英文资源](../Sources/CleanerCore/Resources/en.lproj/Localizable.strings)、[简中资源](../Sources/CleanerCore/Resources/zh-Hans.lproj/Localizable.strings) | 同步界面名称、状态、证据和保护提示。 |
 | [DuplicateLargeFileTests.swift](../Tests/CleanerCoreTests/DuplicateLargeFileTests.swift)、[AppNavigationContract.swift](../Sources/CoreContractChecks/AppNavigationContract.swift) | 验证两层行为、保留件保护、可恢复执行和导航名称。 |
-| [AgentScannerContract.swift](../Sources/CoreContractChecks/AgentScannerContract.swift)、[ReviewRegressionContract.swift](../Sources/CoreContractChecks/ReviewRegressionContract.swift)、[ReadOnlyInterfaceContract.swift](../Sources/CoreContractChecks/ReadOnlyInterfaceContract.swift) | 分别修正共享根所有权、深度检查和包内 CLI 的夹具，使既有门禁覆盖真实目录和祖先身份。 |
+| [AgentScannerContract.swift](../Sources/CoreContractChecks/AgentScannerContract.swift)、[ReviewRegressionContract.swift](../Sources/CoreContractChecks/ReviewRegressionContract.swift)、[CoreReadOnlyContract.swift](../Sources/CoreContractChecks/CoreReadOnlyContract.swift) | 历史修正覆盖共享根所有权、深目录与祖先身份；旧只读 CLI 契约已退役，相关保护和只读行为现由 Core 直接验证。 |
 | [README.md](../README.md)、[架构](../docs/architecture.md)、[开发指南](../docs/development.md)、[Version.json](../Version.json) | 分别同步使用说明、模块与执行链路、验证方法和本次补丁版本。 |
 
 `0.3.6 (80)` 默认视图和安装包预选的增量审查：
@@ -103,7 +105,7 @@
 | 层级 | 建议 | 评分 | 处理 |
 | --- | --- | ---: | --- |
 | 局部 | 同时验证原副本、ZIP 和保留路径，并覆盖两类建议重叠 | 98 | 已实现并回归验证。 |
-| 全局 | 桌面与 CLI 单模块使用同一扫描链路，沿用隔离和历史 | 95 | 已实现。 |
+| 全局 | 桌面与 CLI 单模块使用同一扫描链路，沿用隔离和历史 | 95 | 历史已实现；CLI 现已退役，桌面与直接 Core 验证继续复用同一链路。 |
 | 局部 | 默认展开递归扫描的顶层目录，并在全部文件视图说明勾选原因 | 92 | 已实现。 |
 | 全局 | 合并安装包与查重选择决策，复用同一格式表，并验证生成的默认计划没有保留件冲突 | 98 | 已实现并回归验证。 |
 | 局部 | 持久保存设置，并在开关旁说明下次扫描生效 | 95 | 已实现。 |

@@ -27,6 +27,7 @@ public struct ScanContext: Sendable {
     public let pathPolicy: PathPolicy
     public let now: Date
     public let activePaths: Set<URL>
+    public let projectActivePaths: Set<URL>
     public let protectionPolicy: ProtectionPolicy
     public let runningBundleIdentifiers: Set<String>
     public let activeProcessNames: Set<String>
@@ -40,6 +41,7 @@ public struct ScanContext: Sendable {
         pathPolicy: PathPolicy? = nil,
         now: Date = Date(),
         activePaths: Set<URL> = [],
+        projectActivePaths: Set<URL> = [],
         protectionPolicy: ProtectionPolicy? = nil,
         runningBundleIdentifiers: Set<String> = [],
         activeProcessNames: Set<String> = [],
@@ -52,6 +54,7 @@ public struct ScanContext: Sendable {
         self.pathPolicy = pathPolicy ?? PathPolicy(homeDirectory: homeDirectory)
         self.now = now
         self.activePaths = Set(activePaths.map(\.standardizedFileURL))
+        self.projectActivePaths = Set(projectActivePaths.map(\.standardizedFileURL))
         self.protectionPolicy = protectionPolicy ?? ProtectionPolicy(homeDirectory: homeDirectory)
         self.runningBundleIdentifiers = runningBundleIdentifiers
         self.activeProcessNames = activeProcessNames
@@ -61,8 +64,16 @@ public struct ScanContext: Sendable {
     }
 
     public func isActive(_ url: URL) -> Bool {
+        overlaps(url, paths: activePaths)
+    }
+
+    public func isProjectActive(_ url: URL) -> Bool {
+        isActive(url) || overlaps(url, paths: projectActivePaths)
+    }
+
+    private func overlaps(_ url: URL, paths: Set<URL>) -> Bool {
         let candidate = url.standardizedFileURL.path
-        return activePaths.contains { active in
+        return paths.contains { active in
             let activePath = active.path
             return candidate == activePath || candidate.hasPrefix(activePath + "/") || activePath.hasPrefix(candidate + "/")
         }

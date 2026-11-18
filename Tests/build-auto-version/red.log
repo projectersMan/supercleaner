@@ -1,0 +1,33 @@
+.....EEE...
+======================================================================
+ERROR: test_next_build_command_advances_each_run_but_resolve_is_read_only (test_version.VersionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/code/supercleaner/Tests/test_version.py", line 114, in test_next_build_command_advances_each_run_but_resolve_is_read_only
+    result = subprocess.run([sys.executable, str(script), "next-build"], env=environment,
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 528, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/Applications/Xcode.app/Contents/Developer/usr/bin/python3', '/Users/bytedance/code/supercleaner/Tests/build-auto-version/tmp8x8tirhr/Scripts/version.py', 'next-build']' returned non-zero exit status 2.
+
+======================================================================
+ERROR: test_next_build_rejects_invalid_environment_without_writing_and_persists_ci_build (test_version.VersionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/code/supercleaner/Tests/test_version.py", line 140, in test_next_build_rejects_invalid_environment_without_writing_and_persists_ci_build
+    result = subprocess.run([sys.executable, str(script), "next-build"],
+  File "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py", line 528, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/Applications/Xcode.app/Contents/Developer/usr/bin/python3', '/Users/bytedance/code/supercleaner/Tests/build-auto-version/tmpq8tw_b0n/Scripts/version.py', 'next-build']' returned non-zero exit status 2.
+
+======================================================================
+ERROR: test_prepare_build_advances_patch_and_requires_a_newer_resolved_build (test_version.VersionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bytedance/code/supercleaner/Tests/test_version.py", line 94, in test_prepare_build_advances_patch_and_requires_a_newer_resolved_build
+    self.assertEqual(version.prepare_build(original, {}), {"version": "2.3.5", "build": 100})
+AttributeError: module 'version' has no attribute 'prepare_build'
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.344s
+
+FAILED (errors=3)

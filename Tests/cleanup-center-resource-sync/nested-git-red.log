@@ -1,0 +1,25 @@
+Building for debugging...
+[Using on-disk description]
+[5 / 12] CleanerApp-product
+[11 / 18] CleanerCoreTests-product
+[16 / 23] CleanerCoreTests-product
+[18 / 21] CleanerApp-product
+[19 / 21] CleanerApp-product
+[31 / 33] CleanerApp-product
+[33 / 35] CleanerApp-product
+Build complete! (7.26秒)
+Test Suite 'Selected tests' started at 2026-11-17 19:20:57.839.
+Test Suite 'CleanerCoreTests.xctest' started at 2026-11-17 19:20:57.841.
+Test Suite 'ProjectInstallerTests' started at 2026-11-17 19:20:57.841.
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' started.
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:84: error: -[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected] : XCTAssertEqual failed: ("review") is not equal to ("blocked")
+/Users/bytedance/code/supercleaner/Tests/CleanerCoreTests/ProjectInstallerTests.swift:86: error: -[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected] : failed - Tracked installer must fail execution validation
+Test Case '-[CleanerCoreTests.ProjectInstallerTests testTrackedProjectDMGRemainsProtected]' failed (0.373 seconds).
+Test Suite 'ProjectInstallerTests' failed at 2026-11-17 19:20:58.215.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.373 (0.374) seconds
+Test Suite 'CleanerCoreTests.xctest' failed at 2026-11-17 19:20:58.215.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.373 (0.374) seconds
+Test Suite 'Selected tests' failed at 2026-11-17 19:20:58.215.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.373 (0.376) seconds
+Note: Some test targets reported failures:
+  - CleanerCoreTests (XCTest)

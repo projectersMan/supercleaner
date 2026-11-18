@@ -105,7 +105,8 @@ struct LargeFileContentAnalyzer {
             var byHash: [SHA256.Digest: [[LargeFileContentSnapshot]]] = [:]
             for candidate in bucket.sorted(by: Self.pathOrder) {
                 guard budget.take(bytes: 0, entries: 1) else { break }
-                guard let file = snapshot(candidate), let digest = hash(file, budget: &budget) else { continue }
+                guard let file = snapshot(candidate, installer: InstallerDiscovery.fileExtensions.contains(candidate.url.pathExtension.lowercased())),
+                      let digest = hash(file, budget: &budget) else { continue }
                 var groups = byHash[digest] ?? []
                 if let index = groups.firstIndex(where: { group in
                     guard let representative = group.first, !file.isSameObject(as: representative) else { return false }
@@ -129,13 +130,16 @@ struct LargeFileContentAnalyzer {
         return file
     }
 
-    static func eligibleSnapshot(_ url: URL, context: ScanContext, installer: Bool = false) -> LargeFileContentSnapshot? {
+    static func eligibleSnapshot(_ url: URL, context: ScanContext, installer: Bool = false,
+        forManualSelection: Bool = false) -> LargeFileContentSnapshot? {
         let excluded = ["Library/CloudStorage", "Library/Mobile Documents"]
         let home = context.homeDirectory.resolvingSymlinksInPath().standardizedFileURL
         let literal = url.standardizedFileURL
         let path = literal.path
         let scope = LargeFileCleanupScope(homeDirectory: context.homeDirectory)
-        guard (installer ? scope.allowsInstaller(url) : scope.allows(url)),
+        let allowed = forManualSelection ? scope.allows(url, forManualSelection: true)
+            : installer ? scope.allowsInstaller(url) : scope.allows(url)
+        guard allowed,
               path.hasPrefix(home.path + "/"),
               !excluded.contains(where: { path.hasPrefix(home.appendingPathComponent($0).path + "/") }),
               !DeletedContentScanExclusion(homeDirectory: home).contains(literal), !context.isActive(literal),

@@ -5,6 +5,8 @@ public enum AppDestination: String, CaseIterable, Identifiable, Sendable {
     case applications
     case largeFiles
     case agentEnvironment
+    case localAIModels
+    case projects
     case recovery
     case settings
 
@@ -18,6 +20,8 @@ public enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .applications: L10n.text("应用卸载")
         case .largeFiles: L10n.text("重复大文件")
         case .agentEnvironment: L10n.text("Agent 环境")
+        case .localAIModels: L10n.text("本地 AI 模型")
+        case .projects: L10n.text("项目产物")
         case .recovery: L10n.text("恢复记录")
         case .settings: L10n.text("设置")
         }
@@ -31,6 +35,8 @@ public enum AppDestination: String, CaseIterable, Identifiable, Sendable {
         case .applications: "app.dashed"
         case .largeFiles: "doc.text.magnifyingglass"
         case .agentEnvironment: "terminal"
+        case .localAIModels: "brain"
+        case .projects: "shippingbox"
         case .recovery: "clock.arrow.circlepath"
         case .settings: "gearshape"
         }
@@ -50,13 +56,13 @@ public struct AppNavigationPolicy: Sendable {
 
     public func emptyStateAction(for destination: AppDestination) -> EmptyStateAction {
         switch destination {
-        case .systemCleanup, .applications, .largeFiles, .agentEnvironment: .returnToDashboard
+        case .systemCleanup, .applications, .largeFiles, .agentEnvironment, .localAIModels, .projects: .returnToDashboard
         case .dashboard, .cleanupCenter, .recovery, .settings: .none
         }
     }
 
     public func showsDimensionActionBar(for destination: AppDestination) -> Bool {
-        [.systemCleanup, .applications, .largeFiles, .agentEnvironment].contains(destination)
+        [.systemCleanup, .applications, .largeFiles, .agentEnvironment, .localAIModels, .projects].contains(destination)
     }
 
     public func showsModuleScanControls(
@@ -69,7 +75,7 @@ public struct AppNavigationPolicy: Sendable {
     }
 
     public func usesCandidateReviewFocus(for destination: AppDestination) -> Bool {
-        [.systemCleanup, .agentEnvironment].contains(destination)
+        [.systemCleanup, .agentEnvironment, .localAIModels, .projects].contains(destination)
     }
 
     public func scanResultDestination(
@@ -82,6 +88,8 @@ public struct AppNavigationPolicy: Sendable {
         case .applications: return .applications
         case .largeFiles: return .largeFiles
         case .agentEnvironment: return .agentEnvironment
+        case .localAIModels: return .localAIModels
+        case .projects: return .projects
         }
     }
 
@@ -100,6 +108,8 @@ public struct AppNavigationPolicy: Sendable {
         case .applications: .applications
         case .largeFiles: .largeFiles
         case .agentEnvironment: .agentEnvironment
+        case .localAIModels: .localAIModels
+        case .projects: .projects
         case .dashboard, .cleanupCenter, .recovery, .settings: nil
         }
     }

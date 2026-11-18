@@ -5,6 +5,18 @@ import SwiftUI
 
 @main enum CleanerMain {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--trash-emptying-self-check") {
+            Task { @MainActor in
+                let check = Task { try await AppModel.checkTrashEmptying() }
+                switch await check.result {
+                case .success: exit(0)
+                case let .failure(error):
+                    FileHandle.standardError.write(Data("FAIL: trash emptying \(error)\n".utf8))
+                    exit(1)
+                }
+            }
+            dispatchMain()
+        }
         if CommandLine.arguments.contains("--uninstall-permission-self-check") {
             Task { @MainActor in
                 do {
@@ -52,6 +64,7 @@ import SwiftUI
         if CommandLine.arguments.contains("--scan-cleanup-self-check") {
             Task { @MainActor in
                 do {
+                    try await AppModel.checkProjectScanRootsSettings()
                     try AppModel.checkConcurrentScanCleanup()
                     if let fixture = ProcessInfo.processInfo.environment["SUPERCLEANER_DUPLICATE_FIXTURE"] {
                         try await AppModel.checkDuplicateLargeFileSelection(home: URL(fileURLWithPath: fixture))
@@ -109,6 +122,7 @@ struct MainWindowContent: View {
 
     var body: some View {
         ContentView(model: model)
+            .environmentObject(delegate.trashReminder)
             .environment(\.locale, L10n.language.locale)
             .background(TrashReminderWindowObserver(model: model, controller: delegate.trashReminder))
             .onAppear {
@@ -121,7 +135,22 @@ struct MainWindowContent: View {
 @MainActor final class CleanerApplicationDelegate: NSObject, NSApplicationDelegate {
     var reopenMainWindow: (() -> Void)?
     weak var model: AppModel?
-    let trashReminder = TrashReminderController(preferences: .standard)
+    let trashReminder: TrashReminderController
+    private(set) var terminationTask: Task<Void, Never>?
+
+    override init() {
+        trashReminder = TrashReminderController(preferences: .standard)
+        super.init()
+    }
+
+    init(trashReminder: TrashReminderController) {
+        self.trashReminder = trashReminder
+        super.init()
+    }
+    var allowsTermination: Bool {
+        ApplicationUpdateTerminationGuard.allowsTermination
+            && !trashReminder.isEmptyingTrash && model?.trashEmptyingInProgress != true
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Closing the interface leaves the app running until an explicit quit.
@@ -143,12 +172,22 @@ struct MainWindowContent: View {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        requestTermination { sender.reply(toApplicationShouldTerminate: $0) }
+    }
+
+    func requestTermination(reply: @escaping @MainActor (Bool) -> Void) -> NSApplication.TerminateReply {
+        if terminationTask != nil { return .terminateLater }
         // Sparkle can install a prepared update on quit. Keep that path closed
         // until the final explicit approval, or until cancellation has finished.
-        guard ApplicationUpdateTerminationGuard.allowsTermination else { return .terminateCancel }
-        if let model {
-            trashReminder.remindIfNeeded(cleanedBytes: model.sessionCleanupSummary.bytes, isQuitting: true)
+        guard allowsTermination else { return .terminateCancel }
+        guard let model, let emptying = trashReminder.remindIfNeeded(model: model) else { return .terminateNow }
+        terminationTask = Task {
+            // Emptying is optional. Cancel or failure must not veto an explicit
+            // quit; an approved operation still finishes before termination.
+            _ = await emptying.value
+            terminationTask = nil
+            reply(true)
         }
-        return .terminateNow
+        return .terminateLater
     }
 }

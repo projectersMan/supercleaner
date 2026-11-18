@@ -12,6 +12,8 @@ public struct CleanupScopePolicy: Sendable {
         case .systemCleanup: cleanupCenterCandidates(from: candidates)
         case .largeFiles: candidates.filter { $0.category == .largeFile }
         case .agentEnvironment: candidates.filter { $0.source == .agentWorkspace }
+        case .localAIModels: candidates.filter { $0.source == .localAIModels }
+        case .projects: candidates.filter { $0.source == .projectArtifacts }
         default: candidates
         }
     }

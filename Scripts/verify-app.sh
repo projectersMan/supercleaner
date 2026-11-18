@@ -14,6 +14,9 @@ BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' ${APP}/Conten
 DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' ${APP}/Contents/Info.plist)
 [[ ${DISPLAY_NAME} == SuperCleaner ]] || { print -u2 "FAIL: app display name mismatch"; exit 1; }
 HELPER_ID=${BUNDLE_ID}.helper
+[[ -n $(/usr/libexec/PlistBuddy -c 'Print :NSAppleEventsUsageDescription' ${APP}/Contents/Info.plist) ]] || { print -u2 "FAIL: Apple Events usage description missing"; exit 1; }
+APP_ENTITLEMENTS=$(/usr/bin/codesign -d --entitlements :- ${APP} 2>/dev/null)
+[[ $(print -r -- ${APP_ENTITLEMENTS} | /usr/bin/plutil -extract 'com\.apple\.security\.automation\.apple-events' raw -o - -) == true ]] || { print -u2 "FAIL: Apple Events entitlement missing"; exit 1; }
 [[ -x ${APP}/Contents/MacOS/CleanerApp ]] || { print -u2 "FAIL: CleanerApp missing"; exit 1; }
 [[ -x ${APP}/Contents/Library/LaunchServices/${HELPER_ID} ]] || { print -u2 "FAIL: helper missing"; exit 1; }
 DAEMON_PLIST=${APP}/Contents/Library/LaunchDaemons/${HELPER_ID}.plist
@@ -42,11 +45,18 @@ for KEY in CFBundleVersion CFBundleShortVersionString; do
 done
 for LANGUAGE in en zh-Hans; do
   [[ -f ${APP}/Contents/Resources/${LANGUAGE}.lproj/InfoPlist.strings ]] || { print -u2 "FAIL: missing native language resource"; exit 1; }
+  [[ -n $(/usr/libexec/PlistBuddy -c 'Print :NSAppleEventsUsageDescription' ${APP}/Contents/Resources/${LANGUAGE}.lproj/InfoPlist.strings) ]] || { print -u2 "FAIL: localized Apple Events usage description missing"; exit 1; }
   ${APP}/Contents/MacOS/CleanerApp --preferences-self-check -appLanguage ${LANGUAGE}
 done
 
 MINIMUM=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' ${APP}/Contents/Info.plist)
 [[ ${MINIMUM} == 13.0 ]] || { print -u2 "FAIL: minimum macOS is ${MINIMUM}"; exit 1; }
+BUILD_SDK=$(/usr/libexec/PlistBuddy -c 'Print :DTSDKName' ${APP}/Contents/Info.plist)
+BUILD_COMMAND=$(/usr/bin/otool -l ${APP}/Contents/MacOS/CleanerApp)
+LINKED_SDK=$(print -r -- ${BUILD_COMMAND} | /usr/bin/awk '/cmd LC_BUILD_VERSION/ {inside=1} inside && $1=="sdk" {print $2; exit}')
+LINKED_MINIMUM=$(print -r -- ${BUILD_COMMAND} | /usr/bin/awk '/cmd LC_BUILD_VERSION/ {inside=1} inside && $1=="minos" {print $2; exit}')
+[[ ${BUILD_SDK} == macosx${LINKED_SDK} && ${LINKED_MINIMUM} == ${MINIMUM} ]] || { print -u2 "FAIL: linked SDK/minimum do not match packaged build metadata"; exit 1; }
+print "PASS: linked SDK ${LINKED_SDK}, minimum macOS ${LINKED_MINIMUM}, and packaged metadata match"
 /usr/bin/codesign --verify --deep --strict --verbose=2 ${APP}
 if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-1} == 1 ]]; then
   SIGNATURE=$(/usr/bin/codesign -dv ${APP} 2>&1)
@@ -66,4 +76,5 @@ ${APP}/Contents/MacOS/CleanerApp --update-self-check
 "${APP}/Contents/MacOS/CleanerApp" --navigation-presentation-self-check
 "${APP}/Contents/MacOS/CleanerApp" --application-responsiveness-self-check
 "${APP}/Contents/MacOS/CleanerApp" --agent-presentation-self-check
+"${APP}/Contents/MacOS/CleanerApp" --trash-emptying-self-check
 print "PASS: SuperCleaner.app structure, signature, smoke flow, and concurrent scan cleanup verified"

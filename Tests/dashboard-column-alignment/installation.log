@@ -1,0 +1,10 @@
+PASS: /Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Info.plist: 0.4.8 (122)
+PASS: /Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Resources/HelperInfo.plist: 0.4.8 (122)
+PASS: strict signature and unchanged Automation entitlement: /Users/bytedance/code/supercleaner/build/SuperCleaner.app
+PASS: /Applications/SuperCleaner.app/Contents/Info.plist: 0.4.8 (122)
+PASS: /Applications/SuperCleaner.app/Contents/Resources/HelperInfo.plist: 0.4.8 (122)
+PASS: strict signature and unchanged Automation entitlement: /Applications/SuperCleaner.app
+PASS: matching installed Contents/MacOS/CleanerApp: 0fccf9346361d4e5f21376e45f98a15fa09bf6ae3841989064693e0da186f6c3
+PASS: matching installed Contents/MacOS/AgentInference: a36a88bd3bef522cebbeb8ef33cd8b16acb15e96ff555ed5a5e1ceae67225e49
+PASS: matching installed Contents/Library/LaunchServices/com.example.SuperCleaner.helper: 53089cad8e2a8c292f67a8f4bada8ece3c44ae13645f9621b0637798b496bc28
+DMG: SuperCleaner-0.4.8.dmg; 298794831 bytes; SHA256 50066ff00f8bfe8a5f91d62d5b91a32097cf7b785e2959a91701cf17ee5c1ccc

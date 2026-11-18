@@ -1,0 +1,3 @@
+CONFIRM: closeOption=false, priorCount=0
+PASS: actual NSApplication will terminate, cleanup=true, confirmations=1; no Finder execution, capacity read or cleanup accounting change
+PASS: actual NSApplication will terminate, cleanup=false, confirmations=0; no Finder execution, capacity read or cleanup accounting change

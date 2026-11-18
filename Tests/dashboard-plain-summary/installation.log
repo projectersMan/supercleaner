@@ -1,0 +1,14 @@
+PASS: /Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Info.plist: 0.4.6 (120)
+PASS: /Users/bytedance/code/supercleaner/build/SuperCleaner.app/Contents/Resources/HelperInfo.plist: 0.4.6 (120)
+PASS: strict signature verification: /Users/bytedance/code/supercleaner/build/SuperCleaner.app
+PASS: expected Automation entitlement: /Users/bytedance/code/supercleaner/build/SuperCleaner.app
+PASS: /Applications/SuperCleaner.app/Contents/Info.plist: 0.4.6 (120)
+PASS: /Applications/SuperCleaner.app/Contents/Resources/HelperInfo.plist: 0.4.6 (120)
+PASS: strict signature verification: /Applications/SuperCleaner.app
+PASS: expected Automation entitlement: /Applications/SuperCleaner.app
+PASS: matching installed executable Contents/MacOS/CleanerApp: f98d3a68a13ba900790c1c8126e1c736bfcba019db56788625555450fb31be9d
+PASS: matching installed executable Contents/MacOS/AgentInference: 4a4b7b38750fccfabddb40c6d9ae2754654d01ed9d4f3f0569b31115953911cd
+PASS: matching installed executable Contents/Library/LaunchServices/com.example.SuperCleaner.helper: ea301e730448594cb9e98429834bcefad8ba6aa265bce72de0e02b608b79a788
+DMG: SuperCleaner-0.4.6.dmg; 298775822 bytes; SHA256 861a88cf08e9eaf51edda9f44d6aab4896d3aff142776fc4a8f611d1dc3acfed
+PASS: installed app reopened; native visual check confirms three plain top regions, unchanged equal-height alignment, controls, disk values, six module rows and bottom safety cards.
+No user cleanup, Trash emptying, Automation permission grant, Helper registration, commit or push performed.

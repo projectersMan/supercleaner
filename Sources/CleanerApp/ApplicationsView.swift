@@ -13,7 +13,9 @@ struct ApplicationsView: View {
             }
             .padding(24)
             Divider()
-            if !model.hasScanResult(for: .applications) {
+            if let message = model.moduleScanProgressMessage(for: .applications) {
+                ModuleProgressView(message: message)
+            } else if !model.hasScanResult(for: .applications) {
                 ScanRequiredView(destinationTitle: L10n.text("应用卸载")) { model.navigateToScan() }
             } else {
                 applicationToolbar

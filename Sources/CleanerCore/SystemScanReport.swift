@@ -5,6 +5,8 @@ public enum SystemScanModulePayload: Sendable {
     case applications(ApplicationUninstallInventory)
     case largeFiles(DiskUsageTree, [CleanupCandidate])
     case agentEnvironment(AgentAssetInventory)
+    case localAIModels(LocalAIModelInventory)
+    case projects(ProjectScanReport)
 }
 
 public struct ProgressiveScanReportAccumulator: Sendable {
@@ -47,7 +49,9 @@ public struct ProgressiveScanReportAccumulator: Sendable {
             agentMCPConfigurations: baseline?.agentMCPConfigurations ?? [],
             agentProviderCoverage: baseline?.agentProviderCoverage ?? [:],
             agentSkillDuplicatesCollapsedCount: baseline?.agentSkillDuplicatesCollapsedCount ?? 0,
-            agentScanCoverage: baseline?.agentScanCoverage ?? CoverageSummary()
+            agentScanCoverage: baseline?.agentScanCoverage ?? CoverageSummary(),
+            localAIModelInventory: baseline?.localAIModelInventory,
+            projectScanReport: baseline?.projectScanReport
         )
     }
 
@@ -75,6 +79,8 @@ public struct SystemScanReport: Sendable {
     public let agentProviderCoverage: [AgentProvider: AgentProviderCoverage]
     public let agentSkillDuplicatesCollapsedCount: Int
     public let agentScanCoverage: CoverageSummary
+    public let localAIModelInventory: LocalAIModelInventory?
+    public let projectScanReport: ProjectScanReport?
     public let candidates: [CleanupCandidate]
     public let coverage: CoverageSummary
     private let candidatesByID: [UUID: CleanupCandidate]
@@ -89,10 +95,14 @@ public struct SystemScanReport: Sendable {
     private static func materializeCandidates(
         generalCandidates: [CleanupCandidate],
         largeFileCandidates: [CleanupCandidate],
-        agentAssets: [AgentAssetRecord]
+        agentAssets: [AgentAssetRecord],
+        localAIModels: [CleanupCandidate],
+        projects: [CleanupCandidate]
     ) -> [CleanupCandidate] {
         var seenPaths = Set<String>()
-        return (generalCandidates + largeFileCandidates + agentAssets.map(\.candidate))
+        let reviewedProjects = preservingProjectInstallerProofs(projects, largeFiles: largeFileCandidates)
+        let projectInstallers = reviewedProjects.filter { $0.identity.kind == .file && $0.url.pathExtension.lowercased() == "dmg" }
+        return (projectInstallers + generalCandidates + largeFileCandidates + agentAssets.map(\.candidate) + localAIModels + reviewedProjects)
             .filter { seenPaths.insert($0.url.standardizedFileURL.path).inserted }
             .sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
     }
@@ -115,7 +125,9 @@ public struct SystemScanReport: Sendable {
         agentMCPConfigurations: [MCPConfigurationRecord] = [],
         agentProviderCoverage: [AgentProvider: AgentProviderCoverage] = [:],
         agentSkillDuplicatesCollapsedCount: Int = 0,
-        agentScanCoverage: CoverageSummary = CoverageSummary()
+        agentScanCoverage: CoverageSummary = CoverageSummary(),
+        localAIModelInventory: LocalAIModelInventory? = nil,
+        projectScanReport: ProjectScanReport? = nil
     ) {
         self.metadata = metadata
         self.modules = modules
@@ -131,10 +143,14 @@ public struct SystemScanReport: Sendable {
         self.agentProviderCoverage = agentProviderCoverage
         self.agentSkillDuplicatesCollapsedCount = agentSkillDuplicatesCollapsedCount
         self.agentScanCoverage = agentScanCoverage
+        self.localAIModelInventory = localAIModelInventory
+        self.projectScanReport = projectScanReport
         let materializedCandidates = Self.materializeCandidates(
             generalCandidates: generalCandidates,
             largeFileCandidates: largeFileCandidates,
-            agentAssets: agentAssets
+            agentAssets: agentAssets,
+            localAIModels: localAIModelInventory?.candidates ?? [],
+            projects: projectScanReport?.artifacts.map(\.candidate) ?? []
         )
         candidates = materializedCandidates
         candidatesByID = Dictionary(
@@ -142,7 +158,8 @@ public struct SystemScanReport: Sendable {
             uniquingKeysWith: { first, _ in first }
         )
         coverage = Self.snapshotCoverage(generalCandidates: generalCandidates, modules: modules,
-            applications: applicationInventory, disk: diskUsageTree, agents: agentScanCoverage)
+            applications: applicationInventory, disk: diskUsageTree, agents: agentScanCoverage,
+            models: localAIModelInventory?.coverage ?? CoverageSummary(), projects: projectScanReport)
     }
 
     /// Snapshot-only edits retain the existing path order. Callers supply a
@@ -158,6 +175,8 @@ public struct SystemScanReport: Sendable {
         largeFileCandidates: [CleanupCandidate]? = nil,
         agentAssets: [AgentAssetRecord]? = nil,
         agentSkills: [SkillCatalogEntry]? = nil,
+        localAIModelInventory: LocalAIModelInventory? = nil,
+        projectScanReport: ProjectScanReport? = nil,
         candidates: [CleanupCandidate]? = nil,
         coverage: CoverageSummary? = nil
     ) {
@@ -174,21 +193,28 @@ public struct SystemScanReport: Sendable {
         agentProviderCoverage = snapshot.agentProviderCoverage
         agentSkillDuplicatesCollapsedCount = snapshot.agentSkillDuplicatesCollapsedCount
         agentScanCoverage = snapshot.agentScanCoverage
+        self.localAIModelInventory = localAIModelInventory ?? snapshot.localAIModelInventory
+        self.projectScanReport = projectScanReport ?? snapshot.projectScanReport
         self.candidates = candidates ?? snapshot.candidates
         candidatesByID = candidates.map { values in
             Dictionary(values.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         } ?? snapshot.candidatesByID
         self.coverage = coverage ?? Self.snapshotCoverage(generalCandidates: self.generalCandidates, modules: self.modules,
-            applications: self.applicationInventory, disk: self.diskUsageTree, agents: agentScanCoverage)
+            applications: self.applicationInventory, disk: self.diskUsageTree, agents: agentScanCoverage,
+            models: self.localAIModelInventory?.coverage ?? CoverageSummary(), projects: self.projectScanReport)
     }
 
     private static func snapshotCoverage(generalCandidates: [CleanupCandidate], modules: [ScanModuleID: ScanModuleStatus],
-                                         applications: ApplicationInventory, disk: DiskUsageTree, agents: CoverageSummary) -> CoverageSummary {
+                                         applications: ApplicationInventory, disk: DiskUsageTree, agents: CoverageSummary,
+                                         models: CoverageSummary, projects: ProjectScanReport?) -> CoverageSummary {
         let limitations = modules[.general]?.limitations ?? []
         let general = CoverageSummary(scannedRoots: generalCandidates.map(\.url),
             unavailableRoots: limitations.compactMap(\.path),
             budgetLimitedModules: limitations.contains { $0.reason == .budget } ? [.general] : [])
-        return combinedCoverage(combinedCoverage(applications.coverage, disk.coverage, agents), general, CoverageSummary())
+        let projectCoverage = CoverageSummary(scannedRoots: projects?.roots ?? [],
+            unavailableRoots: projects?.limitations.compactMap(\.path) ?? [],
+            budgetLimitedModules: projects?.limitations.contains { $0.reason == .budget } == true ? [.projects] : [])
+        return combinedCoverage(combinedCoverage(applications.coverage, disk.coverage, agents), general, models, projectCoverage)
     }
 
     public func replacing(
@@ -207,6 +233,8 @@ public struct SystemScanReport: Sendable {
         var agentCoverage = agentProviderCoverage
         var scanCoverage = agentScanCoverage
         var skillDuplicatesCollapsedCount = agentSkillDuplicatesCollapsedCount
+        var models = localAIModelInventory
+        var projects = projectScanReport
         var replacementStatus = ScanModuleStatus(
             module: module,
             state: .completed,
@@ -215,6 +243,14 @@ public struct SystemScanReport: Sendable {
             message: nil
         )
         switch payload {
+        case let .localAIModels(inventory):
+            models = inventory
+            replacementStatus = ScanModuleStatus(module: module, state: inventory.limitations.isEmpty ? .completed : .limited,
+                startedAt: completedAt, completedAt: completedAt, limitations: inventory.limitations)
+        case let .projects(report):
+            projects = report
+            replacementStatus = ScanModuleStatus(module: module, state: report.isComplete ? .completed : .limited,
+                startedAt: report.startedAt, completedAt: report.completedAt, limitations: report.limitations)
         case let .general(report):
             general = report.candidates
             replacementStatus = ScanModuleStatus(module: module,
@@ -263,7 +299,9 @@ public struct SystemScanReport: Sendable {
             agentMCPConfigurations: mcpConfigurations,
             agentProviderCoverage: agentCoverage,
             agentSkillDuplicatesCollapsedCount: skillDuplicatesCollapsedCount,
-            agentScanCoverage: scanCoverage
+            agentScanCoverage: scanCoverage,
+            localAIModelInventory: models,
+            projectScanReport: projects
         )
     }
 
@@ -279,8 +317,12 @@ public struct SystemScanReport: Sendable {
         var agentCoverage = agentProviderCoverage
         var scanCoverage = agentScanCoverage
         var skillDuplicatesCollapsedCount = agentSkillDuplicatesCollapsedCount
+        var models = localAIModelInventory
+        var projects = projectScanReport
 
         switch result.payload {
+        case let .localAIModels(inventory): models = inventory
+        case let .projects(report): projects = report
         case let .general(report):
             general = report.candidates
         case let .applications(inventory):
@@ -320,7 +362,9 @@ public struct SystemScanReport: Sendable {
             agentMCPConfigurations: mcpConfigurations,
             agentProviderCoverage: agentCoverage,
             agentSkillDuplicatesCollapsedCount: skillDuplicatesCollapsedCount,
-            agentScanCoverage: scanCoverage
+            agentScanCoverage: scanCoverage,
+            localAIModelInventory: models,
+            projectScanReport: projects
         )
     }
 

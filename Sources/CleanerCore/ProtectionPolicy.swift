@@ -41,17 +41,37 @@ public struct ProtectionPolicy: Sendable {
     }
 
     public func validate(_ url: URL) throws {
+        try validate(url, deniedPaths: resolvedDeniedPaths)
+    }
+
+    private var resolvedDeniedPaths: [String] {
+        guard isAvailable else { return [] }
+        return builtInPaths.flatMap { [$0.path, $0.resolvingSymlinksInPath().standardizedFileURL.path] }
+            + entries.flatMap { [$0.url.path, $0.physicalURL.path, $0.url.resolvingSymlinksInPath().standardizedFileURL.path] }
+    }
+
+    private func validate(_ url: URL, deniedPaths: [String]) throws {
         guard isAvailable else { throw ProtectionError.unreadablePolicy }
-        let proposed = [url.standardizedFileURL, url.resolvingSymlinksInPath().standardizedFileURL]
-        let denied = builtInPaths.flatMap { [$0, $0.resolvingSymlinksInPath().standardizedFileURL] }
-            + entries.flatMap { [$0.url, $0.physicalURL, $0.url.resolvingSymlinksInPath().standardizedFileURL] }
-        if proposed.contains(where: { target in denied.contains { Self.overlaps(target.path, $0.path) } }) {
+        let proposed = [url.standardizedFileURL.path, url.resolvingSymlinksInPath().standardizedFileURL.path]
+        if proposed.contains(where: { target in deniedPaths.contains { Self.overlaps(target, $0) } }) {
             throw ProtectionError.protectedPath(url.path)
         }
     }
 
     public func applying(to candidate: CleanupCandidate) -> CleanupCandidate {
-        do { try validate(candidate.url); return candidate }
+        applying(to: candidate, deniedPaths: resolvedDeniedPaths)
+    }
+
+    /// Resolve protection roots once for this batch; each candidate still checks
+    /// its current physical path. Later batches and execution resolve roots anew.
+    public func applying(to candidates: [CleanupCandidate]) -> [CleanupCandidate] {
+        guard !candidates.isEmpty else { return [] }
+        let deniedPaths = resolvedDeniedPaths
+        return candidates.map { applying(to: $0, deniedPaths: deniedPaths) }
+    }
+
+    private func applying(to candidate: CleanupCandidate, deniedPaths: [String]) -> CleanupCandidate {
+        do { try validate(candidate.url, deniedPaths: deniedPaths); return candidate }
         catch {
             return candidate.replacing(
                 risk: .blocked,

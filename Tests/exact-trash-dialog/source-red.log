@@ -1,0 +1,13 @@
+6:enum TrashEmptyingContext {
+10:enum TrashEmptyingDecision: Equatable {
+21:    private let confirmEmptyTrash: @MainActor (TrashEmptyingContext) -> TrashEmptyingDecision
+30:    init(preferences: UserDefaults, confirmEmptyTrash: @escaping @MainActor (TrashEmptyingContext) -> TrashEmptyingDecision,
+44:    @discardableResult func requestEmptyTrash(model: AppModel, context: TrashEmptyingContext = .button) -> Task<Bool, Never> {
+80:    private static func confirmEmptying(_ context: TrashEmptyingContext) -> TrashEmptyingDecision {
+87:        case .windowClosing: L10n.text("直接关闭")
+88:        case .quitting: L10n.text("继续退出")
+93:        if context == .quitting { alert.addButton(withTitle: L10n.text("取消退出")).keyEquivalent = "" }
+95:            alert.showsSuppressionButton = true
+96:            alert.suppressionButton?.title = L10n.text("不再提醒")
+101:        let suppressReminders = alert.suppressionButton?.state == .on
+FAIL: shared Empty Trash confirmation still varies by source or exposes extra choices
