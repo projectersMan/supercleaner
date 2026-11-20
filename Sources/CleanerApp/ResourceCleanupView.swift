@@ -172,7 +172,7 @@ struct ResourceCleanupView: View {
                 return ResourceCleanupGroup(id: provider.rawValue, title: provider.displayName,
                     detail: paths.joined(separator: " · "),
                     notice: provider == .ollama
-                        ? L10n.text("Ollama 模型共享存储，选择此项会清理整个模型库。")
+                        ? L10n.text("按模型选择清理；其他模型仍引用的共享文件会保留。")
                         : L10n.text("清理后可能需要重新下载。"),
                     icon: "brain", candidates: candidates)
             }
@@ -288,17 +288,12 @@ private struct ResourceCleanupCandidateRow: View {
     let destination: AppDestination
     let candidate: CleanupCandidate
     let selectionIsDisabled: Bool
-    @State private var showsDetails = false
 
     private var isSelectable: Bool { ResourceCleanupListPolicy.isSelectable(candidate) }
     private var restrictionSummary: String? {
         guard !isSelectable else { return nil }
         if let protection = candidate.evidence.last(where: { $0.code == "protected-by-policy" || $0.code == "protection-unavailable" }) {
             return protection.summary
-        }
-        if candidate.isActive {
-            return candidate.evidence.first { $0.code == "active-project" || $0.code == "local-ai-model-unverified" }?.summary
-                ?? L10n.text("正在使用")
         }
         if let incomplete = candidate.evidence.first(where: { $0.code.hasPrefix("scan-incomplete-") }) { return incomplete.summary }
         return candidate.evidence.first {
@@ -329,21 +324,12 @@ private struct ResourceCleanupCandidateRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 5) {
-                    Text(candidate.hasIncompleteScan ? L10n.text("容量未确认") : ByteCountFormatter.cleanerString(bytes: candidate.bytes))
-                        .font(.callout).monospacedDigit().foregroundColor(.secondary)
-                    Button(showsDetails ? L10n.text("收起详情") : L10n.text("查看详情")) {
-                        model.focus(candidate.id, for: destination)
-                        showsDetails.toggle()
-                    }
-                    .font(.caption).buttonStyle(.link)
-                }
-                .fixedSize()
+                Text(candidate.hasIncompleteScan ? L10n.text("容量未确认") : ByteCountFormatter.cleanerString(bytes: candidate.bytes))
+                    .font(.callout).monospacedDigit().foregroundColor(.secondary).fixedSize()
             }
             if let failure = model.cleanupFailures.first(where: { $0.candidate.id == candidate.id }) {
                 Label(failure.reason, systemImage: "exclamationmark.circle").font(.caption).foregroundColor(.orange)
             }
-            if showsDetails { details }
         }
         .padding(.leading, 44).padding(.trailing, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -354,28 +340,6 @@ private struct ResourceCleanupCandidateRow: View {
             Button(L10n.text("永久保护此路径")) { model.protect(candidate) }
                 .disabled(selectionIsDisabled)
         }
-    }
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(candidate.url.path).font(.caption.monospaced()).textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-            ForEach(candidate.evidence.filter { $0.code != "local-ai-model-fingerprint" }, id: \.self) { evidence in
-                Text(evidence.summary).font(.caption).foregroundColor(.secondary)
-            }
-            Text(L10n.text("只处理当前候选路径，不扩展到相邻目录或用户内容。"))
-                .font(.caption).foregroundColor(.secondary)
-            Text(L10n.text("从恢复记录恢复；若原路径已有文件，会恢复到相邻位置，绝不覆盖。"))
-                .font(.caption).foregroundColor(.secondary)
-            HStack(spacing: 12) {
-                Button(L10n.text("在 Finder 中打开"), action: revealInFinder)
-                Button(L10n.text("永久保护此路径")) { model.protect(candidate) }
-                    .disabled(selectionIsDisabled)
-            }
-            .font(.caption)
-        }
-        .padding(.leading, 30).padding(.top, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func revealInFinder() {

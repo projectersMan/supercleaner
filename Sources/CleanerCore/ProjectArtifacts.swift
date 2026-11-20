@@ -123,12 +123,7 @@ public struct ProjectArtifactScanner: Sendable {
         let sorted = artifacts.sorted { $0.candidate.url.path < $1.candidate.url.path }
         let installers = sorted.map(\.candidate).filter { $0.identity.kind == .file && $0.url.pathExtension.lowercased() == "dmg" }
         let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: 1, preselectInstallers: true)
-            .analyze(installers.map { candidate in
-                CleanupCandidate(id: candidate.id, url: candidate.url, displayName: candidate.displayName,
-                    category: .largeFile, bytes: candidate.bytes, risk: candidate.risk, evidence: candidate.evidence,
-                    identity: candidate.identity, source: .diskAnalysis, lastAccessDate: candidate.lastAccessDate,
-                    isActive: candidate.isActive, requiresExplicitSelection: candidate.requiresExplicitSelection)
-            })
+            .analyze(installers)
         let reviewed = SystemScanReport.preservingProjectInstallerProofs(sorted.map(\.candidate), largeFiles: analysis.candidates)
         if analysis.limited { limitations.append(limitation(context.homeDirectory, L10n.text("重复大文件核验受限"))) }
         let result = zip(sorted, reviewed).map { ProjectArtifact(projectURL: $0.0.projectURL, candidate: $0.1) }
@@ -189,8 +184,6 @@ public struct ProjectArtifactScanner: Sendable {
         var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", String(describing: project.lastPathComponent)), details: project.path),
                         Evidence(code: "rebuildable-artifact", summary: L10n.text("项目工具生成的 {0} 目录，恢复前可能需要重新安装依赖或构建", String(describing: url.lastPathComponent)))]
         var blocked = identity.kind != .directory
-        var active = context.isProjectActive(project)
-        if !context.activityProbeAvailable || !context.projectActivityAvailable { active = true }
         var newest = identity.modificationTime
         var bytes: UInt64 = 0
         var pending = [(url, 0)]
@@ -208,8 +201,13 @@ public struct ProjectArtifactScanner: Sendable {
                     remaining -= 1
                     let childIdentity = try await context.fileSystem.identity(at: child)
                     newest = max(newest, childIdentity.modificationTime)
-                    if child.lastPathComponent == ".git" { blocked = true; evidence.append(Evidence(code: "nested-git", summary: L10n.text("产物目录内含版本库，保持保护"))); continue }
-                    if sensitive(child) { blocked = true; evidence.append(Evidence(code: "deployment-key", summary: L10n.text("含部署密钥或环境凭证，保持保护"))) }
+                    if child.lastPathComponent == ".git",
+                       !(try await isManagedSwiftPMCheckout(child, artifact: url, project: project, context: context)) {
+                        blocked = true; evidence.append(Evidence(code: "nested-git", summary: L10n.text("产物目录内含版本库，保持保护"))); continue
+                    }
+                    if try await sensitive(child, identity: childIdentity, context: context) {
+                        blocked = true; evidence.append(Evidence(code: "deployment-key", summary: L10n.text("含部署密钥或环境凭证，保持保护")))
+                    }
                     if childIdentity.kind == .directory { pending.append((child, depth + 1)) }
                     else if childIdentity.kind == .file {
                         let (sum, overflow) = bytes.addingReportingOverflow(childIdentity.size)
@@ -229,12 +227,11 @@ public struct ProjectArtifactScanner: Sendable {
         evidence.append(Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件") : git == .tracked ? L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") : L10n.text("无法验证 Git 状态，保持保护")))
         let recent = context.now.timeIntervalSince1970 - Double(newest) < 7 * 86_400
         if recent { evidence.append(Evidence(code: "recent-activity", summary: L10n.text("7 天内有文件活动，默认保留；可明确审查后选择"))) }
-        if active { blocked = true; evidence.append(Evidence(code: "active-project", summary: L10n.text("构建工具正在运行或活动状态无法验证"))) }
         let candidate = CleanupCandidate(
             url: url, displayName: url.lastPathComponent, category: .developerCache,
             bytes: bytes, risk: blocked ? .blocked : .review, evidence: Array(Set(evidence)).sorted { $0.code < $1.code },
             identity: identity, source: .projectArtifacts, lastAccessDate: Date(timeIntervalSince1970: Double(newest)),
-            isActive: active, defaultSelection: false, requiresExplicitSelection: git == .tracked
+            isActive: false, defaultSelection: false, requiresExplicitSelection: git == .tracked
         )
         return (context.protectionPolicy.applying(to: candidate), installers)
     }
@@ -247,19 +244,17 @@ public struct ProjectArtifactScanner: Sendable {
             repository.deleteLastPathComponent()
         }
         let git = await trackedFiles(in: url, project: repository, context: context)
-        let active = context.isActive(url) || !context.activityProbeAvailable || !context.projectActivityAvailable
         let snapshot = LargeFileContentAnalyzer.eligibleSnapshot(url, context: context, installer: true,
-            forManualSelection: git == .tracked)
-        let eligible = identity.kind == .file && !active && git != .unknown && snapshot != nil
+            forManualSelection: git == .tracked, ignoringActivity: true)
+        let eligible = identity.kind == .file && git != .unknown && snapshot != nil
         var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", project.lastPathComponent), details: project.path),
             InstallerDiscovery.formatEvidence("dmg"),
             Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件")
                 : git == .tracked ? L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") : L10n.text("无法验证 Git 状态，保持保护"))]
         if snapshot == nil { evidence.append(Evidence(code: "inspection-failed", summary: L10n.text("内容未完整验证，保持保护"))) }
-        if active { evidence.append(Evidence(code: "active-project", summary: L10n.text("文件正在使用，暂不可选择"))) }
         return context.protectionPolicy.applying(to: CleanupCandidate(url: url, displayName: url.lastPathComponent,
             category: .installerArtifact, bytes: identity.size, risk: eligible ? .review : .blocked, evidence: evidence,
-            identity: identity, source: .projectArtifacts, lastAccessDate: nil, isActive: active, defaultSelection: false,
+            identity: identity, source: .projectArtifacts, lastAccessDate: nil, isActive: false, defaultSelection: false,
             requiresExplicitSelection: git == .tracked))
     }
 
@@ -285,10 +280,43 @@ public struct ProjectArtifactScanner: Sendable {
         } catch { return .unknown }
     }
 
-    private func sensitive(_ url: URL) -> Bool {
+    private func sensitive(_ url: URL, identity: FileIdentity, context: ScanContext) async throws -> Bool {
         let name = url.lastPathComponent.lowercased()
-        return name == ".env" || name.hasPrefix(".env.") || ["id_rsa", "id_ed25519", "credentials.json", "keypair.json"].contains(name)
-            || ["pem", "key", "p12", "pfx"].contains(url.pathExtension.lowercased())
+        if name == ".env" || name.hasPrefix(".env.") || ["id_rsa", "id_ed25519", "credentials.json", "keypair.json"].contains(name)
+            || ["key", "p12", "pfx"].contains(url.pathExtension.lowercased()) { return true }
+        guard url.pathExtension.lowercased() == "pem" else { return false }
+        guard identity.kind == .file, identity.size <= 65_536 else { return true }
+        let path = try context.pathPolicy.validateCandidate(url)
+        guard path.literal.path == path.physical.path else { return true }
+        try context.protectionPolicy.validate(url)
+        let data = try await context.fileSystem.readData(at: url, maximumBytes: 65_536)
+        guard let text = String(data: data, encoding: .utf8) else { return true }
+        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard lines.count >= 3, ["PUBLIC KEY", "RSA PUBLIC KEY"].contains(where: {
+            lines.first == "-----BEGIN \($0)-----" && lines.last == "-----END \($0)-----"
+        }),
+              let payload = Data(base64Encoded: lines.dropFirst().dropLast().joined()), !payload.isEmpty else { return true }
+        return false
+    }
+
+    private func isManagedSwiftPMCheckout(_ git: URL, artifact: URL, project: URL, context: ScanContext) async throws -> Bool {
+        let checkout = git.deletingLastPathComponent()
+        let checkouts = checkout.deletingLastPathComponent()
+        let workspace = checkouts.deletingLastPathComponent()
+        guard artifact.lastPathComponent == ".build", checkouts.lastPathComponent == "checkouts",
+              workspace.path == artifact.path || workspace.path.hasPrefix(artifact.path + "/"),
+              await context.fileSystem.fileExists(project.appendingPathComponent("Package.swift")) else { return false }
+        let stateURL = workspace.appendingPathComponent("workspace-state.json")
+        guard await context.fileSystem.fileExists(stateURL) else { return false }
+        let path = try context.pathPolicy.validateCandidate(stateURL)
+        guard path.literal.path == path.physical.path else { return false }
+        try context.protectionPolicy.validate(stateURL)
+        let data = try await context.fileSystem.readData(at: stateURL, maximumBytes: 1_048_576)
+        let state = try JSONDecoder().decode(SwiftPMWorkspaceState.self, from: data)
+        return state.version == 7 && state.object.dependencies.contains {
+            $0.subpath == checkout.lastPathComponent && $0.state.name == "sourceControlCheckout"
+                && $0.packageRef.kind == "remoteSourceControl"
+        }
     }
     private func limitation(_ path: URL, _ reason: String) -> ScanLimitation {
         ScanLimitation(title: reason, path: path, impact: L10n.text("项目产物结果可能不完整；已验证项目仍可审查"), recovery: L10n.text("缩小扫描根或检查权限后重扫"))
@@ -299,4 +327,17 @@ public struct ProjectArtifactScanner: Sendable {
         while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
         return path
     }
+}
+
+private struct SwiftPMWorkspaceState: Decodable {
+    let version: Int
+    let object: Contents
+    struct Contents: Decodable { let dependencies: [Dependency] }
+    struct Dependency: Decodable {
+        let subpath: String
+        let state: State
+        let packageRef: PackageReference
+    }
+    struct State: Decodable { let name: String }
+    struct PackageReference: Decodable { let kind: String }
 }

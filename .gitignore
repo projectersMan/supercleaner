@@ -7,3 +7,11 @@ dist/
 build/
 *.xcarchive
 *.dSYM/
+
+# Local validation and compiler outputs
+Tests/temporary/
+Tests/**/*.log
+Tests/**/*.sample
+Tests/**/*.sample.gz
+Tests/**/fixtures/
+Tests/application-first-render/IconFirstRender

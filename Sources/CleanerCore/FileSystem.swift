@@ -7,6 +7,7 @@ public enum FileSystemError: Error, Equatable, Sendable {
     case directoryNotEmpty(URL)
     case trashUnavailable(URL)
     case unreadableContent(URL)
+    case cloneUnavailable(URL)
 }
 
 public protocol FileSystemAccess: Sendable {
@@ -22,12 +23,14 @@ public protocol FileSystemAccess: Sendable {
     func readText(at url: URL, maximumBytes: Int) async throws -> String
     func readData(at url: URL, maximumBytes: Int) async throws -> Data
     func move(_ source: URL, to destination: URL) async throws
+    func cloneFile(_ source: URL, to destination: URL) async throws
     func createDirectory(_ url: URL) async throws
     func removeEmptyDirectory(_ url: URL) async throws
     func trash(_ url: URL) async throws -> URL
 }
 
 public extension FileSystemAccess {
+    func cloneFile(_ source: URL, to destination: URL) async throws { throw FileSystemError.cloneUnavailable(source) }
     func directoryGeneration(at url: URL) async throws -> String? { nil }
     func itemGeneration(at url: URL) async throws -> String? { nil }
     func isDeletable(_ url: URL) async -> Bool { await isWritable(url.deletingLastPathComponent()) }
@@ -124,6 +127,12 @@ public struct LocalFileSystem: FileSystemAccess {
 
     public func move(_ source: URL, to destination: URL) async throws {
         try FileManager.default.moveItem(at: source, to: destination)
+    }
+
+    public func cloneFile(_ source: URL, to destination: URL) async throws {
+        guard clonefile(source.path, destination.path, UInt32(CLONE_NOFOLLOW | CLONE_NOFOLLOW_ANY)) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [NSFilePathErrorKey: source.path])
+        }
     }
 
     public func createDirectory(_ url: URL) async throws {

@@ -11,8 +11,6 @@ final class LocalAIModelScannerTests: XCTestCase {
             (".cache/huggingface/hub/datasets--org--data/blobs/data", 30),
             (".lmstudio/models/publisher/chat/model.gguf", 200),
             (".cache/lm-studio/models/publisher/old/model.gguf", 50),
-            (".ollama/models/blobs/sha256-shared", 300),
-            (".ollama/models/manifests/registry/library/chat/latest", 10),
             (".cache/torch/hub/checkpoints/model.pth", 40),
             (".cache/whisper/base.pt", 60),
             (".keras/models/network.h5", 70),
@@ -26,13 +24,11 @@ final class LocalAIModelScannerTests: XCTestCase {
 
         let inventory = try await LocalAIModelScanner().scan(context: fixture.context())
 
-        XCTAssertEqual(inventory.models.count, 10)
-        XCTAssertEqual(Set(inventory.models.map(\.provider)), Set(LocalAIModelProvider.allCases))
+        XCTAssertEqual(inventory.models.count, 9)
+        XCTAssertEqual(Set(inventory.models.map(\.provider)), Set(LocalAIModelProvider.allCases.filter { $0 != .ollama }))
         XCTAssertTrue(inventory.candidates.allSatisfy { $0.risk == .review && $0.defaultSelection == false && $0.requiresExplicitSelection == true })
         XCTAssertTrue(inventory.candidates.allSatisfy { $0.source == .localAIModels && $0.category == .agentModelCache })
         XCTAssertTrue(inventory.candidates.allSatisfy { !PlanItem(candidate: $0).isSelected })
-        XCTAssertEqual(inventory.models.first { $0.candidate.url == fixture.url(".ollama/models") }?.candidate.bytes, 310)
-        XCTAssertEqual(inventory.models.filter { $0.provider == .ollama }.count, 1)
         XCTAssertFalse(inventory.candidates.contains { $0.url.lastPathComponent == "settings.json" || $0.url.lastPathComponent == "keras.json" || $0.url.lastPathComponent == "token" })
         XCTAssertTrue(inventory.limitations.isEmpty)
     }
@@ -68,19 +64,20 @@ final class LocalAIModelScannerTests: XCTestCase {
         XCTAssertEqual(inventory.candidates.first?.risk, .review)
     }
 
-    func testProviderProcessesAndUnverifiedActivityBlockModels() async throws {
+    func testProcessNamesPathsAndUnavailableActivityDoNotRestrictModelCleanup() async throws {
         let fixture = LocalAIModelFixture()
         await fixture.fileSystem.addFile(fixture.url(".cache/whisper/base.pt"), size: 100)
-        await fixture.fileSystem.addFile(fixture.url(".ollama/models/blobs/sha256-model"), size: 100)
         let scanner = LocalAIModelScanner()
 
         let running = try await scanner.scan(context: fixture.context(processes: ["python3.13", "Ollama"]))
-        XCTAssertTrue(running.candidates.allSatisfy { $0.risk == .blocked && $0.isActive })
+        XCTAssertEqual(running.candidates.count, 1)
+        XCTAssertTrue(running.candidates.allSatisfy { ResourceCleanupListPolicy.isSelectable($0) && !$0.isActive })
         let unknown = try await scanner.scan(context: fixture.context(activityAvailable: false))
-        XCTAssertTrue(unknown.candidates.allSatisfy { $0.risk == .blocked })
+        XCTAssertTrue(unknown.candidates.allSatisfy { ResourceCleanupListPolicy.isSelectable($0) && !$0.isActive })
         let active = try await scanner.scan(context: fixture.context(activePaths: [fixture.url(".cache/whisper/base.pt")]))
-        XCTAssertEqual(active.models.first { $0.provider == .whisper }?.candidate.risk, .blocked)
-        XCTAssertFalse(unknown.limitations.isEmpty)
+        XCTAssertEqual(active.models.first { $0.provider == .whisper }?.candidate.risk, .review)
+        XCTAssertTrue(unknown.limitations.isEmpty)
+        XCTAssertFalse((running.candidates + unknown.candidates + active.candidates).flatMap(\.evidence).contains { $0.code == "local-ai-model-active" })
     }
 
     func testUnreadableContentIsBlockedAndReportsCoverageInsteadOfSafeZero() async throws {
@@ -172,7 +169,7 @@ final class LocalAIModelScannerTests: XCTestCase {
 
     func testEntryBudgetRetainsBlockedPartialCandidateAndLimitation() async throws {
         let fixture = LocalAIModelFixture()
-        let model = fixture.url(".ollama/models")
+        let model = fixture.url(".lmstudio/models/publisher/chat")
         for index in 0..<30 { await fixture.fileSystem.addFile(model.appendingPathComponent("blobs/sha256-\(index)"), size: 100) }
 
         let inventory = try await LocalAIModelScanner(maximumEntries: 12, timeLimit: 30).scan(context: fixture.context())
@@ -206,7 +203,7 @@ final class LocalAIModelScannerTests: XCTestCase {
         }
     }
 
-    func testExecutionRevalidatesProviderScopeActivityAndIdentity() async throws {
+    func testExecutionRevalidatesProviderScopeAndIdentityWithoutActivityGate() async throws {
         let fixture = LocalAIModelFixture()
         let model = fixture.url(".cache/whisper/base.pt")
         await fixture.fileSystem.addFile(model, size: 100)
@@ -215,7 +212,7 @@ final class LocalAIModelScannerTests: XCTestCase {
         let candidate = try XCTUnwrap(inventory.candidates.first)
         try await scanner.validateForExecution(candidate, context: fixture.context())
 
-        await assertExecutionRefused(scanner, candidate: candidate, context: fixture.context(processes: ["python"]))
+        try await scanner.validateForExecution(candidate, context: fixture.context(processes: ["python"], activityAvailable: false, activePaths: [model]))
         let forged = CleanupCandidate(url: fixture.url(".keras/keras.json"), displayName: "config", category: .agentModelCache,
             bytes: candidate.bytes, risk: .review, evidence: candidate.evidence, identity: candidate.identity,
             source: .localAIModels, lastAccessDate: nil, isActive: false, defaultSelection: false, requiresExplicitSelection: true)

@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 @MainActor final class ApplicationIconCache {
     static let shared = ApplicationIconCache()
     private let images = NSCache<NSString, NSImage>()
-    private lazy var genericApplicationIconData = NSWorkspace.shared.icon(for: .applicationBundle).tiffRepresentation
+    private lazy var genericApplicationIconData = Self.comparisonData(for: NSWorkspace.shared.icon(for: .applicationBundle))
 
     private init() { images.countLimit = 256 }
 
@@ -22,7 +22,7 @@ import UniformTypeIdentifiers
             if path.hasPrefix(ancestor.appendingPathComponent("Contents").path + "/"),
                let owner = Bundle(url: ancestor),
                owner.object(forInfoDictionaryKey: "CFBundlePackageType") as? String == "APPL" {
-                guard let generic = genericApplicationIconData, image.tiffRepresentation == generic else { break }
+                guard Self.comparisonData(for: image) == genericApplicationIconData else { break }
                 if ancestor.pathExtension.lowercased() == "app" {
                     image = NSWorkspace.shared.icon(forFile: ancestor.path)
                 } else if let declared = declaredIcon(in: owner) {
@@ -33,6 +33,21 @@ import UniformTypeIdentifiers
         }
         images.setObject(image, forKey: key)
         return image
+    }
+
+    /// Compare the displayed 32-point icon, without encoding every full-resolution representation.
+    private static func comparisonData(for image: NSImage) -> Data {
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 32 * 4, bitsPerPixel: 32),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap), let pixels = bitmap.bitmapData else {
+            preconditionFailure("Unable to allocate icon comparison bitmap")
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: NSRect(x: 0, y: 0, width: 32, height: 32), from: .zero, operation: .copy, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
+        return Data(bytes: pixels, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
     }
 
     private func declaredIcon(in bundle: Bundle) -> NSImage? {

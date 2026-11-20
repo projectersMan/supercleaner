@@ -44,9 +44,11 @@ func runProjectArtifactContracts() async throws {
     let safe = candidate("node_modules")
     require(safe.risk == .review && safe.bytes == 7, "dependency links must not traverse or count external data")
     let active = try await scanner.scan(context: ScanContext(homeDirectory: home, activePaths: [project]))
-    require(active.artifacts.allSatisfy { $0.candidate.risk == .blocked }, "active project must be protected")
+    require(active.artifacts.filter { ["node_modules", "target", "build"].contains($0.candidate.displayName) }
+        .allSatisfy { $0.candidate.risk == .review && !$0.candidate.isActive }, "project activity must not block review")
     let unknown = try await scanner.scan(context: ScanContext(homeDirectory: home, projectActivityAvailable: false))
-    require(unknown.artifacts.allSatisfy { $0.candidate.risk == .blocked }, "unknown project activity must be protected")
+    require(unknown.artifacts.filter { ["node_modules", "target", "build"].contains($0.candidate.displayName) }
+        .allSatisfy { $0.candidate.risk == .review && !$0.candidate.isActive }, "unknown project activity must not block review")
     let protected = try await scanner.scan(context: ScanContext(homeDirectory: home, protectionPolicy: ProtectionPolicy(entries: [ProtectedPath(url: project.appendingPathComponent("node_modules/payload"))], homeDirectory: home)))
     require(protected.artifacts.first { $0.candidate.displayName == "node_modules" }?.candidate.risk == .blocked, "project artifacts must obey persistent protection")
     let limited = try await ProjectArtifactScanner(roots: [projects], maximumEntries: 1).scan(context: context)
@@ -71,7 +73,7 @@ func runProjectArtifactContracts() async throws {
     let cancelled = Task { try await scanner.scan(context: context) }
     cancelled.cancel()
     do { _ = try await cancelled.value; require(false, "cancelled project scan cannot publish results") } catch is CancellationError {}
-    print("PASS: grouped project artifacts, Git manual review, nested-repo/key/activity protection, roots and recoverable execution")
+    print("PASS: grouped project artifacts, activity-independent review, Git/nested-repo/key protection, roots and recoverable execution")
 }
 
 private func ageProjectFixture(_ project: URL, at date: Date) throws {

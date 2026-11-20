@@ -89,7 +89,8 @@ public struct DefaultCleanupPolicy: Sendable {
             agentEnvironment: [],
             localAIModels: [],
             projects: preselectProjectArtifacts
-                ? ResourceCleanupListPolicy.selectableCandidates(scopePolicy.candidates(for: .projects, from: report.candidates)) : []
+                ? ResourceCleanupListPolicy.selectableCandidates(ResourceCleanupListPolicy.projectReviewCandidates(
+                    scopePolicy.candidates(for: .projects, from: report.candidates))) : []
         )
     }
 }

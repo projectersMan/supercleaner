@@ -4,6 +4,7 @@ import Foundation
 /// selected descendants. Keep the scan entries for review, not repeated moves.
 public enum CleanupSelection {
     public static func executionCandidates(from selected: [CleanupCandidate]) -> [CleanupCandidate] {
+        let selected = OllamaModelProof.executionCandidates(from: selected)
         let paths = selected.map { CleanupPathIndex.path($0.url) }
         let directories = Set(zip(selected, paths).compactMap { candidate, path in
             candidate.identity.kind == .directory ? path : nil

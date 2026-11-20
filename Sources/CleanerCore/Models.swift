@@ -109,6 +109,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
     public let requiresExplicitSelection: Bool?
     public let cleanupApplication: CleanupApplication?
     public let largeFileProof: LargeFileCleanupProof?
+    public let ollamaModelProof: OllamaModelProof?
 
     public init(
         id: UUID = UUID(),
@@ -126,7 +127,8 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         defaultSelection: Bool? = nil,
         requiresExplicitSelection: Bool? = nil,
         cleanupApplication: CleanupApplication? = nil,
-        largeFileProof: LargeFileCleanupProof? = nil
+        largeFileProof: LargeFileCleanupProof? = nil,
+        ollamaModelProof: OllamaModelProof? = nil
     ) {
         self.id = id
         self.url = url
@@ -144,6 +146,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
         self.requiresExplicitSelection = requiresExplicitSelection
         self.cleanupApplication = cleanupApplication
         self.largeFileProof = largeFileProof
+        self.ollamaModelProof = ollamaModelProof
     }
 
     public func replacing(risk: RiskLevel, evidence: [Evidence]) -> CleanupCandidate {
@@ -153,7 +156,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
             lastAccessDate: lastAccessDate, isActive: isActive,
             ruleID: ruleID, defaultSelection: defaultSelection,
             requiresExplicitSelection: requiresExplicitSelection, cleanupApplication: cleanupApplication,
-            largeFileProof: largeFileProof
+            largeFileProof: largeFileProof, ollamaModelProof: ollamaModelProof
         )
     }
 
@@ -181,7 +184,7 @@ public struct CleanupCandidate: Identifiable, Codable, Hashable, Sendable {
             risk: risk, evidence: previous + (recommendation.map { [$0] } ?? []), identity: identity, source: source,
             lastAccessDate: lastAccessDate, isActive: isActive, ruleID: ruleID,
             defaultSelection: preselected, requiresExplicitSelection: requiresExplicitSelection,
-            cleanupApplication: cleanupApplication, largeFileProof: proof
+            cleanupApplication: cleanupApplication, largeFileProof: proof, ollamaModelProof: ollamaModelProof
         )
     }
 }

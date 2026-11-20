@@ -12,6 +12,16 @@ public enum ResourceCleanupListScope: Int, CaseIterable, Sendable {
 }
 
 public enum ResourceCleanupListPolicy {
+    public static func projectReviewCandidates(_ candidates: [CleanupCandidate]) -> [CleanupCandidate] {
+        let directories = CleanupPathIndex(paths: Set(candidates.filter {
+            $0.source == .projectArtifacts && $0.identity.kind == .directory && isSelectable($0)
+        }.map { CleanupPathIndex.path($0.url) }))
+        return candidates.filter {
+            $0.source != .projectArtifacts || $0.identity.kind != .file || $0.url.pathExtension.lowercased() != "dmg"
+                || !directories.contains($0.url)
+        }
+    }
+
     public static func isSelectable(_ candidate: CleanupCandidate) -> Bool {
         candidate.risk.isSelectable && !candidate.isActive && !candidate.hasIncompleteScan
     }

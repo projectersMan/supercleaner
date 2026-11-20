@@ -66,6 +66,10 @@ public struct LocalAIModelScanner: Sendable {
                 _ = try await validatedIdentity(root, context: context)
                 rootVerified = true
                 scannedRoots.append(root)
+                if storage.provider == .ollama {
+                    models.append(contentsOf: try await ollamaModels(root: root, context: context, budget: &budget))
+                    continue
+                }
                 let targets = try await targets(in: root, storage: storage, context: context, budget: &budget, limitations: &limitations)
                 for target in targets {
                     try Task.checkCancellation()
@@ -103,6 +107,10 @@ public struct LocalAIModelScanner: Sendable {
 
     public func validateForExecution(_ candidate: CleanupCandidate, context: ScanContext) async throws {
         try Task.checkCancellation()
+        if candidate.ruleID == "local-ai-model.ollama-blob" {
+            try await validateOllamaBlob(candidate, context: context)
+            return
+        }
         guard candidate.source == .localAIModels, candidate.category == .agentModelCache,
               candidate.risk == .review, !candidate.isActive,
               candidate.defaultSelection == false, candidate.requiresExplicitSelection == true,
@@ -114,6 +122,17 @@ public struct LocalAIModelScanner: Sendable {
         let identity = try await validatedIdentity(candidate.url, context: context)
         guard identity == candidate.identity else { throw RuleScanError.executionRefused("local-ai-model-identity-changed") }
         var budget = InspectionBudget(remaining: maximumEntries, deadline: .now.advanced(by: .seconds(timeLimit)))
+        if storage.provider == .ollama {
+            let current = try await ollamaModel(at: candidate.url, root: root, context: context, budget: &budget, references: [:])
+            let expanded = candidate.evidence.contains { $0.code == "ollama-manifest-operation" }
+            guard candidate.ollamaModelProof != nil,
+                  candidate.bytes == (expanded ? current.identity.size : current.bytes),
+                  candidate.evidence.first(where: { $0.code == "local-ai-model-fingerprint" })?.details
+                    == current.evidence.first(where: { $0.code == "local-ai-model-fingerprint" })?.details else {
+                throw RuleScanError.executionRefused("local-ai-model-content-changed")
+            }
+            return
+        }
         let current = try await inspect(candidate.url, root: root, storage: storage, context: context, budget: &budget)
         let expectedFingerprint = candidate.evidence.first { $0.code == "local-ai-model-fingerprint" }?.details
         let currentFingerprint = current.candidate.evidence.first { $0.code == "local-ai-model-fingerprint" }?.details
@@ -128,7 +147,6 @@ public struct LocalAIModelScanner: Sendable {
         in root: URL, storage: Storage, context: ScanContext, budget: inout InspectionBudget,
         limitations: inout [ScanLimitation]
     ) async throws -> [URL] {
-        if storage.layout == .library { return [root] }
         var targets: [URL] = []
         for child in try await children(root, context: context) {
             try Task.checkCancellation()
@@ -175,15 +193,9 @@ public struct LocalAIModelScanner: Sendable {
         var bytes: UInt64 = 0
         var stamps: [ItemStamp] = []
         var pending = [(url, identity)]
-        var hasModelFile = storage.layout == .huggingFace || storage.layout == .library || storage.isDataset
+        var hasModelFile = storage.layout == .huggingFace || storage.isDataset
         var checking = url
         var blocked = false
-        let active = context.isActive(url) || !context.activityProbeAvailable || storage.provider.isRunning(in: context.activeProcessNames)
-        if active {
-            blocked = true
-            evidence.append(Evidence(code: "local-ai-model-active", summary: L10n.text("模型工具正在运行或活动状态无法验证，保持保护")))
-            limitations.append(limitation(InspectionError.activity(url), path: url))
-        }
         do {
             try await validateLayout(url, storage: storage, context: context)
             while let (item, expectedIdentity) = pending.popLast() {
@@ -240,14 +252,14 @@ public struct LocalAIModelScanner: Sendable {
         }
         let candidate = CleanupCandidate(url: url, displayName: url.lastPathComponent, category: .agentModelCache,
             bytes: bytes, risk: blocked ? .blocked : .review, evidence: evidence, identity: identity, source: .localAIModels,
-            lastAccessDate: nil, isActive: active, ruleID: "local-ai-model.\(storage.provider.rawValue)",
+            lastAccessDate: nil, isActive: false, ruleID: "local-ai-model.\(storage.provider.rawValue)",
             defaultSelection: false, requiresExplicitSelection: true)
         return Inspection(candidate: candidate, limitations: limitations)
     }
 
     private func validateLayout(_ url: URL, storage: Storage, context: ScanContext) async throws {
-        guard storage.layout == .huggingFace || storage.layout == .library else { return }
-        let markers = storage.layout == .huggingFace ? ["blobs", "snapshots"] : ["blobs", "manifests"]
+        guard storage.layout == .huggingFace else { return }
+        let markers = ["blobs", "snapshots"]
         var found = false
         for child in try await children(url, context: context) where markers.contains(child.lastPathComponent) {
             guard try await validatedIdentity(child, context: context).kind == .directory else { throw InspectionError.scope(child) }
@@ -256,7 +268,7 @@ public struct LocalAIModelScanner: Sendable {
         guard found else { throw InspectionError.scope(url) }
     }
 
-    private func children(_ directory: URL, context: ScanContext) async throws -> [URL] {
+    func children(_ directory: URL, context: ScanContext) async throws -> [URL] {
         guard await context.fileSystem.isReadable(directory) else { throw InspectionError.unreadable(directory) }
         let children = try await context.fileSystem.children(of: directory)
         guard children.allSatisfy({ $0.isFileURL && $0.standardizedFileURL.deletingLastPathComponent().path == directory.standardizedFileURL.path
@@ -264,7 +276,7 @@ public struct LocalAIModelScanner: Sendable {
         return children.sorted { $0.path < $1.path }
     }
 
-    private func validatedIdentity(_ url: URL, context: ScanContext, allowLink: Bool = false) async throws -> FileIdentity {
+    func validatedIdentity(_ url: URL, context: ScanContext, allowLink: Bool = false) async throws -> FileIdentity {
         try Task.checkCancellation()
         let clean = url.standardizedFileURL
         let home = context.homeDirectory.standardizedFileURL
@@ -300,8 +312,6 @@ public struct LocalAIModelScanner: Sendable {
             reason = nil; title = L10n.text("模型范围或路径无法验证，保持保护"); affected = url
         case let InspectionError.sensitive(url):
             reason = nil; title = L10n.text("模型目录含凭据，保持保护"); affected = url
-        case let InspectionError.activity(url):
-            reason = nil; title = L10n.text("模型工具正在运行或活动状态无法验证，保持保护"); affected = url
         case let InspectionError.changed(url), let FileSystemError.missing(url):
             reason = .changed; title = L10n.text("位置已发生变化"); affected = url
         case let InspectionError.unreadable(url):
@@ -316,7 +326,7 @@ public struct LocalAIModelScanner: Sendable {
         }
         return ScanLimitation(title: title, path: affected,
             impact: L10n.text("模型检查范围不完整；受影响的模型不会清理"),
-            recovery: L10n.text("关闭相关模型工具并检查目录权限后重新扫描"), reason: reason)
+            recovery: L10n.text("检查模型目录权限和内容后重新扫描"), reason: reason)
     }
 
     private static func isSensitive(_ url: URL) -> Bool {
@@ -325,7 +335,7 @@ public struct LocalAIModelScanner: Sendable {
             || name.hasPrefix(".env.") || ["pem", "key", "p12", "pfx"].contains(url.pathExtension.lowercased())
     }
 
-    private static func fingerprint(_ stamps: [ItemStamp], root: URL) -> String {
+    static func fingerprint(_ stamps: [ItemStamp], root: URL) -> String {
         let lines = stamps.sorted { $0.url.path < $1.url.path }.map { stamp in
             let identity = stamp.identity
             return "\(stamp.url.path.dropFirst(root.path.count))|\(identity.device)|\(identity.inode)|\(identity.size)|\(identity.modificationTime)|\(identity.kind.rawValue)|\(stamp.generation ?? "")"
@@ -334,8 +344,8 @@ public struct LocalAIModelScanner: Sendable {
     }
 
     private struct Inspection { let candidate: CleanupCandidate; let limitations: [ScanLimitation] }
-    private struct ItemStamp { let url: URL; let identity: FileIdentity; let generation: String? }
-    private struct InspectionBudget {
+    struct ItemStamp { let url: URL; let identity: FileIdentity; let generation: String? }
+    struct InspectionBudget {
         var remaining: Int
         let deadline: ContinuousClock.Instant
         var exhausted: Bool { remaining <= 0 || ContinuousClock.now >= deadline }
@@ -344,10 +354,10 @@ public struct LocalAIModelScanner: Sendable {
             remaining -= 1
         }
     }
-    private enum InspectionError: Error {
-        case budget(URL), scope(URL), sensitive(URL), activity(URL), changed(URL), unreadable(URL)
+    enum InspectionError: Error {
+        case budget(URL), scope(URL), sensitive(URL), changed(URL), unreadable(URL)
     }
-    private enum Layout { case huggingFace, publisherModel, library, files, children }
+    private enum Layout { case huggingFace, publisherModel, ollama, files, children }
     private struct Storage {
         let provider: LocalAIModelProvider
         let relativePath: String
@@ -358,14 +368,18 @@ public struct LocalAIModelScanner: Sendable {
         func contains(_ url: URL, home: URL) -> Bool {
             let root = home.appendingPathComponent(relativePath).standardizedFileURL
             let path = url.standardizedFileURL.path
-            if layout == .library { return path == root.path }
+            if layout == .ollama {
+                let prefix = root.appendingPathComponent("manifests").path + "/"
+                return path.hasPrefix(prefix) && path.dropFirst(prefix.count).split(separator: "/").count == 4
+            }
             guard path.hasPrefix(root.path + "/") else { return false }
             let parts = path.dropFirst(root.path.count + 1).split(separator: "/")
             return parts.count == (layout == .publisherModel ? 2 : 1) && accepts(url, kind: layout == .files ? .file : .directory)
         }
 
         func accepts(_ url: URL, kind: FileIdentity.Kind) -> Bool {
-            if layout == .library || layout == .publisherModel { return kind == .directory }
+            if layout == .ollama { return kind == .file }
+            if layout == .publisherModel { return kind == .directory }
             if layout == .huggingFace {
                 let name = url.lastPathComponent
                 return kind == .directory && ((name.hasPrefix("models--") && name.count > 8) || (name.hasPrefix("datasets--") && name.count > 10))
@@ -388,7 +402,7 @@ public struct LocalAIModelScanner: Sendable {
         Storage(provider: .huggingFace, relativePath: ".cache/huggingface/hub", layout: .huggingFace, isDataset: false),
         Storage(provider: .lmStudio, relativePath: ".lmstudio/models", layout: .publisherModel, isDataset: false),
         Storage(provider: .lmStudio, relativePath: ".cache/lm-studio/models", layout: .publisherModel, isDataset: false),
-        Storage(provider: .ollama, relativePath: ".ollama/models", layout: .library, isDataset: false),
+        Storage(provider: .ollama, relativePath: ".ollama/models", layout: .ollama, isDataset: false),
         Storage(provider: .pytorch, relativePath: ".cache/torch/hub/checkpoints", layout: .files, isDataset: false),
         Storage(provider: .whisper, relativePath: ".cache/whisper", layout: .files, isDataset: false),
         Storage(provider: .keras, relativePath: ".keras/models", layout: .children, isDataset: false),
@@ -396,24 +410,4 @@ public struct LocalAIModelScanner: Sendable {
         Storage(provider: .gpt4All, relativePath: "Library/Application Support/nomic.ai/GPT4All", layout: .files, isDataset: false),
         Storage(provider: .gpt4All, relativePath: ".cache/gpt4all", layout: .files, isDataset: false),
     ]
-}
-
-private extension LocalAIModelProvider {
-    func isRunning(in names: Set<String>) -> Bool {
-        for name in names {
-            let value = URL(fileURLWithPath: name).lastPathComponent.lowercased().replacingOccurrences(of: " ", with: "")
-            if value.hasPrefix("python") || value.hasPrefix("ipython") || value.hasPrefix("jupyter") { return true }
-            switch self {
-            case .huggingFace, .pytorch, .whisper, .keras:
-                if value.contains("huggingface") || value.contains("transformers") || value.contains("torch") || value.contains("whisper") || value.contains("keras") { return true }
-            case .lmStudio:
-                if value.contains("lmstudio") || value == "lms" || value.hasPrefix("llama-server") { return true }
-            case .ollama:
-                if value.contains("ollama") { return true }
-            case .gpt4All:
-                if value.contains("gpt4all") { return true }
-            }
-        }
-        return false
-    }
 }

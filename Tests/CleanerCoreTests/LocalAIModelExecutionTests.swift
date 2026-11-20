@@ -18,26 +18,26 @@ final class LocalAIModelExecutionTests: XCTestCase {
         try await assertModelRemains(fixture, candidate: candidate)
     }
 
-    func testProviderStartDuringPreparationPreventsSingleModelFileMove() async throws {
+    func testProviderStartDuringPreparationDoesNotPreventSingleModelFileMove() async throws {
         let fixture = try makeFixture(kind: .file, change: .processDuringPreparation)
         let candidate = try await fixture.candidate()
 
         let receipt = await fixture.executor(privileged: false).execute(plan: try fixture.plan(candidate))
 
-        XCTAssertEqual(receipt.results.map(\.status), [.skippedProtected])
-        try await assertModelRemains(fixture, candidate: candidate)
+        XCTAssertEqual(receipt.results.map(\.status), [.succeeded])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidate.url.path))
     }
 
-    func testOllamaStartDuringHelperFallbackPreventsLocalLibraryMove() async throws {
-        let fixture = try makeFixture(kind: .ollama, change: .processDuringHelperFallback)
+    func testProviderStartDuringHelperFallbackDoesNotPreventLocalModelMove() async throws {
+        let fixture = try makeFixture(kind: .directory, change: .processDuringHelperFallback)
         let candidate = try await fixture.candidate()
 
         let receipt = await fixture.executor(privileged: true).execute(plan: try fixture.plan(candidate))
 
-        XCTAssertEqual(receipt.results.map(\.status), [.skippedProtected])
+        XCTAssertEqual(receipt.results.map(\.status), [.succeeded])
         let calls = await fixture.fileSystem.helperCalls
         XCTAssertEqual(calls, 1)
-        try await assertModelRemains(fixture, candidate: candidate)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: candidate.url.path))
     }
 
     func testFileChangeDuringHelperFallbackPreservesStrictIdentity() async throws {
@@ -89,7 +89,7 @@ private enum ModelExecutionChange: Sendable {
 }
 
 private struct ModelExecutionFixture {
-    enum Kind { case directory, file, ollama }
+    enum Kind { case directory, file }
     let root: URL
     let home: URL
     let fileSystem: ModelExecutionFileSystem
@@ -107,9 +107,6 @@ private struct ModelExecutionFixture {
         case .file:
             relativePath = ".cache/whisper/base.pt"
             processName = "python3"
-        case .ollama:
-            relativePath = ".ollama/models/blobs/sha256-fixture"
-            processName = "ollama"
         }
         let weights = home.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(at: weights.deletingLastPathComponent(), withIntermediateDirectories: true)

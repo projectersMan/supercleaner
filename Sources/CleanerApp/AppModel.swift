@@ -1110,7 +1110,8 @@ struct ResourceReviewFilter: Equatable {
     var hiddenSelectedCount: Int {
         if let cached = cachedHiddenSelectedCounts[selection] { return cached }
         let visible = Set(visibleCandidates(for: selection).map(\.id))
-        let count = Set(executionSelectionCandidates.map(\.id)).subtracting(visible).count
+        let reviewed = selection == .localAIModels ? selectedCandidates : executionSelectionCandidates
+        let count = Set(reviewed.map(\.id)).subtracting(visible).count
         cachedHiddenSelectedCounts[selection] = count
         return count
     }
@@ -1138,7 +1139,9 @@ struct ResourceReviewFilter: Equatable {
                 largeFiles: proposed.largeFiles.filter { !excludedIDs.contains($0.id) && protectionPolicy.applying(to: $0).risk.isSelectable },
                 agentEnvironment: proposed.agentEnvironment.filter { !excludedIDs.contains($0.id) && protectionPolicy.applying(to: $0).risk.isSelectable },
                 localAIModels: proposed.localAIModels.filter { !excludedIDs.contains($0.id) && protectionPolicy.applying(to: $0).risk.isSelectable },
-                projects: proposed.projects.filter { !excludedIDs.contains($0.id) && protectionPolicy.applying(to: $0).risk.isSelectable })
+                projects: preselectProjectArtifacts ? candidates(for: .projects).filter {
+                    selectedIDs.contains($0.id) && !excludedIDs.contains($0.id) && ResourceCleanupListPolicy.isSelectable($0)
+                } : [])
             cachedDefaultCleanupSelection = defaults
         }
         return DefaultCleanupSelection(
@@ -1375,10 +1378,11 @@ struct ResourceReviewFilter: Equatable {
         let scoped = destination == .largeFiles ? (systemReport?.largeFileReviewCandidates ?? [])
             : scopePolicy.candidates(for: destination, from: systemReport?.candidates ?? [])
         let access = ScanAccessPresentation(deniedPaths: Set(scanDeniedPaths.values.flatMap { $0 }))
-        let result = CleanupCandidateVisibility.remaining(
+        let checked = CleanupCandidateVisibility.remaining(
             candidates: scoped.filter { !access.cannotInspectWholeItem($0.url) },
             cleanedCandidateIDs: oneClickCleanedCandidateIDs
         ).map(protectionPolicy.applying)
+        let result = destination == .projects ? ResourceCleanupListPolicy.projectReviewCandidates(checked) : checked
         cachedCandidatesByDestination[destination] = result
         return result
     }
@@ -1770,7 +1774,6 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func applicationDidBecomeActive() {
-        refreshDiskCapacity()
         if selection == .applications { refreshRunningApplications() }
         Task { [weak self] in
             guard let self else { return }
@@ -3103,7 +3106,12 @@ struct ResourceReviewFilter: Equatable {
             selectedIDs.subtract(report.largeFileCandidates.filter { owned.contains($0.url.standardizedFileURL.path) }.map(\.id))
             if previous?.generationID == report.generationID {
                 let previousPaths = Set(previousItems.map { $0.url.standardizedFileURL.path })
-                let selectedPaths = Set(previousItems.filter { previousSelection.contains($0.id) }.map { $0.url.standardizedFileURL.path })
+                let selectedDirectories = previousItems.filter {
+                    previousSelection.contains($0.id) && $0.identity.kind == .directory
+                }.map { $0.url.standardizedFileURL.path }
+                let selectedPaths = Set(previousItems.filter { item in
+                    previousSelection.contains(item.id) || selectedDirectories.contains { item.url.standardizedFileURL.path.hasPrefix($0 + "/") }
+                }.map { $0.url.standardizedFileURL.path })
                 let returning = report.largeFileReviewCandidates.filter { previousPaths.contains($0.url.standardizedFileURL.path) }
                 selectedIDs.subtract(returning.map(\.id))
                 selectedIDs.formUnion(returning.filter { selectedPaths.contains($0.url.standardizedFileURL.path) && $0.risk.isSelectable }.map(\.id))
@@ -3279,7 +3287,9 @@ struct ResourceReviewFilter: Equatable {
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .waiting)
         scanTask = Task { [weak self] in
             guard let self, let current = systemReport else { return }
-            let configurationTask = Task { try await runtime.configuration(includeProjectActivity: module == .projects) }
+            let configurationTask = Task {
+                try await runtime.configuration(includeProcessActivity: module != .localAIModels && module != .projects)
+            }
             let configurationResult = await configurationTask.result
             guard !Task.isCancelled, activeScanToken == token else { return }
             guard case let .success(configuration) = configurationResult else {
@@ -4230,23 +4240,29 @@ extension AppModel {
     private static func checkResourceScanDefaults() throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         let installerReport = try ResourceCleanupPresentationFixture.installerReport()
-        let installer = installerReport.projectScanReport!.artifacts[0].candidate
+        let directory = installerReport.projectScanReport!.artifacts[1].candidate
         let largeInstaller = installerReport.largeFileCandidates[0]
         let hierarchy = makeResourceCheckModel()
         hierarchy.install(installerReport)
         hierarchy.selection = .projects
-        hierarchy.toggle(installer)
-        guard hierarchy.selectedIDs.isEmpty else {
-            throw Failure(description: "deselecting an installer must also deselect a directory that would carry it")
+        guard hierarchy.candidates(for: .projects).map(\.id) == [directory.id],
+              hierarchy.visibleCandidates(for: .projects).map(\.id) == [directory.id],
+              hierarchy.selectedIDs == [directory.id], hierarchy.hiddenSelectedCount == 0,
+              hierarchy.defaultCleanupSummary(for: .projects) == .init(itemCount: 1, bytes: 300) else {
+            throw Failure(description: "a cleanable artifact directory must replace its nested installer row and default alias")
         }
-        hierarchy.toggle(installerReport.projectScanReport!.artifacts[1].candidate)
-        guard hierarchy.selectedIDs == Set(installerReport.projectScanReport!.artifacts.map(\.id)) else {
-            throw Failure(description: "selecting an artifact directory must include its selectable children")
+        hierarchy.toggle(directory)
+        guard hierarchy.selectedIDs.isEmpty else {
+            throw Failure(description: "deselecting a directory must leave no hidden installer selected")
+        }
+        hierarchy.toggle(directory)
+        guard hierarchy.selectedIDs == [directory.id], hierarchy.selectedBytes == 300 else {
+            throw Failure(description: "selecting the represented directory must remain one operation without child aliases")
         }
         for keepSelected in [true, false] {
             let migration = makeResourceCheckModel()
             migration.install(installerReport)
-            if !keepSelected { migration.selectedIDs.remove(installer.id) }
+            if !keepSelected { migration.selectedIDs.remove(directory.id) }
             let empty = ProjectScanReport(startedAt: Date(), completedAt: Date(), roots: [], artifacts: [], limitations: [])
             let refreshed = installerReport.replacing(moduleResult: .init(generationID: installerReport.generationID,
                 status: .init(module: .projects, state: .completed), payload: .projects(empty)))

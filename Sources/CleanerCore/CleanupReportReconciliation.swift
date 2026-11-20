@@ -90,6 +90,7 @@ extension SystemScanReport {
                     .mapValues { $0.filter { !isRemoved($0.url) } }, coverage: index.coverage, ownershipGraph: index.ownershipGraph)
             })
         func updatingProof(_ candidate: CleanupCandidate) -> CleanupCandidate {
+            let candidate = candidate.removingOllamaReferences(removedPaths)
             guard let proof = candidate.largeFileProof,
                   changed.contains(candidate.id) || proof.retained.contains(where: { $0.isWithin(any: removed) })
             else { return candidate }
@@ -101,7 +102,9 @@ extension SystemScanReport {
             + agentScanCoverage.scannedRoots + (localAIModelInventory?.coverage.scannedRoots ?? [])
             + (projectScanReport?.roots ?? [])).map(\.path))
         let models = localAIModelInventory.map {
-            LocalAIModelInventory(models: $0.models.filter { !isRemoved($0.candidate.url) },
+            LocalAIModelInventory(models: $0.models.filter { !isRemoved($0.candidate.url) }.map {
+                LocalAIModelRecord(provider: $0.provider, candidate: updatingProof($0.candidate))
+            },
                 coverage: $0.coverage, limitations: $0.limitations, scannedAt: $0.scannedAt)
         }
         let projects = projectScanReport.map {

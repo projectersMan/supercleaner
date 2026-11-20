@@ -1,16 +1,20 @@
 # 架构与扫描流程
 
+本地模型单项清理的现行实现见 [OllamaModelStorage](../Sources/CleanerCore/OllamaModelStorage.swift)：清单、tag、blob 身份和完整引用关系形成类型化证明；选择归一化只展开所选清单及无未选引用的 blob，容量去重。公共执行器先处理清单，再在 Helper/用户态移动边界重读完整引用图；新增引用或清单删除失败时保留文件。成功回执同时修剪库存及总候选内的引用，支持不重扫的连续分批删除。
+
+[OllamaModelRecovery](../Sources/CleanerCore/OllamaModelRecovery.swift) 在清单移动前，以 APFS clonefile 保存本模型依赖的写时复制快照，位于同计划隔离目录，不逐字节读取权重。每条记录独立可恢复；后批记录永久清理不破坏前批模型。恢复只补缺失依赖，不覆盖已有文件，目标父链逐级拒绝链接；同回执的物理 blob 沿普通恢复处理。未执行的快照在失败、取消及启动对账时清理；恢复、废纸篓和永久删除继续沿公共生命周期处置快照。未知 manifests 布局或不支持 clone 的文件系统明确失败，不调用 ollama rm，不增加用户确认、授权或进程管理步骤。
+
 SuperCleaner 使用 Swift 6 和 SwiftUI 构建 macOS 应用，核心扫描、计划和执行逻辑位于 [CleanerCore](../Sources/CleanerCore)，界面与状态协调位于 [CleanerApp](../Sources/CleanerApp)，受限管理员操作位于 [CleanerHelper](../Sources/CleanerHelper)。完整项目架构见 [现有架构文档](../docs/architecture.md)。
 
 ## 六个扫描维度
 
-[SystemScanCoordinator](../Sources/CleanerCore/SystemScanCoordinator.swift) 统一调度系统清理、应用、重复大文件、Agent 环境、本地 AI 模型和项目产物，以同一个 generation 汇总到 [SystemScanReport](../Sources/CleanerCore/SystemScanReport.swift)。六个模块分别取消、继续与渐进发布；继续只重跑当前模块。清理中心与侧栏提供六个入口。[ResourceCleanupView](../Sources/CleanerApp/ResourceCleanupView.swift) 参照应用卸载与大文件页，提供独立搜索、范围与排序、全宽可折叠分组、三态选择及按需详情；复用 AppModel 选择与外层清理底栏，不再常驻巨大检查器。
+[SystemScanCoordinator](../Sources/CleanerCore/SystemScanCoordinator.swift) 统一调度系统清理、应用、重复大文件、Agent 环境、本地 AI 模型和项目产物，以同一个 generation 汇总到 [SystemScanReport](../Sources/CleanerCore/SystemScanReport.swift)。六个模块分别取消、继续与渐进发布；继续只重跑当前模块。清理中心与侧栏提供六个入口。[ResourceCleanupView](../Sources/CleanerApp/ResourceCleanupView.swift) 参照应用卸载与大文件页，提供独立搜索、范围与排序、全宽可折叠分组、三态选择及原生右键菜单；复用 AppModel 选择与外层清理底栏，不再常驻巨大检查器。
 
-- 本地模型：[LocalAIModelScanner](../Sources/CleanerCore/LocalAIModelScanner.swift) 按七类 `LocalAIModelProvider` 的十个固定模型位置发现资源，Hugging Face 整仓库、LM Studio 按模型、Ollama 整库；Keras 只检查 models/datasets，GPT4All 只列识别出的模型文件。界面按供应商分组，扫描结果默认显示 Cleanable，无可清理项回退 All；模型不预选，必须手动选择。运行或活动未知、凭据、不可验证路径、权限及预算问题保持保护；候选和祖先链接不接收，内部链接不跟随。独立 `validateForExecution` 复验布局范围、身份与目录元数据指纹，再进入公共执行链。
-- 项目产物：[ProjectArtifactScanner](../Sources/CleanerCore/ProjectArtifacts.swift) 依据源码工程 manifest 发现 `node_modules`、`target`、`.build`、`build`、`dist`，按 `project-root` 证据分组。用户可在设置中通过 `NSOpenPanel` 多选根目录，由 `ProjectScanRootsStore` 持久化；设置保存已有报告时只重扫项目模块，无报告时只保存配置；首次全扫描仍沿清理中心的权限准备流程启动。模型和项目页不再提供页头按钮，扫描从清理中心启动，项目扫描根在设置管理。Git 已跟踪内容通过其它检查后可手选；设置开关决定是否自动勾选项目产物（包括 Git 跟踪项），初始关闭。未知 Git 状态、嵌套仓库目录、凭据、活动未知或检查失败仍保持保护；ignored 不构成安全证明，执行仍需确认。
+- 本地模型：[LocalAIModelScanner](../Sources/CleanerCore/LocalAIModelScanner.swift) 按七类 `LocalAIModelProvider` 的十个固定模型位置发现资源，Hugging Face 整仓库、LM Studio 按模型、Ollama 按清单展示 name:tag 并逐模型选择；Keras 只检查 models/datasets，GPT4All 只列识别出的模型文件。界面按供应商分组，扫描结果默认显示 Cleanable，无可清理项回退 All；模型不预选，必须手动选择。模型不检测或展示运行状态，工具进程不限制手动清理；凭据、不可验证路径、权限及预算问题保持保护；候选和祖先链接不接收，内部链接不跟随。独立 `validateForExecution` 复验布局范围、身份与目录元数据指纹，再进入公共执行链。
+- 项目产物：[ProjectArtifactScanner](../Sources/CleanerCore/ProjectArtifacts.swift) 依据源码工程 manifest 发现 `node_modules`、`target`、`.build`、`build`、`dist`，按 `project-root` 证据分组。用户可在设置中通过 `NSOpenPanel` 多选根目录，由 `ProjectScanRootsStore` 持久化；设置保存已有报告时只重扫项目模块，无报告时只保存配置；首次全扫描仍沿清理中心的权限准备流程启动。模型和项目页不再提供页头按钮，扫描从清理中心启动，项目扫描根在设置管理。Git 已跟踪内容通过其它检查后可手选；设置开关决定是否自动勾选项目产物（包括 Git 跟踪项），初始关闭。未知 Git 状态、非托管嵌套仓库目录、凭据或检查失败仍保持保护；ignored 不构成安全证明，执行仍需确认。
 - 两个新维度复用 `PlanBuilder`、`CleanupExecutor`、journal、历史和恢复，可清理预选项纳入首页全部默认清理，不复用 Agent 能力包含率预选。
 
-模型验证与“是否允许执行期间内容变化”分开：目录和普通模型文件都严格拒绝扫描后变化；初始验证及实际移动前终验均执行，公共执行器在 Helper 未处理而回退用户态后也不能跳过终验。不能因模型禁止内容变化而省略移动前的活动、保护、范围和指纹检查。
+模型验证与“是否允许执行期间内容变化”分开：目录和普通模型文件都严格拒绝扫描后变化；初始验证及实际移动前终验均执行，公共执行器在 Helper 未处理而回退用户态后也不能跳过终验。不能因模型禁止内容变化而省略移动前的保护、范围和指纹检查。
 
 资源筛选状态按目的页保存在 AppModel，列表、焦点与底栏隐藏选中数使用同一个 `visibleCandidates`。已知候选全集包含模型和项目，并保留原有同路径别名，使其他模块清理回执不会丢失资源选择，新增永久保护也会立即撤销对应勾选。
 
@@ -20,7 +24,7 @@ SuperCleaner 使用 Swift 6 和 SwiftUI 构建 macOS 应用，核心扫描、计
 
 标题下直接展示三张安全卡，位于扫描按钮行上方；原副说明和扫描范围小字已移除。扫描按钮加大并与标题文字左对齐，清空废纸篓按钮加大并靠右。六模块行显示非零的默认清理数量与容量；手动维度不显示零值。全部默认清理汇总系统推荐、大文件预选、Agent 自动预选及项目可清理预选，排除已取消勾选、未就绪、保护和失败项；模块统计与底栏使用同一合并后的可执行集合。
 
-[DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 用 `statfs` 读取 Home 所在卷的总容量及当前用户可用容量，已用为总量减可用；不加入 estimated purgeable。侧栏容量条及可用空间在激活、扫描、清理后由 AppModel 自动刷新。读取失败保留明确错误，不回填 0。扫描候选和本次清理累计仍为逻辑字节，移动到废纸篓或恢复区不能等同于物理容量释放。
+[DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 用 `statfs` 读取 Home 所在卷的总容量及当前用户可用容量，已用为总量减可用；不加入 estimated purgeable。侧栏容量条及可用空间在启动、扫描、清理、恢复及清空废纸篓后由 AppModel 刷新，普通切回窗口不触发容量读取。读取失败保留明确错误，不回填 0。扫描候选和本次清理累计仍为逻辑字节，移动到废纸篓或恢复区不能等同于物理容量释放。
 
 清理中心移除外层 ScrollView：标题下方的扫描/用时、紧凑容量、累计清理/清空废纸篓为三个同行等高区域，六行导航填充剩余高度，安全卡直接位于标题下、扫描行上方，移除原两行说明。长行说明使用单行与 tooltip，最小 detail 760×560 pt 不通过扩大窗口下限掩盖溢出。
 
@@ -63,7 +67,7 @@ Agent 显示筛选用同名计算属性解析可选的 Published 手动覆盖：
 
 编译版本由 build-app.sh 在基础预检之后、首次 Swift 编译之前调用 version.py next-build 分配一次，复用严格校验与原子写入；返回的版本/构建号冻结给 App 与 Helper。每次重编也递增，单独 verify/DMG/publish 只读同一配置；CI 构建号必须较旧号增加并写回源，避免打包与发布的版本来源分离。
 
-上一轮资源汇总和 DMG 归属见 [实施计划](cleanup-center-resource-sync-plan.md)。ProjectArtifactScanner 识别工程内独立及构建目录内的 DMG；Git 跟踪、路径/身份/活动检查继续用于执行复验。ProjectInstallerOwnership 从大文件展示清单和树中排除已归项目的 DMG，原始候选保留以便刷新与副本保留证明校验。项目/大文件渐进结果先后不影响最终归属。构建进程目录仅进入 projectActivePaths，具体文件仍进入 activePaths；项目目录保持活动保护，未打开 DMG 不因 cwd 被整目录保护。项目根待刷新时，首页排除旧项目默认项。验收与逐文件审计见 [本批记录](../Tests/cleanup-center-resource-sync/README.md)。
+上一轮资源汇总和 DMG 归属见 [实施计划](cleanup-center-resource-sync-plan.md)。ProjectArtifactScanner 识别工程内独立及构建目录内的 DMG；Git 跟踪、路径/身份和内容检查继续用于执行复验。ProjectInstallerOwnership 从大文件展示清单和树中排除已归项目的 DMG，原始候选保留以便刷新与副本保留证明校验。项目/大文件渐进结果先后不影响最终归属。项目产物不检测或展示运行状态，目录及 DMG 的选择和执行均不受活动状态限制；完整扫描保留共享探针的具体打开文件，供其它维度沿用原有活动保护。项目根待刷新时，首页排除旧项目默认项。验收与逐文件审计见 [本批记录](../Tests/cleanup-center-resource-sync/README.md)。
 
 项目 DMG 接管大文件副本时保留 largeFileProof，并保护其保留文件及覆盖该文件的目录。项目范围变化按路径迁移已选/撤选状态，不重新勾选人工撤选；单项取消子 DMG 时同步取消包含它的目录，选中目录包含其可清理子项。分组和首页容量都按最终目录操作去重。
 
@@ -71,9 +75,7 @@ Agent 显示筛选用同名计算属性解析可选的 Published 手动覆盖：
 
 当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
 
-
-本轮项目选择策略见 [实施计划](project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包、保护和活动；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
-
+本轮项目选择策略见 [实施计划](project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包和保护；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
 
 关闭/退出清空的现行规则见 [统一弹窗计划](exact-trash-dialog-plan.md) 与 [原生回归](../Tests/exact-trash-dialog/README.md)：直接复用 requestEmptyTrash，无第二套弹窗，成功才确认当前字节，保留既有抑制偏好和退出等待。
 
@@ -95,7 +97,22 @@ Controller 的 Bool 只表示清空结果。明确退出时 delegate 等待公�
 
 现场 299 MB 已计账但 Agent 仍在扫描；0.4.29 提示虽及时出现，按钮仍禁用，0.4.30 移除此限制。大文件扫描复用 DeletedContentScanExclusion 排除 Trash，模块进度接收不依赖清空锁。复现、增量理由及并发验证边界见 [计划](trash-during-scan-plan.md) 与 [验证记录](../Tests/trash-during-scan/README.md)。
 
-
 ## 0.5.0 发布版本分配
 
-常规构建继续自动递增 patch/build；显式 `build-app.sh --version 0.5.0` 在同一分配入口验证目标严格增加，精确使用目标展示版本并递增 build。校验完成后才原子保存，App、Helper、验证及 DMG 复用同一份 [Version.json](../Version.json)。本轮汇总六模块、项目与本地模型、统一扫描提示、Trash 生命周期及界面调整；见 [发布记录](../doc/release-0.5.0.md)。
+常规构建继续自动递增 patch/build；显式 `build-app.sh --version <version>` 在同一分配入口验证目标严格增加，精确使用目标展示版本并递增 build。校验完成后才原子保存，App、Helper、验证及 DMG 复用同一份 [Version.json](../Version.json)。本轮汇总六模块、项目与本地模型、统一扫描提示、Trash 生命周期及界面调整；见 [发布记录](../doc/release-0.5.0.md)。
+
+当前本地交付为 [0.5.10（155）](release-0.5.10.md)，已安装并启动于 `/Applications/SuperCleaner.app`；App、Helper、DMG 及安装副本的版本和二进制一致，签名身份与旧包相同。
+
+应用图标继续共用 [ApplicationIconCache](../Sources/CleanerApp/ApplicationIconView.swift) 的同步缓存；判断内嵌应用是否为系统通用图标时，只比较 32×32 的 RGBA 位图，不编码原图的所有 TIFF 表示。原图、专用图标、最近外层 APPL 包与非标准安装目录的继承保持原规则，不在扫描结束时预热。
+
+[Helper 激活路径审计](helper-activation-audit.md) 汇总注册、双向 XPC、授权、文件执行与恢复边界。正常页面切换和应用激活不发送特权文件请求；当前开发包未启用该服务。审计区分条件性的主线程授权校验、激活后的共享页面刷新与已证实事实，未把偶发转圈提前归因给 Helper。
+
+应用重新激活不再触发磁盘容量读取或由此产生的共享 AppModel 发布；启动/窗口重建、扫描启动、清理和恢复/历史刷新、清空废纸篓后的容量更新继续保留。运行应用与权限的必要刷新沿原路径执行。该单一触发点移除用于对比偶发卡顿，尚不代表已确认或解决全部卡顿。
+
+项目产物的运行状态不参与扫描、选择或执行资格判定，项目单模块刷新与执行不请求活动数据；完整扫描保留其它来源需要的共享探针。
+
+项目产物对单个纯公钥 PEM 不再触发凭据保护；SwiftPM `.build` 内有工作区状态记录的远程依赖副本不触发嵌套仓库保护，仍遍历其内容计量并检查凭据。真实私钥、环境凭据、非托管或 edited 仓库继续保护。
+
+项目页和默认项目候选通过同一展示投影隐藏可清理父目录内的 DMG 平铺行，保留根目录安装包和受保护目录中可独立清理的安装包。原始记录仍用于归属与复验；当前保护应用后再投影，目录选择迁移到大文件时保留其子路径决定。
+
+侧栏按用户要求只显示当前磁盘容量条和可用空间，不再显示本次启动以来的增减值；变化基准、派生计算、专用检查及双语提示均已删除，现有容量读取和失败展示继续保留。

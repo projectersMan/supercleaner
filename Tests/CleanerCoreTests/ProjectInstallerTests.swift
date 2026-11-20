@@ -52,7 +52,7 @@ import XCTest
         }
     }
 
-    func testProjectDirectoryActivityDoesNotBlockUnusedInstallerButOpenFileDoes() async throws {
+    func testProjectActivityDoesNotBlockDirectoriesOrOpenInstallers() async throws {
         let home = Self.home()
         addTeardownBlock { try FileManager.default.removeItem(at: home) }
         let project = home.appendingPathComponent("code/Example")
@@ -65,9 +65,9 @@ import XCTest
         let scanner = ProjectArtifactScanner(roots: [home.appendingPathComponent("code")])
         let report = try await scanner.scan(context: context)
         XCTAssertEqual(report.artifacts.first { $0.candidate.url == dmg }?.candidate.risk, .review)
-        XCTAssertEqual(report.artifacts.first { $0.candidate.url == project.appendingPathComponent("build") }?.candidate.risk, .blocked)
+        XCTAssertEqual(report.artifacts.first { $0.candidate.url == project.appendingPathComponent("build") }?.candidate.risk, .review)
         let active = try await scanner.scan(context: ScanContext(homeDirectory: home, activePaths: [dmg], projectActivePaths: [project]))
-        XCTAssertEqual(active.artifacts.first { $0.candidate.url == dmg }?.candidate.risk, .blocked)
+        XCTAssertEqual(active.artifacts.first { $0.candidate.url == dmg }?.candidate.risk, .review)
     }
 
     func testDiscoveryUsesConfiguredRootsBeforePublishingLargeFiles() async throws {
@@ -124,7 +124,7 @@ import XCTest
         XCTAssertEqual(restored.results.first?.disposition, .restored)
         XCTAssertTrue(FileManager.default.fileExists(atPath: dmg.path))
         let active = try await scanner.scan(context: ScanContext(homeDirectory: home, activePaths: [dmg]))
-        XCTAssertEqual(active.artifacts.first { $0.candidate.url == dmg }?.candidate.risk, .blocked)
+        XCTAssertEqual(active.artifacts.first { $0.candidate.url == dmg }?.candidate.risk, .review)
         let protected = try await scanner.scan(context: ScanContext(homeDirectory: home,
             protectionPolicy: ProtectionPolicy(entries: [ProtectedPath(url: dmg)], homeDirectory: home)))
         XCTAssertFalse(protected.artifacts.contains { $0.candidate.url == dmg && ResourceCleanupListPolicy.isSelectable($0.candidate) })

@@ -66,13 +66,18 @@ public struct PlanBuilder: Sendable {
             let b = right.element.source == .application && right.element.category == .application
             return a == b ? left.offset < right.offset : !a
         }.map(\.element)
-        let items = ordered.map { candidate in
-            PlanItem(
-                candidate: executionByID[candidate.id] ?? candidate,
+        var items = ordered.map { candidate in
+            let operation = executionByID[candidate.id] ?? candidate
+            return PlanItem(
+                candidate: operation,
                 isSelected: executionByID[candidate.id] != nil,
                 action: .quarantine,
-                evidenceDigest: evidenceDigest(for: candidate)
+                evidenceDigest: evidenceDigest(for: operation)
             )
+        }
+        for candidate in operations where !knownIDs.contains(candidate.id) {
+            try protectionPolicy.validate(candidate.url)
+            items.append(PlanItem(candidate: candidate, isSelected: true, evidenceDigest: evidenceDigest(for: candidate)))
         }
         return CleanupPlan(
             createdAt: now,

@@ -802,7 +802,6 @@
 "包含 Git 跟踪文件，默认勾选由设置决定" = "Contains Git-tracked files; preselection follows Settings";
 "无法验证 Git 状态，保持保护" = "Cannot verify Git status; protected";
 "7 天内有文件活动，默认保留；可明确审查后选择" = "File activity within 7 days; kept by default, selectable after explicit review";
-"构建工具正在运行或活动状态无法验证" = "Build tools are running or activity cannot be verified";
 "项目产物结果可能不完整；已验证项目仍可审查" = "Project artifact results may be incomplete; verified items remain reviewable";
 "缩小扫描根或检查权限后重扫" = "Narrow the scan roots or check permissions, then scan again";
 "此路径或其内容受到保护" = "This path or its contents are protected";
@@ -1365,20 +1364,23 @@
 "未发现项目产物" = "No Project Artifacts Found";
 "已检查常见模型工具的默认存储位置。" = "Checked the default storage locations of supported model tools.";
 "可选择源码工程所在目录后重新扫描。" = "Choose folders containing source projects, then scan again.";
-"Ollama 模型共享存储，选择此项会清理整个模型库。" = "Ollama models share storage. Selecting this item cleans the entire model library.";
+"按模型选择清理；其他模型仍引用的共享文件会保留。" = "Select individual models to clean. Shared files used by other models are retained.";
+"仅清理不再被保留模型引用的共享文件" = "Only clean shared files no longer referenced by retained models";
+"仅删除所选模型及其不再共享的文件" = "Delete only selected models and their files that are no longer shared";
+"模型大小包含共享文件；所选清理容量按实际可删除文件去重" = "Model size includes shared files; the selected cleanup total counts each removable file once";
+"模型恢复快照清理失败：{0}" = "Could not clean model recovery snapshots: {0}";
 "清理后可能需要重新下载。" = "Cleaning may require downloading again.";
 "项目来源无法验证" = "Project Source Could Not Be Verified";
 "部分目录未完整检查，受影响项目保持保护" = "Some folders could not be fully checked; affected items remain protected";
 "模型存储：{0}" = "Model storage: {0}";
 "本地模型缓存需明确选择，清理后可能需要重新下载" = "Local model caches require explicit selection and may need to be downloaded again";
-"模型工具正在运行或活动状态无法验证，保持保护" = "A model tool is running or its activity could not be verified; kept protected";
 "模型范围或路径无法验证，保持保护" = "Model scope or path could not be verified; kept protected";
 "模型目录含凭据，保持保护" = "The model folder contains credentials; kept protected";
 "模型内容已验证，执行前将重新检查" = "Model contents were verified and will be checked again before cleanup";
 "达到模型扫描预算，保持保护" = "Model scan limit reached; kept protected";
 "模型内容未完整验证，保持保护" = "Model contents could not be fully verified; kept protected";
 "模型检查范围不完整；受影响的模型不会清理" = "Model checks are incomplete; affected models will not be cleaned";
-"关闭相关模型工具并检查目录权限后重新扫描" = "Close the related model tools, check folder permissions, then scan again";
+"检查模型目录权限和内容后重新扫描" = "Check model folder permissions and contents, then scan again";
 "重新扫描" = "Rescan";
 "清空废纸篓…" = "Empty Trash…";
 "正在清空…" = "Emptying…";
@@ -1395,8 +1397,6 @@
 
 /* Resource cleanup lists */
 "可清理" = "Cleanable";
-"查看详情" = "Show details";
-"收起详情" = "Hide details";
 "全选当前筛选中可清理的项目" = "Select all cleanable items in the current filter";
 "{0} / {1} 项" = "{0} / {1} items";
 "{0} 项" = "{0} items";

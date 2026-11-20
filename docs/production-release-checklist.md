@@ -167,7 +167,7 @@ git diff --check
 
 - [ ] 全部核心契约通过。
 - [ ] 六个扫描维度的导航、取消/继续及单模块结果保留通过；模型默认 Cleanable，无内容回退 All，始终手选且不加入首页默认队列；项目只有 All / Protected / Selected，有选项默认 Selected 否则 All。项目默认勾选设置初始关闭，开启后含 Git 跟踪项，关闭后保留手选且不加入首页队列。
-- [ ] 模型供应商布局、项目 manifest/Git/凭据/活动保护与执行前复验通过；不把 ignored 当作可删证明。
+- [ ] 模型供应商布局、项目 manifest/Git/凭据保护、忽略运行状态的选择/执行与执行前复验通过；不把 ignored 当作可删证明。
 - [ ] 卷容量按 `statfs` 展示总量、已用、可用，失败显示错误，清理累计量不冒充物理释放量。
 - [ ] 全部默认清理汇总仍勾选的系统/大文件/Agent 自动项及项目可清理预选项，手动维度和零统计不展示；用户取消勾选、保护和扫描门禁生效，副本保留证明在路径合并前验证。
 - [ ] 首页无竖向滚动，顶部保留扫描与累计清理、计时在扫描按钮右侧；磁盘容量条和可用空间移至 Tools 下方侧栏底部；最小/默认窗口与中英文本均无裁切。
@@ -253,7 +253,7 @@ spctl --assess --type open --context context:primary-signature --verbose=4 \
 
 - [ ] 设置页请求安装 Helper。
 - [ ] 若显示等待批准，在 System Settings → General → Login Items 使用管理员账户批准。
-- [ ] 回到 App 后状态为 enabled；XPC ping 和 5 分钟管理员会话授权成功。
+- [ ] 回到 App 后状态为 enabled；XPC 协议 v3 ping 和本次进程内管理员会话授权成功；退出、主动撤销和系统撤权均拒绝后续特权操作，不以旧“五分钟”文案代替生命周期验收。
 - [ ] 使用专门的可重装测试 App 验证 `/Applications` → 隔离区 → `/Applications`。
 - [ ] 撤销会话后特权动作被拒绝，普通扫描和历史仍可用。
 - [ ] 在系统设置撤销 daemon，状态回到需批准/不可用且不静默降级。
@@ -303,7 +303,7 @@ spctl --assess --type open --context context:primary-signature --verbose=4 \
 当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](../doc/dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
 
 
-本轮项目选择策略见 [实施计划](../doc/project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包、保护和活动；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
+本轮项目选择策略见 [实施计划](../doc/project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包和保护；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
 
 
 关闭/退出共用首页确认工厂与执行器，关闭独有“不再提醒”；扫描期间可提示但不执行清空，不排队删除；偏好可恢复，明确退出后不重复提示。见 [关闭提醒回归](../Tests/close-trash-reminder-choice/README.md)。
@@ -314,3 +314,10 @@ spctl --assess --type open --context context:primary-signature --verbose=4 \
 - 六个维度的扫描提示共用组件，模块完成后不受其它扫描阻塞，取消/失败不残留 spinner。
 - 主窗口繁忙期间关闭后，成功清理记账及互斥结束可触发一次原 Empty Trash 提醒；空清理不提示，不复制确认框。
 - 执行 [本轮验证记录](../Tests/module-progress-trash-reminder/README.md) 中的编译、验签、DMG 与安装检查；本轮不提交、不推送。
+
+- [x] 项目公钥/SwiftPM 依赖副本可选择并沿既有隔离恢复；混合公私钥、格式未知/超预算 PEM、真实凭据、非托管或 edited 仓库仍拒绝；本机验收不真实删除构建目录。见 [公钥与依赖回归源码](../Tests/CleanerCoreTests/ProjectArtifactPublicKeyTests.swift)。
+
+- [x] 项目页目录内 DMG 去重、根目录安装包保留、受保护目录单项清理、跨模块归属与迁移、取消父目录无隐藏选中项，及行数/容量/计划一致性通过。见 [目录去重回归源码](../Tests/CleanerCoreTests/ProjectArtifactPresentationTests.swift)。
+
+
+- [x] 侧栏不显示可用空间增减，相关基准/计算/提示无残留；容量条、可用空间、失败状态及原有刷新回归继续通过。见 [容量读取源码](../Sources/CleanerCore/DiskCapacitySnapshot.swift)。

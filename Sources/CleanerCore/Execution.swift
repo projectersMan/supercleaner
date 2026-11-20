@@ -268,7 +268,9 @@ public actor CleanupExecutor {
             }
 
             let currentlyActive: Bool
-            if candidate.source == .general {
+            if candidate.source == .localAIModels || candidate.source == .projectArtifacts {
+                currentlyActive = false
+            } else if candidate.source == .general {
                 if !checkedGeneralActivity {
                     _ = await isActive(candidate.url)
                     checkedGeneralActivity = true
@@ -277,7 +279,7 @@ public actor CleanupExecutor {
             } else {
                 currentlyActive = await isActive(candidate.url)
             }
-            let activityBlocksExecution = candidate.source != .general
+            let activityBlocksExecution = candidate.source != .general && candidate.source != .localAIModels && candidate.source != .projectArtifacts
                 && (candidate.isActive || currentlyActive)
             guard !activityBlocksExecution else {
                 results.append(result(for: candidate, disposition: .skipped, status: .skippedActive, message: L10n.text("项目仍在使用")))
@@ -315,6 +317,9 @@ public actor CleanupExecutor {
                     try await fileSystem.createDirectory(planDirectory)
                     quarantineDirectoryCreated = true
                 }
+                let destination = uniqueDestination(for: candidate, in: planDirectory)
+                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
+                    .prepare(candidate, destination: destination)
                 guard !plan.isExpired(at: now()) else {
                     results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在隔离目录准备期间已过期，请重新扫描")))
                     continue
@@ -327,7 +332,10 @@ public actor CleanupExecutor {
                         let check = finalCandidateCheck ?? validateCandidate
                         if candidate.source == .application {
                             try await applicationValidationBudget.validate(candidate) { try await check(candidate) }
-                        } else { try await check(candidate) }
+                        } else {
+                            try await check(candidate)
+                            try await validateModelReferencesBeforeMove(candidate)
+                        }
                         if let validationBatch { try await validationBatch.verifyCurrentRuleState() }
                         else if let loadRuleVersion, try await loadRuleVersion() != plan.ruleVersion {
                             throw RuleScanError.executionRefused(candidate.ruleID ?? "changed-rules")
@@ -350,7 +358,6 @@ public actor CleanupExecutor {
                         message: L10n.text("计划在安全校验期间已过期，请重新扫描")))
                     continue
                 }
-                let destination = uniqueDestination(for: candidate, in: planDirectory)
                 attemptedMove = true
                 let handled = try await privilegedApplications?.moveToQuarantine(candidate: candidate, destination: destination, planID: plan.id) ?? false
                 if !handled {
@@ -378,6 +385,7 @@ public actor CleanupExecutor {
                         do {
                             let check = finalCandidateCheck ?? validateCandidate
                             try await check(candidate)
+                            try await validateModelReferencesBeforeMove(candidate)
                         } catch {
                             results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
                                 message: L10n.text("安全策略拒绝执行：{0}", String(describing: error))))
@@ -437,6 +445,7 @@ public actor CleanupExecutor {
             }
         }
 
+        results = await cleanUncommittedModelSnapshots(plan: plan, results: results)
         progress(ExecutionProgress(completed: results.count, total: selected.count, currentURL: nil))
         let status: OperationReceipt.OverallStatus
         if results.isEmpty, !selected.isEmpty { status = .failed }
@@ -511,6 +520,7 @@ public actor CleanupExecutor {
             }
         }
 
+        results = await cleanUncommittedModelSnapshots(plan: entry.plan, results: results)
         let status: OperationReceipt.OverallStatus
         if results.allSatisfy({ $0.status == .succeeded }) {
             status = .completed
@@ -616,6 +626,11 @@ public actor CleanupExecutor {
             if !sourceExists {
                 let destinationExists = await fileSystem.fileExists(destination)
                 if item.sourceExistedAtPreparation, destinationExists {
+                    if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: false) {
+                        restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
+                            destinationURL: destination, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
+                        continue
+                    }
                     let status: OperationStatus = destination == result.originalURL ? .restored : .restoreConflict
                     restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: status, bytes: result.bytes, message: L10n.text("启动时恢复了已完成的恢复操作")))
                 } else {
@@ -635,6 +650,8 @@ public actor CleanupExecutor {
             }
             do {
                 let expectedIdentity = try await fileSystem.identity(at: source)
+                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
+                    .restoreDependencies(result, receipt: entry.receipt)
                 let handled = try await privilegedApplications?.restore(source: source, destination: destination, planID: entry.receipt.planID) ?? false
                 if !handled { try await fileSystem.move(source, to: destination) }
                 let restoredIdentity = try? await fileSystem.identity(at: destination)
@@ -644,6 +661,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)), matches else {
                     throw HelperMutationUncertain()
                 }
+                try await disposeModelRecoveryFiles(result, moveToTrash: false)
                 let hasConflict = destination != result.originalURL
                 restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: hasConflict ? .restoreConflict : .restored, bytes: result.bytes, message: hasConflict ? L10n.text("原路径已有文件，已恢复到相邻路径") : nil))
             } catch {
@@ -694,6 +712,11 @@ public actor CleanupExecutor {
             }
             let source = item.sourceURL
             guard await fileSystem.fileExists(source) else {
+                if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: true) {
+                    trashed.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
+                        destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
+                    continue
+                }
                 trashed.append(OperationResult(
                     candidateID: result.candidateID,
                     originalURL: result.originalURL,
@@ -715,6 +738,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)) else {
                     throw FileSystemError.trashUnavailable(source)
                 }
+                try await disposeModelRecoveryFiles(result, moveToTrash: true)
                 trashed.append(OperationResult(
                     candidateID: result.candidateID,
                     originalURL: result.originalURL,
@@ -759,6 +783,11 @@ public actor CleanupExecutor {
             }
             let source = item.sourceURL
             guard await fileSystem.fileExists(source) else {
+                if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: false) {
+                    deleted.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
+                        destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
+                    continue
+                }
                 if item.sourceExistedAtPreparation {
                     deleted.append(OperationResult(
                         candidateID: result.candidateID,
@@ -788,6 +817,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)) else {
                     throw FileSystemError.trashUnavailable(source)
                 }
+                try await disposeModelRecoveryFiles(result, moveToTrash: false)
                 deleted.append(OperationResult(
                     candidateID: result.candidateID,
                     originalURL: result.originalURL,
@@ -835,6 +865,49 @@ public actor CleanupExecutor {
 
     private func sameObject(_ left: FileIdentity, _ right: FileIdentity) -> Bool {
         left.isSameObject(as: right)
+    }
+
+    private func cleanUncommittedModelSnapshots(plan: CleanupPlan, results: [OperationResult]) async -> [OperationResult] {
+        var updated = results
+        let directory = quarantineRoot.appendingPathComponent(plan.id.uuidString)
+        for item in plan.selectedItems where item.candidate.ollamaModelProof != nil {
+            let candidate = item.candidate
+            let destination = uniqueDestination(for: candidate, in: directory)
+            guard !(await fileSystem.fileExists(destination)), await fileSystem.fileExists(candidate.url) else { continue }
+            let attempted = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
+                disposition: .failed, status: .failed, bytes: candidate.bytes)
+            if let failure = await modelRecoveryDisposalFailure(attempted, moveToTrash: false) {
+                let result = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
+                    disposition: .failed, status: .failed, bytes: candidate.bytes, message: failure,
+                    verificationNotBefore: now().addingTimeInterval(60))
+                if let index = updated.firstIndex(where: { $0.candidateID == candidate.id }) { updated[index] = result }
+                else { updated.append(result) }
+            }
+        }
+        return updated
+    }
+
+    private func modelRecoveryDisposalFailure(_ result: OperationResult, moveToTrash: Bool) async -> String? {
+        let outcome = await Task { try await disposeModelRecoveryFiles(result, moveToTrash: moveToTrash) }.result
+        if case let .failure(error) = outcome { return L10n.text("模型恢复快照清理失败：{0}", String(describing: error)) }
+        return nil
+    }
+
+    private func disposeModelRecoveryFiles(_ result: OperationResult, moveToTrash: Bool) async throws {
+        let context = ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem)
+        guard let directory = OllamaModelRecovery(context: context).directory(for: result),
+              await fileSystem.fileExists(directory) else { return }
+        guard try await LocalAIModelScanner().validatedIdentity(directory, context: context).kind == .directory else {
+            throw FileSystemError.invalidAttributes(directory)
+        }
+        if moveToTrash { _ = try await fileSystem.trash(directory) }
+        else { try await permanentRemove(directory) }
+    }
+
+    private func validateModelReferencesBeforeMove(_ candidate: CleanupCandidate) async throws {
+        guard candidate.ruleID == "local-ai-model.ollama-blob" else { return }
+        try await LocalAIModelScanner().validateUnreferencedOllamaBlob(candidate,
+            context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
     }
 
     private func matchesExecutionIdentity(_ current: FileIdentity, candidate: CleanupCandidate) -> Bool {

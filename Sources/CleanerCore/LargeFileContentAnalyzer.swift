@@ -124,14 +124,15 @@ struct LargeFileContentAnalyzer {
     }
 
     private func snapshot(_ candidate: CleanupCandidate, installer: Bool = false) -> LargeFileContentSnapshot? {
-        guard let file = Self.eligibleSnapshot(candidate.url, context: context, installer: installer), !file.isDirectory,
+        guard let file = Self.eligibleSnapshot(candidate.url, context: context, installer: installer,
+            ignoringActivity: candidate.source == .projectArtifacts), !file.isDirectory,
               file.bytes == candidate.bytes, file.device == candidate.identity.device,
               file.inode == candidate.identity.inode, file.modifiedSeconds == candidate.identity.modificationTime else { return nil }
         return file
     }
 
     static func eligibleSnapshot(_ url: URL, context: ScanContext, installer: Bool = false,
-        forManualSelection: Bool = false) -> LargeFileContentSnapshot? {
+        forManualSelection: Bool = false, ignoringActivity: Bool = false) -> LargeFileContentSnapshot? {
         let excluded = ["Library/CloudStorage", "Library/Mobile Documents"]
         let home = context.homeDirectory.resolvingSymlinksInPath().standardizedFileURL
         let literal = url.standardizedFileURL
@@ -142,7 +143,8 @@ struct LargeFileContentAnalyzer {
         guard allowed,
               path.hasPrefix(home.path + "/"),
               !excluded.contains(where: { path.hasPrefix(home.appendingPathComponent($0).path + "/") }),
-              !DeletedContentScanExclusion(homeDirectory: home).contains(literal), !context.isActive(literal),
+              !DeletedContentScanExclusion(homeDirectory: home).contains(literal),
+              (ignoringActivity || !context.isActive(literal)),
               (try? context.pathPolicy.validateCandidate(literal)) != nil,
               (try? context.protectionPolicy.validate(literal)) != nil,
               let snapshot = LargeFileContentSnapshot.at(literal), access(path, R_OK) == 0,

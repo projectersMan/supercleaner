@@ -88,12 +88,13 @@ struct DimensionActionBar: View {
 
     private var candidateSelectionBar: some View {
         let selected = model.executionSelectionCandidates
+        let count = model.selection == .localAIModels ? model.selectedCandidates.count : selected.count
         let bytes = selected.reduce(UInt64(0)) { $0 + $1.bytes }
         return SelectionActionBar(
             hasSelection: !selected.isEmpty,
             title: selected.isEmpty ? L10n.text("尚未选择清理内容")
-                : L10n.text(model.selection == .agentEnvironment ? "已选 {0} 个清理单元" : "已选 {0} 项", String(describing: selected.count)),
-            detail: detail(count: selected.count, bytes: bytes)
+                : L10n.text(model.selection == .agentEnvironment ? "已选 {0} 个清理单元" : "已选 {0} 项", String(describing: count)),
+            detail: detail(count: count, bytes: bytes)
         ) {
             if model.canResumeCurrentModuleScan {
                 Button(L10n.text("继续扫描")) { model.resumeCurrentModuleScan() }

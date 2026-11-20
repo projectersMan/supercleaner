@@ -113,12 +113,10 @@ public struct CleanupRuntime: Sendable {
         let protection: ProtectionPolicy
         do { protection = try await protections.snapshot() }
         catch { protection = ProtectionPolicy(homeDirectory: home, isAvailable: false) }
-        let needsProjectActivity = candidates.contains { $0.source == .projectArtifacts }
-        let needsProcessActivity = candidates.contains { $0.source == .projectArtifacts || $0.source == .agentWorkspace || $0.source == .historicalApplicationResidue || $0.source == .localAIModels }
+        let needsProcessActivity = candidates.contains { $0.source == .agentWorkspace || $0.source == .historicalApplicationResidue }
         let configuration = try await configuration(
             pack: snapshot.pack,
             protection: protection,
-            includeProjectActivity: needsProjectActivity,
             includeProcessActivity: needsProcessActivity, enforcesEntryBudgets: false
         )
         guard try await rules.executionStateFingerprint() == snapshot.fingerprint else {
@@ -191,7 +189,7 @@ public struct CleanupRuntime: Sendable {
     }
 
     /// Application moves reuse ownership analysis; shared resources and models
-    /// repeat their content and activity checks against the current filesystem.
+    /// repeat their content checks against the current filesystem.
     public func validateImmediatelyBeforeMove(_ candidate: CleanupCandidate) async throws {
         try Task.checkCancellation()
         try await protections.snapshot().validate(candidate.url)
@@ -212,8 +210,8 @@ public struct CleanupRuntime: Sendable {
         // General cleanup treats process activity as advisory. App ownership uses
         // live NSWorkspace state and its own targeted process checks. Neither
         // needs a fresh system-wide process listing for every individual file.
-        let configuration = try await configuration(includeProjectActivity: candidate.source == .projectArtifacts,
-            includeProcessActivity: candidate.source == .projectArtifacts || candidate.source == .agentWorkspace || candidate.source == .historicalApplicationResidue || candidate.source == .localAIModels,
+        let configuration = try await configuration(
+            includeProcessActivity: candidate.source == .agentWorkspace || candidate.source == .historicalApplicationResidue,
             enforcesEntryBudgets: false)
         try await validateForExecution(candidate, configuration: configuration)
     }
