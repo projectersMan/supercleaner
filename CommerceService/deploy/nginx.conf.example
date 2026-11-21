@@ -1,0 +1,30 @@
+# 域名及TLS路径必须由部署者填写；端口和限制是明确推荐值，须与配置一致。
+# 本配置放在 nginx http 块内；应用端口必须与 config.json 的 port 一致。
+limit_req_zone $binary_remote_addr zone=commerce_per_ip:10m rate=5r/s;
+
+server {
+    listen 443 ssl;
+    server_name REPLACE_WITH_PRODUCTION_DOMAIN;
+    ssl_certificate /REPLACE_WITH_TLS_CERTIFICATE_PATH;
+    ssl_certificate_key /REPLACE_WITH_TLS_PRIVATE_KEY_PATH;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # checkout URL 含购买凭证；禁止访问日志及代理缓存。
+    access_log off;
+    client_max_body_size 16384;
+
+    location / {
+        limit_req zone=commerce_per_ip burst=20 nodelay;
+        proxy_pass http://127.0.0.1:8432;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For "";
+        include /etc/nginx/supercleaner-proxy-secret.conf;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 15s;
+    }
+}

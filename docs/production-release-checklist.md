@@ -6,12 +6,16 @@
 
 详细依据和风险说明见 [`research/production-release-acceptance.md`](research/production-release-acceptance.md)。
 
+本期新增支付宝买断与设备授权。现行方案、实际外部条件和命令见 [商业接入说明](../doc/commercial-onboarding.md)；售价 9.99 元、两台 Mac、7 天离线凭据。生产发布必须同时包含独立商业公开配置；以下未勾选项仍需真实验收，不以本地模拟替代。
+
 ## 0. 当前停止条件
 
 以下任一项未完成时，不得对普通用户发布：
 
-- [ ] 已补齐生产规则包的密钥生成、签名、envelope 输出和回读验证工具。当前仓库只有验证端，这是完整发布配置的代码阻断项。
+- [x] 已补齐 [生产规则签名工具](../Scripts/sign-rule-update.mjs)、显式独立密钥生成、envelope输出和同一RuleStore回读；本地28项规则发布验证通过。真实生产规则和独立密钥仍需在受控环境生成并发布。
 - [ ] 已确定正式 Bundle ID、10 位 Team ID 和长期拥有的 HTTPS 域名。
+- [ ] 已取得支付宝商户应用和电脑网站支付权限，部署授权服务，并验收真实付款、激活和退款撤销。
+- [ ] 已通过 `--validate-commercial-config` 检查独立的产品 ID、HTTPS 服务地址和 Ed25519 公钥，打包内容与服务端导出一致。
 - [ ] 已确定发布架构：仅 Apple silicon、Universal，或分架构发布。当前默认构建只包含构建机架构。
 - [ ] 已准备一台不同于开发机的干净测试 Mac/VM，至少覆盖最低支持版本 macOS 13，并建议增加一个当前 macOS。
 
@@ -84,6 +88,20 @@
 - [ ] 记录规则版本、`issuedAt`、累计 `revokedRuleIDs` 和发布摘要。
 
 验收：正式公钥能通过 `CoreContractChecks --check-updates` 所使用的同类验证路径；坏签名、旧包重放和内容修改均被拒绝。
+
+从项目根使用实际构建的验证器签发；所有路径均必填，输出不可覆盖既有文件，三把签名密钥必须两两独立：
+
+```bash
+node Scripts/sign-rule-update.mjs sign \
+  --input "/absolute/raw-rule-pack.json" \
+  --private-key "/secure/rule-private.pem" \
+  --release-config "/absolute/release-configuration.json" \
+  --commercial-config "/absolute/commercial-configuration.json" \
+  --verifier "/absolute/CoreContractChecks" \
+  --output "/absolute/new-rules.json"
+```
+
+`RulePack.issuedAt`沿用既有Swift 2001参考秒，不使用商业租约的Unix秒。完整schema和内置规则时间基线由实际App验证器检查，不能以Node自行验签或任意退出0程序替代。
 
 ## 5. 选择托管方式
 
@@ -196,13 +214,14 @@ lipo -archs build/SuperCleaner.app/Contents/MacOS/CleanerApp
 
 ## 9. 公证并生成候选发布物
 
-此步骤会访问 Apple 公证服务和 Sparkle Keychain 私钥：
+此步骤会访问 Apple 公证服务和 Sparkle Keychain 私钥；还必须设置 `SUPERCLEANER_COMMERCIAL_CONFIG` 指向商业公开配置的绝对路径：
 
 ```bash
 ./Scripts/publish-release.sh --publish
 ```
 
-- [ ] `notary-result.json` 状态为 `Accepted`。
+- [ ] `notary-app/status.json` 和 `notary-dmg/status.json` 均为 `Accepted`，保留各自的 `submission.json` 和不可变提交包。
+- [ ] 中断后使用同一构建的 `--resume`；不能因为观察超时重新上传。上传结果不确定时，先核对 Apple history 并恢复原 submission ID。
 - [ ] 从结果中取得 submission ID，并且即使 Accepted 也拉取、审阅完整日志：
 
   ```bash
@@ -212,7 +231,7 @@ lipo -archs build/SuperCleaner.app/Contents/MacOS/CleanerApp
   ```
 
 - [ ] 公证日志没有未理解的 warning/error。
-- [ ] DMG 使用同一 Developer ID Application 身份签名，已公证并 staple；DMG 内 App 的签名仍通过严格验证。
+- [ ] App 本身已公证、staple 并通过 execute Gatekeeper；包含该 App 的 DMG 使用同一 Developer ID Application 签名，另行公证、staple 并通过 open Gatekeeper。
 - [ ] `LOCAL-GATES-PASSED` 存在。
 - [ ] `public/` 只包含准备公开的 DMG 和 appcast；不包含日志、私钥或未分发 App。
 
@@ -253,7 +272,7 @@ spctl --assess --type open --context context:primary-signature --verbose=4 \
 
 - [ ] 设置页请求安装 Helper。
 - [ ] 若显示等待批准，在 System Settings → General → Login Items 使用管理员账户批准。
-- [ ] 回到 App 后状态为 enabled；XPC 协议 v3 ping 和本次进程内管理员会话授权成功；退出、主动撤销和系统撤权均拒绝后续特权操作，不以旧“五分钟”文案代替生命周期验收。
+- [ ] 回到 App 后状态为 enabled；XPC 协议 v4 ping 和本次进程内管理员会话授权成功；新特权清理还独立验证商业设备凭据。退出、主动撤销和系统撤权均拒绝后续特权操作，不以旧“五分钟”文案代替生命周期验收；恢复不要求商业凭据。
 - [ ] 使用专门的可重装测试 App 验证 `/Applications` → 隔离区 → `/Applications`。
 - [ ] 撤销会话后特权动作被拒绝，普通扫描和历史仍可用。
 - [ ] 在系统设置撤销 daemon，状态回到需批准/不可用且不静默降级。

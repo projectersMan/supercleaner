@@ -201,7 +201,7 @@ import XCTest
         let service = PackageReceiptCleanupService(load: { _ in manifest }, forget: { proof, _ in await calls.record(proof.packageID) })
         let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history,
             journalStore: ExecutionJournalStore(url: root.appendingPathComponent("execution.json")),
-            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: Date.init,
+            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, authorizeNewCleanup: {}, now: Date.init,
             packageReceipts: service)
         let captured = ReceiptProgressCapture()
         let receipt = try await coordinator.execute(plan: plan, retentionPolicy: .immediate) { captured.append($0) }
@@ -212,7 +212,7 @@ import XCTest
         let operation = HelperOperation.forgetInstallationReceipt(proof)
         let token = CapabilityToken(planID: UUID(), operationDigest: operation.digest, expiresAt: Date().addingTimeInterval(60),
             callerRequirement: "fixture-caller", identity: .init(device: 0, inode: 0, size: 0, modificationTime: 0, kind: .file), callerUserID: getuid())
-        let handler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: "fixture-caller"), authorizationCheck: { _ in false })
+        let handler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: "fixture-caller"), commercialConfiguration: nil, authorizationCheck: { _ in false })
         let scope = try HelperFileScope(userID: getuid(), homePath: "/Users/fixture")
         let result = await handler.handle(try JSONEncoder().encode(HelperRequest(operation: operation, token: token)), scope: scope)
         XCTAssertEqual(result.authorization, .rejected(.authorizationRequired))

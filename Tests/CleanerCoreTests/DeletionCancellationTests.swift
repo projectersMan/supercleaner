@@ -133,7 +133,7 @@ final class DeletionCancellationTests: XCTestCase {
                 if let destination = result.destinationURL { try? FileManager.default.removeItem(at: destination) }
             }
         }
-        XCTAssertEqual(receipt.results.filter { $0.disposition == .trashed }.count, 2)
+        XCTAssertEqual(receipt.results.filter { $0.disposition == .trashed }.count, 2, "\(receipt.results)")
     }
 }
 
@@ -171,7 +171,7 @@ private struct CancellationFixture {
             executor: executor, resolutionJournalStore: resolutions)
         let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history,
             journalStore: ExecutionJournalStore(url: root.appendingPathComponent("execution.json")),
-            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: Date.init)
+            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, authorizeNewCleanup: {}, now: Date.init)
         return (coordinator, history, schedules, resolutions)
     }
 }

@@ -1,0 +1,2 @@
+PASS: missing configuration denies scan before file/permission access and displays settings; cleanup denied; recovery rights preserved; explicit Ed25519 offline fixture authorizes scans, cleanup and Helper
+PASS: App commercial authorization and safety rights

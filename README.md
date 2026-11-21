@@ -15,6 +15,10 @@
 
 ## Get started
 
+Commercial rollout is being prepared for **CNY 9.99 once, two Macs, no subscription or automatic renewal**. The purchased entitlement is permanent; each device refreshes its signed offline credential at least every seven days. Scanning and new cleanup require activation; history, recovery, receipt export, and Helper removal remain available. Use **Settings → Buyout License** to purchase through Alipay, activate, refresh, or manage devices. Source licensing remains GNU GPL v3.
+
+Production Alipay credentials, HTTPS hosting, an Apple Developer ID identity, and Apple notarization are still required before external sales. See the [commercial setup and release commands](doc/commercial-onboarding.md), [design and protocol](doc/commercial-launch-design.md), and [payment service](CommerceService).
+
 SuperCleaner requires macOS 13 or later and Swift 6. Clone the repository and build the app:
 
 ```bash
@@ -26,7 +30,7 @@ open build/SuperCleaner.app
 
 Each run of `build-app.sh` automatically increments the patch version and build number in [Version.json](Version.json) once before compilation. For an explicitly requested release, pass `--version <version>` to that script; the target must be greater than the current configured version. Subsequent ordinary builds resume patch increments. Separate verification and DMG creation reuse the assigned version.
 
-The current build is **0.5.10 (155)**. Install it from [SuperCleaner-0.5.10.dmg](build/SuperCleaner-0.5.10.dmg). The installed copy is `/Applications/SuperCleaner.app`.
+The last recorded local build is **0.5.10 (155)**. The recorded installed location is `/Applications/SuperCleaner.app`. A new paid, Apple-notarized release has not yet been published.
 
 The Cleanup Center fits into one page with no vertical scrolling. Three compact safety cards sit below the title. The scan button stays aligned with the title text, with elapsed time to its right; session cleanup totals and the larger **Empty Trash…** button stay on the right. Disk capacity appears below **Tools** at the bottom of the sidebar, using a drive icon and **Disk Space** title above a capacity bar and available space. The sidebar and default cleanup footer share the same opaque system-based background, avoiding tint differences from transparent materials. Six scope rows remain visible. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout, with the actual build SDK recorded separately from the minimum macOS version.
 

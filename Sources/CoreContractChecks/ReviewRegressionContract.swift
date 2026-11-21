@@ -242,7 +242,7 @@ private func runRecoveryInterleaving(action: ReviewRecoveryAction) async throws 
     let schedules = QuarantineScheduleStore(url: root.appendingPathComponent("schedules.json"))
     let maintenance = QuarantineMaintenanceCoordinator(historyStore: history, scheduleStore: schedules, executor: executor, resolutionJournalStore: resolutions)
     let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history, journalStore: journal,
-        resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: { now })
+        resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, authorizeNewCleanup: {}, now: { now })
     try await history.upsert(receipt)
     try await journal.upsert(.init(id: receipt.id, plan: plan, startedAt: plan.createdAt, retentionPolicy: .manual))
     if action == .existingSchedule {

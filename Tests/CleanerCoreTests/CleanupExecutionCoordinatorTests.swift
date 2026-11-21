@@ -3,6 +3,23 @@ import XCTest
 @testable import CleanerCore
 
 final class CleanupExecutionCoordinatorTests: XCTestCase {
+    func testAuthorizationFailurePreventsJournalHistoryAndFileSystemMutation() async throws {
+        let fixture = try makeFixture(authorizeNewCleanup: { throw LicenseAuthorizationError.licenseRequired })
+        do {
+            _ = try await fixture.coordinator.execute(plan: fixture.plan, retentionPolicy: .hours24)
+            XCTFail("unlicensed cleanup must be rejected")
+        } catch let error as LicenseAuthorizationError {
+            XCTAssertEqual(error, .licenseRequired)
+        }
+        let mutations = await fixture.fileSystem.mutations()
+        let journal = try await fixture.journal.entries()
+        let history = try await fixture.history.receipts()
+        XCTAssertTrue(mutations.isEmpty)
+        XCTAssertTrue(journal.isEmpty)
+        XCTAssertTrue(history.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.root.path))
+    }
+
     func testJournalCommitFailurePreventsFileSystemMutation() async throws {
         let fixture = try makeFixture()
         await fixture.journal.failNextCommitForTesting()
@@ -206,7 +223,9 @@ final class CleanupExecutionCoordinatorTests: XCTestCase {
         }
     }
 
-    private func makeFixture() throws -> CoordinatorFixture {
+    private func makeFixture(
+        authorizeNewCleanup: @escaping @Sendable () async throws -> Void = {}
+    ) throws -> CoordinatorFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let now = Date(timeIntervalSince1970: 50_000)
         let candidate = coordinatorCandidate()
@@ -245,6 +264,7 @@ final class CleanupExecutionCoordinatorTests: XCTestCase {
             resolutionJournalStore: resolutionJournal,
             scheduleStore: schedules,
             maintenanceCoordinator: maintenance,
+            authorizeNewCleanup: authorizeNewCleanup,
             now: { now }
         )
         return CoordinatorFixture(

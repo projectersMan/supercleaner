@@ -21,7 +21,7 @@ public final class XPCPrivilegedHelperClient: PrivilegedHelperClient, @unchecked
                     pending.finish(.failure(HelperClientError.unavailable)); return
                 }
                 proxy.ping { version in
-                    pending.finish(version == 3 ? .success(version) : .failure(HelperClientError.invalidResponse))
+                    pending.finish(version == 4 ? .success(version) : .failure(HelperClientError.invalidResponse))
                 }
                 DispatchQueue.global().asyncAfter(deadline: .now() + 5) { pending.finish(.failure(HelperClientError.timedOut)) }
             }
@@ -184,12 +184,14 @@ public struct HelperMutationUncertain: Error, LocalizedError, Sendable {
 public actor AuthorizedApplicationOperations: PrivilegedApplicationOperations {
     private let session: HelperAuthorizationSession
     private let registrationEnabled: @Sendable () async -> Bool
+    private let commercialAuthorization: @Sendable () async throws -> CommercialAuthorization
     private let client: (any PrivilegedHelperClient)?
     private let signingIdentity: HelperSigningIdentity?
     private let fileSystem: any FileSystemAccess
     private let userID: UInt32
-    public init(session: HelperAuthorizationSession, registrationEnabled: @escaping @Sendable () async -> Bool, identity: HelperSigningIdentity?, client: (any PrivilegedHelperClient)? = nil, fileSystem: any FileSystemAccess = LocalFileSystem(), userID: UInt32 = getuid()) {
+    public init(session: HelperAuthorizationSession, registrationEnabled: @escaping @Sendable () async -> Bool, commercialAuthorization: @escaping @Sendable () async throws -> CommercialAuthorization, identity: HelperSigningIdentity?, client: (any PrivilegedHelperClient)? = nil, fileSystem: any FileSystemAccess = LocalFileSystem(), userID: UInt32 = getuid()) {
         self.session = session; self.registrationEnabled = registrationEnabled; signingIdentity = identity
+        self.commercialAuthorization = commercialAuthorization
         self.client = client ?? identity.map { XPCPrivilegedHelperClient(identity: $0) }
         self.fileSystem = fileSystem; self.userID = userID
     }
@@ -218,8 +220,9 @@ public actor AuthorizedApplicationOperations: PrivilegedApplicationOperations {
         guard await registrationEnabled(), let client, let signingIdentity else { throw HelperClientError.unavailable }
         let token = CapabilityToken(planID: planID, operationDigest: operation.digest, expiresAt: Date().addingTimeInterval(60), callerRequirement: signingIdentity.callerRequirement, identity: identity, callerUserID: userID)
         let externalForm = try session.externalForm()
+        let commercialProof = operation.requiresCommercialAuthorization ? try await commercialAuthorization() : nil
         let response: HelperResponse
-        do { response = try await client.perform(.init(operation: operation, token: token, authorizationExternalForm: externalForm)) }
+        do { response = try await client.perform(.init(operation: operation, token: token, authorizationExternalForm: externalForm, commercialAuthorization: commercialProof)) }
         catch is CancellationError { throw CancellationError() }
         catch { throw HelperMutationUncertain() }
         guard response.authorization == .accepted else {

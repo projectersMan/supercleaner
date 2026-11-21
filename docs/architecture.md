@@ -1,5 +1,7 @@
 # SuperCleaner 架构与当前实现
 
+买断授权的现行接线见 [商业架构](../doc/architecture.md) 和 [固定协议](../doc/commercial-launch-design.md)：支付宝一次购买、两台设备、7天离线租约；App、执行协调器、协议v4 Helper分层校验，历史恢复保留。实际商业发行状态见 [验收矩阵](../doc/commercial-launch-acceptance.md)，尚未完成真实Apple与支付宝验收。
+
 ## 目标与边界
 
 SuperCleaner 是 Swift 6 / SwiftUI 的 macOS 清理应用。核心原则是只读发现、明确选择、不可变计划、真实执行前复验、可恢复隔离和可审计历史。主要 Swift 目标为 `CleanerCore`、`AgentOverlapAI`、`CleanerApp`、`CleanerHelper` 与 `CoreContractChecks`，另保留系统库绑定 `CleanerZIP` 和 XCTest，定义见 [`Package.swift`](../Package.swift)。独立用户 CLI 已退役，生产 App 不再嵌入 `supercleaner`，Core 库、Helper 和契约工具继续保留。

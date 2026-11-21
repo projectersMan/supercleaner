@@ -11,6 +11,9 @@ BIN_PATH=$(/usr/bin/swift build --package-path ${PROJECT_ROOT} --scratch-path ${
 CHECKER=${BIN_PATH}/CoreContractChecks
 [[ -x ${CHECKER} && -f ${CONFIG} ]] || { print -u2 "FAIL: built checker and complete public release configuration required"; exit 1; }
 ${CHECKER} --validate-release-config ${CONFIG} --complete
+COMMERCIAL_CONFIG=${APP}/Contents/Resources/commercial-configuration.json
+[[ -f ${COMMERCIAL_CONFIG} && ! -L ${COMMERCIAL_CONFIG} ]] || { print -u2 "FAIL: commercial configuration required for a public sales release"; exit 1; }
+${CHECKER} --validate-commercial-config ${COMMERCIAL_CONFIG}
 TEAM=$(/usr/bin/plutil -extract teamIdentifier raw -o - ${CONFIG})
 BUNDLE_ID=$(/usr/bin/plutil -extract bundleIdentifier raw -o - ${CONFIG})
 [[ $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' ${APP}/Contents/Info.plist) == ${BUNDLE_ID} ]] || { print -u2 "FAIL: mismatched app identity"; exit 1; }

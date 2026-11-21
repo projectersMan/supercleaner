@@ -5,6 +5,17 @@ import SwiftUI
 
 @main enum CleanerMain {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--check-commercial-access") {
+            Task { @MainActor in
+                let result = await Task { try await AppModel.checkCommercialAuthorization() }.result
+                switch result {
+                case .success: print("PASS: App commercial authorization and safety rights"); exit(0)
+                case let .failure(error):
+                    FileHandle.standardError.write(Data("FAIL: commercial access \(error.localizedDescription)\n".utf8)); exit(1)
+                }
+            }
+            dispatchMain()
+        }
         if CommandLine.arguments.contains("--trash-emptying-self-check") {
             Task { @MainActor in
                 let check = Task { try await AppModel.checkTrashEmptying() }

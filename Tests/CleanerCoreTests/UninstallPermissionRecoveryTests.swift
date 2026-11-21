@@ -53,7 +53,7 @@ final class UninstallPermissionRecoveryTests: XCTestCase {
             executor: executor, resolutionJournalStore: resolutions)
         let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history,
             journalStore: ExecutionJournalStore(url: root.appendingPathComponent("journal.json")),
-            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: Date.init)
+            resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, authorizeNewCleanup: {}, now: Date.init)
         let receipt = try await Task {
             try await coordinator.execute(plan: fixture.plan, retentionPolicy: .immediate,
                 progress: { _ in }, permissionRecovery: { _ in .stop })

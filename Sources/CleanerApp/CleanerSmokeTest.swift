@@ -45,6 +45,7 @@ enum CleanerSmokeTest {
             resolutionJournalStore: resolutionJournal,
             scheduleStore: schedules,
             maintenanceCoordinator: maintenance,
+            authorizeNewCleanup: {},
             now: Date.init
         )
         let receipt = try await coordinator.execute(plan: plan, retentionPolicy: .hours24)

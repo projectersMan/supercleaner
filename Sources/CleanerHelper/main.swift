@@ -5,9 +5,9 @@ import Foundation
 final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let identity: HelperSigningIdentity
     private let handler: HelperRequestHandler
-    init(identity: HelperSigningIdentity) {
+    init(identity: HelperSigningIdentity, commercialConfiguration: CommercialConfiguration) {
         self.identity = identity
-        handler = HelperRequestHandler(authorizer: HelperAuthorizer(expectedCallerRequirement: identity.callerRequirement))
+        handler = HelperRequestHandler(authorizer: HelperAuthorizer(expectedCallerRequirement: identity.callerRequirement), commercialConfiguration: commercialConfiguration)
     }
 
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
@@ -26,17 +26,18 @@ final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
 
 do {
     let identity = try HelperSigningIdentity.current(isHelper: true)
+    let commercialConfiguration = try CommercialConfiguration.load()
     if CommandLine.arguments.contains("--self-check") {
-        print("Helper signing identity verified; protocol 2")
+        print("Helper signing and commercial identities verified; protocol 4")
         exit(0)
     }
     guard geteuid() == 0 else { exit(77) }
-    let delegate = HelperListenerDelegate(identity: identity)
+    let delegate = HelperListenerDelegate(identity: identity, commercialConfiguration: commercialConfiguration)
     let listener = NSXPCListener(machServiceName: identity.serviceName)
     listener.delegate = delegate
     listener.resume()
     withExtendedLifetime(delegate) { RunLoop.current.run() }
 } catch {
-    FileHandle.standardError.write(Data("Helper signing identity is unavailable.\n".utf8))
+    FileHandle.standardError.write(Data("Helper initialization failed: \(error.localizedDescription)\n".utf8))
     exit(78)
 }

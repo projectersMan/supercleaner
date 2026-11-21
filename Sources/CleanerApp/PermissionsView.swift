@@ -22,6 +22,7 @@ struct PermissionsView: View {
             Form {
                 languageSection
                 versionSection
+                CommercialSettingsSection(model: model.commercial, operationsBusy: model.updateInProgress || model.phase == .executing)
                 trashReminderSection
                 projectScanRootsSection
                 agentOverlapSection

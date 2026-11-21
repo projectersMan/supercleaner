@@ -1,5 +1,13 @@
 # 架构与扫描流程
 
+## 支付与授权
+
+本期采用支付宝一次性买断：9.99 元、两台 Mac、7 天离线租约，无订阅或自动续费。完整协议见 [商业设计](commercial-launch-design.md)。[支付服务](../CommerceService) 使用 Node.js 24.13+ 原生 HTTP、SQLite 和密码学模块，先验支付宝 RSA2 签名及商户/金额/订单身份，再在事务中开通永久授权；退款撤销不可被旧成功通知恢复。
+
+[CommercialAccess](../Sources/CleanerApp/CommercialAccess.swift) 通过同源 HTTPS 请求服务，将设备、激活信息和签名租约保存在 Keychain；[LicenseStore](../Sources/CleanerCore/LicenseStore.swift) 对原始签名 JSON 验真并绑定产品、设备、有效期与可信时间。[公共执行协调器](../Sources/CleanerCore/CleanupExecutionCoordinator.swift) 在任何新清理副作用前检查权益；[Helper](../Sources/CleanerCore/HelperFileOperations.swift) 对新的特权清理独立验证商业凭证，XPC 协议为 4。历史、恢复和已有隔离内容维护不依赖付费或网络。
+
+[商业公开配置](../Sources/CleanerCore/CommercialConfiguration.swift) 与 [更新配置](../Sources/CleanerCore/ReleaseConfiguration.swift) 独立，均不得含私钥。正式门禁强制两份配置；[发布流程](../Scripts/publish-release.sh) 先后公证并装订 App 与 DMG，保存不可变提交包并支持按原 submission ID 恢复。真实外部验收状态见 [接入与发布](commercial-onboarding.md)。
+
 本地模型单项清理的现行实现见 [OllamaModelStorage](../Sources/CleanerCore/OllamaModelStorage.swift)：清单、tag、blob 身份和完整引用关系形成类型化证明；选择归一化只展开所选清单及无未选引用的 blob，容量去重。公共执行器先处理清单，再在 Helper/用户态移动边界重读完整引用图；新增引用或清单删除失败时保留文件。成功回执同时修剪库存及总候选内的引用，支持不重扫的连续分批删除。
 
 [OllamaModelRecovery](../Sources/CleanerCore/OllamaModelRecovery.swift) 在清单移动前，以 APFS clonefile 保存本模型依赖的写时复制快照，位于同计划隔离目录，不逐字节读取权重。每条记录独立可恢复；后批记录永久清理不破坏前批模型。恢复只补缺失依赖，不覆盖已有文件，目标父链逐级拒绝链接；同回执的物理 blob 沿普通恢复处理。未执行的快照在失败、取消及启动对账时清理；恢复、废纸篓和永久删除继续沿公共生命周期处置快照。未知 manifests 布局或不支持 clone 的文件系统明确失败，不调用 ollama rm，不增加用户确认、授权或进程管理步骤。

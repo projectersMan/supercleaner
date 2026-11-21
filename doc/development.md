@@ -1,5 +1,17 @@
 # 开发与验证
 
+## 商业买断开发
+
+本期 [实施计划](commercial-launch-plan.md)、[设计与协议](commercial-launch-design.md)、[账号与生产接入](commercial-onboarding.md) 是支付与授权的现行约束。价格 999 分、设备数 2、离线期限 604800 秒均显式配置；买断权益无期限，不得重新引入 trial、月付、年付或续费状态。
+
+服务使用 Node.js 24.13+ 内置模块，Swift 复用系统框架；无新增第三方 Python/npm 包，无动态安装，也不为 Swift 主体项目创建 Python 环境。原有 Swift 依赖继续由 Package.swift 精确声明。密钥只在部署环境或 Keychain，禁止提交真实配置、数据库、激活码和私钥。
+
+验证命令：`node --test Tests/commercial-launch/*.test.mjs`、`swift test --disable-sandbox`、CoreContractChecks 的 `--check-commercial` / `--check-helper` / `--check-license-interop <夹具>`，以及 CleanerApp 的 `--check-commercial-access`。真实废纸篓集成测试需要系统废纸篓访问；沙盒拒绝时保留回执诊断，再经批准在沙盒外复测，不能改弱断言或跳过清理检查。
+
+接口与资金/授权边界必须先验证失败路径：错误商户金额、签名和重放，设备并发、退款及解绑，回拨、断网和凭证刷新。新清理必须注入必需的授权检查；安全恢复不收费。测试夹具必须显式注入真正签名的数据，禁止通过生产参数、环境变量或配置开关绕过付费。材料集中在 Tests/commercial-launch。
+
+公证进程在观察超时后继续跟踪原 submission ID；上传不确定时先核对 Apple history，不得自动重提。正式验收必须区分模拟外部服务、本地真实密码学测试与真实 Apple/支付宝生产记录。
+
 本地模型现行规则见 [现行架构](architecture.md) 和 [模型清理回归源码](../Tests/CleanerCoreTests/OllamaModelCleanupTests.swift)。不得重新引入基于 Python/Ollama 进程名的模型锁定或 In use 展示。模型名称与 tag 来自清单，共享引用贯穿选择、计划、执行及回执对账；快照必须保证跨回执独立恢复。底栏按模型计数、按实际文件去重计量，不能把底层文件误报为隐藏模型。定向回归覆盖共享保留、单项/多项、内容变化、引用新增、清单失败、分批删除、后批清理后前批恢复、恢复链接拒绝和中断快照清理。复用公共执行器和恢复记录，无新增依赖。
 
 完整开发指南见 [现有开发文档](../docs/development.md)。本项目主体为 Swift，不使用 Python conda 环境；依赖声明保持在 [Package.swift](../Package.swift)，本次未新增依赖，也没有需要更新的 `requirements.txt`。

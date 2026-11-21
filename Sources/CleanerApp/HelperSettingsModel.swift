@@ -30,10 +30,14 @@ import Foundation
         self.canChange = canChange
     }
 
-    func authorizedApplicationOperations(fileSystem: any FileSystemAccess) -> AuthorizedApplicationOperations {
+    func authorizedApplicationOperations(fileSystem: any FileSystemAccess, commercialAccess: CommercialAccess) -> AuthorizedApplicationOperations {
         AuthorizedApplicationOperations(
             session: session,
             registrationEnabled: { [weak self] in await MainActor.run { self?.status == .enabled } },
+            commercialAuthorization: {
+                let proof = try await commercialAccess.signedAuthorization()
+                return CommercialAuthorization(license: proof.0, deviceID: proof.1)
+            },
             identity: try? HelperSigningIdentity.current(),
             fileSystem: fileSystem
         )

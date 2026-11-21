@@ -25,6 +25,13 @@ public enum HelperOperation: Codable, Hashable, Sendable {
         let data = (try? encoder.encode(self)) ?? Data()
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
+
+    public var requiresCommercialAuthorization: Bool {
+        switch self {
+        case .moveToQuarantine, .forgetInstallationReceipt, .unloadVerifiedService: true
+        case .inspect, .restoreFromQuarantine, .purgeOwnedQuarantine, .removeOwnedQuarantine: false
+        }
+    }
 }
 
 public struct CapabilityToken: Codable, Hashable, Sendable {
@@ -67,6 +74,7 @@ public enum HelperRejection: String, Codable, Hashable, Sendable, Error {
     case unsupported
     case executionFailed
     case authorizationRequired
+    case commercialLicenseRequired
     case rateLimited
 }
 
@@ -107,8 +115,10 @@ public struct HelperRequest: Codable, Hashable, Sendable {
     public let operation: HelperOperation
     public let token: CapabilityToken
     public let authorizationExternalForm: Data?
-    public init(operation: HelperOperation, token: CapabilityToken, authorizationExternalForm: Data? = nil) {
+    public let commercialAuthorization: CommercialAuthorization?
+    public init(operation: HelperOperation, token: CapabilityToken, authorizationExternalForm: Data? = nil, commercialAuthorization: CommercialAuthorization? = nil) {
         self.operation = operation; self.token = token; self.authorizationExternalForm = authorizationExternalForm
+        self.commercialAuthorization = commercialAuthorization
     }
 }
 

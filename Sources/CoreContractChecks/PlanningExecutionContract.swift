@@ -134,6 +134,7 @@ func runPlanningExecutionContracts() async throws {
         resolutionJournalStore: vanishedRecoveryResolutionJournal,
         scheduleStore: vanishedRecoverySchedules,
         maintenanceCoordinator: vanishedRecoveryMaintenance,
+        authorizeNewCleanup: {},
         now: { now }
     )
     _ = try await vanishedRecoveryCoordinator.recoverPendingExecutions()
@@ -351,8 +352,33 @@ func runPlanningExecutionContracts() async throws {
         resolutionJournalStore: coordinatedResolutionJournal,
         scheduleStore: coordinatedSchedules,
         maintenanceCoordinator: coordinatedMaintenance,
+        authorizeNewCleanup: {},
         now: { now }
     )
+    let unauthorizedCoordinator = CleanupExecutionCoordinator(
+        executor: coordinatedExecutor,
+        historyStore: coordinatedHistory,
+        journalStore: coordinatedJournal,
+        resolutionJournalStore: coordinatedResolutionJournal,
+        scheduleStore: coordinatedSchedules,
+        maintenanceCoordinator: coordinatedMaintenance,
+        authorizeNewCleanup: { throw LicenseAuthorizationError.licenseRequired },
+        now: { now },
+        refreshPlan: { _ in throw LicenseAuthorizationError.invalidClaims }
+    )
+    do {
+        _ = try await unauthorizedCoordinator.execute(plan: plan, retentionPolicy: .hours24)
+        require(false, "unlicensed cleanup was allowed")
+    } catch let error as LicenseAuthorizationError {
+        require(error == .licenseRequired, "authorization must precede even plan refresh")
+    }
+    let mutationsBeforeAuthorization = await coordinatedFS.mutationCount()
+    let journalsBeforeAuthorization = try await coordinatedJournal.entries()
+    let historyBeforeAuthorization = try await coordinatedHistory.receipts()
+    require(mutationsBeforeAuthorization == 0 && journalsBeforeAuthorization.isEmpty && historyBeforeAuthorization.isEmpty,
+        "authorization failure must not mutate files, journals, history or plan claims")
+    require(!FileManager.default.fileExists(atPath: coordinationRoot.path),
+        "authorization failure created persistent storage before authorization")
     let coordinatedReceipt = try await coordinator.execute(plan: plan, retentionPolicy: .hours24)
     let persistedCoordinatedReceipt = try await coordinator.receipts().first {
         $0.id == coordinatedReceipt.id
@@ -440,7 +466,7 @@ func runPlanningExecutionContracts() async throws {
     )
     await coordinatedHistory.failNextCommitForTesting()
     do {
-        _ = try await coordinator.restore(receipt: coordinatedReceipt)
+        _ = try await unauthorizedCoordinator.restore(receipt: coordinatedReceipt)
         require(false, "restore unexpectedly finalized after an interrupted history commit")
     } catch is HistoryStoreError {
         // Expected.
@@ -450,7 +476,7 @@ func runPlanningExecutionContracts() async throws {
         interruptedResolutionEntries.count == 1,
         "restore must retain its durable resolution intent until history finalization"
     )
-    _ = try await coordinator.recoverPendingExecutions()
+    _ = try await unauthorizedCoordinator.recoverPendingExecutions()
     let restoredCoordinatedHistory = try await coordinator.receipts().first {
         $0.id == coordinatedReceipt.id
     }
@@ -500,7 +526,7 @@ func runPlanningExecutionContracts() async throws {
         policy: .hours24,
         at: now.addingTimeInterval(-86_400)
     )
-    let coordinatedMaintenanceResult = try await coordinator.processDue(at: now)
+    let coordinatedMaintenanceResult = try await unauthorizedCoordinator.processDue(at: now)
     require(
         coordinatedMaintenanceResult.deletedItemCount == 1,
         "coordinator must process due quarantine schedules"
@@ -560,6 +586,7 @@ func runPlanningExecutionContracts() async throws {
         resolutionJournalStore: recoveryResolutionJournal,
         scheduleStore: recoverySchedules,
         maintenanceCoordinator: recoveryMaintenance,
+        authorizeNewCleanup: {},
         now: { now }
     )
     let recoveryEntry = ExecutionJournalEntry(

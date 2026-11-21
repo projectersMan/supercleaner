@@ -10,11 +10,12 @@ import AgentOverlapAI
     let fileSystem: any FileSystemAccess
     let runtime: CleanupRuntime
     let helper: HelperSettingsModel
+    let commercialAccess: CommercialAccess
     let cleanupCoordinator: CleanupExecutionCoordinator
     let overlapModelManager: AgentEmbeddingModelManager
     let overlapStore: AgentOverlapStore
 
-    static func live(home: URL) -> AppInfrastructure {
+    static func live(home: URL, commercialAccess: CommercialAccess = .live()) -> AppInfrastructure {
         let fileSystem = LocalFileSystem()
         let helper = HelperSettingsModel()
         let runtime = CleanupRuntime(home: home, fileSystem: fileSystem)
@@ -33,7 +34,7 @@ import AgentOverlapAI
                 path.split(separator: "/").contains(Substring(bundleID.lowercased()))
             }
         }
-        let privilegedOperations = helper.authorizedApplicationOperations(fileSystem: fileSystem)
+        let privilegedOperations = helper.authorizedApplicationOperations(fileSystem: fileSystem, commercialAccess: commercialAccess)
         let executor = CleanupExecutor(
             fileSystem: fileSystem,
             pathPolicy: PathPolicy(homeDirectory: home),
@@ -63,6 +64,7 @@ import AgentOverlapAI
             resolutionJournalStore: resolutions,
             scheduleStore: schedules,
             maintenanceCoordinator: maintenance,
+            authorizeNewCleanup: { try await commercialAccess.require(.newCleanup) },
             now: Date.init,
             refreshPlan: { try await runtime.refreshMutableCleanupPlan($0) },
             dockService: ApplicationDockService(directory: support.appendingPathComponent("DockRecovery", isDirectory: true)),
@@ -74,6 +76,7 @@ import AgentOverlapAI
             fileSystem: fileSystem,
             runtime: runtime,
             helper: helper,
+            commercialAccess: commercialAccess,
             cleanupCoordinator: coordinator,
             overlapModelManager: overlapModelManager,
             overlapStore: overlapStore

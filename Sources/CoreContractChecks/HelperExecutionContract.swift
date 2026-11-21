@@ -76,7 +76,7 @@ func runHelperExecutionContracts() async throws {
     let resolutions = ResolutionJournalStore(url: directory.appendingPathComponent("resolutions.json"))
     let schedules = QuarantineScheduleStore(url: directory.appendingPathComponent("schedules.json"))
     let maintenance = QuarantineMaintenanceCoordinator(historyStore: history, scheduleStore: schedules, executor: delayedExecutor, resolutionJournalStore: resolutions)
-    let coordinator = CleanupExecutionCoordinator(executor: delayedExecutor, historyStore: history, journalStore: journal, resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, now: clock.now)
+    let coordinator = CleanupExecutionCoordinator(executor: delayedExecutor, historyStore: history, journalStore: journal, resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance, authorizeNewCleanup: {}, now: clock.now)
     let delayedPlan = makePlan()
     let pending = try await coordinator.execute(plan: delayedPlan, retentionPolicy: .manual)
     let pendingEntries = try await journal.entries()

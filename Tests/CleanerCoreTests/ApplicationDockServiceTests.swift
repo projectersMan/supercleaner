@@ -178,6 +178,7 @@ import XCTest
         let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history,
             journalStore: ExecutionJournalStore(url: home.appendingPathComponent("journal.json")),
             resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance,
+            authorizeNewCleanup: {},
             now: Date.init, dockService: dock)
         if writeFails { prefs.setFailureKey("persistent-apps") }
         let receipt = try await coordinator.execute(plan: cleanupPlan, retentionPolicy: .manual)

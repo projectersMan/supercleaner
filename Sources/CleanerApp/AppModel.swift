@@ -205,6 +205,8 @@ struct ResourceReviewFilter: Equatable {
     @Published private(set) var bootstrapInProgress = true
     @Published private(set) var maintenanceInProgress = false
     @Published private(set) var trashEmptyingInProgress = false
+    let commercialAccess: CommercialAccess
+    let commercial: CommercialSettingsModel
     let helper: HelperSettingsModel
     private let overlapModelManager: AgentEmbeddingModelManager
     private let overlapStore: AgentOverlapStore
@@ -312,7 +314,7 @@ struct ResourceReviewFilter: Equatable {
     private var cachedVisibleAgentSkills: [AgentSkillCatalogSection]?
     private var cachedVisibleAgentMCPs: [MCPConfigurationRecord]?
 
-    init(home: URL = FileManager.default.homeDirectoryForCurrentUser, preferences: UserDefaults = .standard,
+    init(commercialAccess: CommercialAccess = .live(), home: URL = FileManager.default.homeDirectoryForCurrentUser, preferences: UserDefaults = .standard,
          readRunningApplicationIDs: @escaping @Sendable () async -> Set<String> = { await RunningApplicationSnapshot.identifiers() },
          readDiskCapacity: @escaping @Sendable (URL) async -> DiskCapacityReadResult = { directory in
              await Task.detached(priority: .utility) { DiskCapacityReader.read(at: directory) }.value
@@ -333,7 +335,9 @@ struct ResourceReviewFilter: Equatable {
         preselectProjectArtifacts = preferences.bool(forKey: Self.projectArtifactPreselectionDefaultsKey)
         let storedOverlapThreshold = UserDefaults.standard.object(forKey: Self.agentOverlapThresholdDefaultsKey) as? NSNumber
         agentOverlapThreshold = min(1, max(0.5, storedOverlapThreshold?.doubleValue ?? 0.85))
-        let infrastructure = AppInfrastructure.live(home: home)
+        let infrastructure = AppInfrastructure.live(home: home, commercialAccess: commercialAccess)
+        self.commercialAccess = infrastructure.commercialAccess
+        commercial = CommercialSettingsModel(access: infrastructure.commercialAccess)
         fileSystem = infrastructure.fileSystem
         helper = infrastructure.helper
         runtime = infrastructure.runtime
@@ -351,6 +355,23 @@ struct ResourceReviewFilter: Equatable {
         }
     }
 
+    @discardableResult
+    private func requireCommercialFeature(_ feature: CommercialFeature) async -> Bool {
+        guard !Task.isCancelled else { return false }
+        let result = await Task { try await commercialAccess.require(feature) }.result
+        guard !Task.isCancelled else { return false }
+        switch result {
+        case .success: return true
+        case let .failure(error):
+            selection = .settings
+            let message = L10n.text("授权检查失败，请在设置中购买、激活或刷新授权：{0}", error.localizedDescription)
+            statusMessage = message
+            phase = .failed(message)
+            commercial.showAuthorizationFailure(message)
+            return false
+        }
+    }
+
     private static let quarantineRetentionDefaultsKey = "quarantine.retentionPolicy"
     private static let largeFileThresholdDefaultsKey = "largeFiles.minimumBytes"
     private static let largeFileInstallerPreselectionDefaultsKey = "largeFiles.preselectInstallers"
@@ -363,7 +384,7 @@ struct ResourceReviewFilter: Equatable {
     static func makeTrashEmptyingCheckModel(fixture: TrashEmptyingFixture) -> AppModel {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let home = root.appendingPathComponent("Tests/dashboard-compact-trash/home")
-        let model = AppModel(home: home, readRunningApplicationIDs: { [] }, readDiskCapacity: { await fixture.readCapacity(at: $0) })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home, readRunningApplicationIDs: { [] }, readDiskCapacity: { await fixture.readCapacity(at: $0) })
         model.bootstrapInProgress = false
         let report = TrashEmptyingFixture.report(home: home)
         model.systemReport = report
@@ -626,6 +647,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func analyzeAgentOverlaps() async throws {
+        try await commercialAccess.require(.agentScan)
         guard agentOverlapSupportedPlatform else { return }
         let generationID = systemReport?.generationID
         let policy = try AgentOverlapPolicy.load()
@@ -1325,6 +1347,7 @@ struct ResourceReviewFilter: Equatable {
         guard !trashEmptyingInProgress, !updateInProgress, deepScanningApplicationID == nil else { return }
         guard !isScanRunning, phase != .executing else { return }
         Task {
+            guard await requireCommercialFeature(.newCleanup) else { return }
             do {
                 let configuration = try await runtime.configuration()
                 let current = await ApplicationScanner().associationIndex(for: applications, context: configuration.context)
@@ -1535,12 +1558,14 @@ struct ResourceReviewFilter: Equatable {
             await bootstrapPersistentState()
             bootstrapInProgress = false
             await resumePendingPermissionScanIfPossible()
+            await commercial.refreshAutomatically()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled else { return }
                 helper.refresh()
                 await recheckPendingExecutions()
                 await runQuarantineMaintenance()
+                await commercial.refreshAutomatically()
             }
         }
     }
@@ -1686,6 +1711,7 @@ struct ResourceReviewFilter: Equatable {
         Task { [weak self] in
             guard let self else { return }
             defer { checkingScanPermissions = false }
+            guard await requireCommercialFeature(.standardScan), await requireCommercialFeature(.agentScan) else { return }
             await loadPermissions()
             if ScanPermissionPreparationPolicy.canProceed(
                 diskAccess: permissionSnapshot?.fullDiskAccess.status ?? .unverified) {
@@ -1700,6 +1726,7 @@ struct ResourceReviewFilter: Equatable {
         Task { [weak self] in
             guard let self else { return }
             defer { preparingScanPermissions = false }
+            guard await requireCommercialFeature(.standardScan), await requireCommercialFeature(.agentScan) else { return }
             await loadPermissions()
             if permissionSnapshot?.fullDiskAccess.status != .granted {
                 UserDefaults.standard.set(true, forKey: Self.pendingPermissionScanDefaultsKey)
@@ -2106,6 +2133,7 @@ struct ResourceReviewFilter: Equatable {
             oneClickExecutionTask = Task { [weak self] in
                 guard let self else { return }
                 do {
+                    try await commercialAccess.require(.newCleanup)
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
                         retentionPolicy: defaultQuarantineRetentionPolicy,
@@ -2129,7 +2157,7 @@ struct ResourceReviewFilter: Equatable {
                     statusMessage = L10n.text("默认清理完成")
                     deletionResult = receipt
                 } catch {
-                    finishCleanupSilently(error)
+                    finishCleanupFailure(error)
                 }
                 oneClickActiveModules.removeAll()
                 oneClickCleanupIsRunning = false
@@ -2190,6 +2218,7 @@ struct ResourceReviewFilter: Equatable {
         executionTask = Task { [weak self] in
             guard let self else { return }
             do {
+                try await commercialAccess.require(.newCleanup)
                 let receipt = try await cleanupExecutionCoordinator.execute(
                     plan: plan,
                     retentionPolicy: defaultQuarantineRetentionPolicy,
@@ -2219,7 +2248,7 @@ struct ResourceReviewFilter: Equatable {
                 phase = .completed
                 deletionResult = receipt
             } catch {
-                finishCleanupSilently(error)
+                finishCleanupFailure(error)
             }
             activeCleanupModules.removeAll()
             executionTask = nil
@@ -2378,13 +2407,12 @@ struct ResourceReviewFilter: Equatable {
         }
     }
 
-    private func finishCleanupSilently(_ error: Error) {
+    private func finishCleanupFailure(_ error: Error) {
         finishExecutionProgress()
-        FileHandle.standardError.write(Data("Cleanup retained its execution journal: \(error)\n".utf8))
-        statusMessage = nil
+        statusMessage = L10n.text("无法开始或完成清理：{0}", error.localizedDescription)
         deletionResult = nil
-        deletionResultWarning = nil
-        phase = .completed
+        deletionResultWarning = statusMessage
+        phase = .failed(statusMessage ?? L10n.text("无法删除"))
     }
 
     func requestRestore(_ receipt: OperationReceipt) {
@@ -2506,6 +2534,11 @@ struct ResourceReviewFilter: Equatable {
         deepScanMessages[application.id] = L10n.text("正在准备观察；基础扫描结果已保留。")
         deepScanTask = Task { [weak self] in
             guard let self else { return }
+            guard await requireCommercialFeature(.standardScan) else {
+                deepScanningApplicationID = nil
+                deepScanTask = nil
+                return
+            }
             var launched: NSRunningApplication?
             do {
                 let provider = BundleApplicationMetadataProvider()
@@ -2657,9 +2690,10 @@ struct ResourceReviewFilter: Equatable {
         let liveApplications = applications
         let context = ScanContext(homeDirectory: home, fileSystem: fileSystem, protectionPolicy: protectionPolicy)
         Task { [weak self] in
-            let refreshed = await ApplicationUninstallAnalyzer().analyzeStoppedApplications(needsPlan, in: liveApplications, context: context, cachedIndex: previous.associationIndex)
             guard let self else { return }
             defer { isPreparingStoppedAppPlans = false }
+            guard await requireCommercialFeature(.standardScan) else { return }
+            let refreshed = await ApplicationUninstallAnalyzer().analyzeStoppedApplications(needsPlan, in: liveApplications, context: context, cachedIndex: previous.associationIndex)
             guard !refreshed.isEmpty, !isDeletionInProgress, !updateInProgress, !isLoadingApplications,
                   deepScanningApplicationID == nil, moduleScanTasks[.applications] == nil,
                   hasScanResult(for: .applications), let current = systemReport,
@@ -2744,6 +2778,7 @@ struct ResourceReviewFilter: Equatable {
             executionTask = Task { [weak self] in
                 guard let self else { return }
                 do {
+                    try await commercialAccess.require(.newCleanup)
                     let receipt = try await cleanupExecutionCoordinator.execute(
                         plan: plan,
                         retentionPolicy: defaultQuarantineRetentionPolicy,
@@ -2761,7 +2796,7 @@ struct ResourceReviewFilter: Equatable {
                     }
                     deletionResult = receipt
                 } catch {
-                    finishCleanupSilently(error)
+                    finishCleanupFailure(error)
                 }
                 activeCleanupModules.removeAll()
                 executionTask = nil
@@ -2846,6 +2881,14 @@ struct ResourceReviewFilter: Equatable {
 
     private func runScan(token: UUID) async {
         guard !Task.isCancelled, activeScanToken == token else { return }
+        guard await requireCommercialFeature(.standardScan), await requireCommercialFeature(.agentScan) else {
+            guard !Task.isCancelled, activeScanToken == token else { return }
+            isScanRunning = false
+            activeScanToken = nil
+            scanTask = nil
+            finishFullScanTimingIfIdle()
+            return
+        }
         await loadPermissions()
         // Check on every scan; a previous attempt is not proof of current access.
         if permissionSnapshot?.fullDiskAccess.status != .granted {
@@ -2910,6 +2953,16 @@ struct ResourceReviewFilter: Equatable {
         moduleScanTokens[module] = token
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .scanning, startedAt: Date())
         moduleScanTasks[module] = Task { [weak self] in
+            guard let self else { return }
+            let authorized = await requireCommercialFeature(module == .agentEnvironment ? .agentScan : .standardScan)
+            guard !Task.isCancelled, moduleScanTokens[module] == token else { return }
+            guard authorized else {
+                scanProgressByModule[module] = ScanModuleStatus(module: module, state: .failed, completedAt: Date())
+                moduleScanTokens.removeValue(forKey: module)
+                moduleScanTasks.removeValue(forKey: module)
+                finishModuleScanSessionIfIdle()
+                return
+            }
             let report = await session.coordinator.scan(
                 context: context, generationID: session.generationID, modules: [module],
                 runningBundleIdentifiers: session.runningBundleIdentifiers,
@@ -2922,7 +2975,7 @@ struct ResourceReviewFilter: Equatable {
                     await self?.receiveModuleScanProgress(event, token: token)
                 }
             )
-            guard let self, !Task.isCancelled, moduleScanTokens[module] == token else { return }
+            guard !Task.isCancelled, moduleScanTokens[module] == token else { return }
             if module == .agentEnvironment, readyScanModules.contains(module) {
                 await analyzeAgentOverlapsDuringScan()
             }
@@ -3238,6 +3291,7 @@ struct ResourceReviewFilter: Equatable {
         }
     }
     private func reloadApplicationModule(observeRunning: Bool = true) async {
+        guard await requireCommercialFeature(.standardScan) else { return }
         guard !trashEmptyingInProgress, !updateInProgress else { return }
         guard let current = systemReport else { return }
         isLoadingApplications = true
@@ -3287,6 +3341,15 @@ struct ResourceReviewFilter: Equatable {
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .waiting)
         scanTask = Task { [weak self] in
             guard let self, let current = systemReport else { return }
+            let authorized = await requireCommercialFeature(module == .agentEnvironment ? .agentScan : .standardScan)
+            guard !Task.isCancelled, activeScanToken == token else { return }
+            guard authorized else {
+                scanProgressByModule[module] = ScanModuleStatus(module: module, state: .failed, completedAt: Date())
+                isScanRunning = false
+                scanTask = nil
+                activeScanToken = nil
+                return
+            }
             let configurationTask = Task {
                 try await runtime.configuration(includeProcessActivity: module != .localAIModels && module != .projects)
             }
@@ -3546,7 +3609,7 @@ extension AppModel {
             throw InvalidSelection(description: "Missing recursive large-file fixture")
         }
         defer { preferences.removePersistentDomain(forName: domain) }
-        let model = AppModel(home: home, preferences: preferences)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home, preferences: preferences)
         model.largeFileThreshold = threshold
         model.selection = .largeFiles
         let token = UUID()
@@ -3574,7 +3637,7 @@ extension AppModel {
 
         model.updateLargeFileInstallerPreselection(false)
         guard let reopenedPreferences = UserDefaults(suiteName: domain),
-              !AppModel(home: home, preferences: reopenedPreferences).preselectLargeFileInstallers,
+              !AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home, preferences: reopenedPreferences).preselectLargeFileInstallers,
               Set(model.selectedCandidates.map(\.displayName)) == ["packed.zip", "setup.dmg"] else {
             throw InvalidSelection(description: "Installer preference did not persist or changed the current selection")
         }
@@ -3600,7 +3663,7 @@ extension AppModel {
     static func checkAgentPresentationPerformance() async throws {
         try checkAgentDefaultScopeFallback()
         struct Failure: Error {}
-        let model = AppModel(home: URL(fileURLWithPath: "/tmp/AgentPresentationFixture"))
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: URL(fileURLWithPath: "/tmp/AgentPresentationFixture"))
         let skills = (0..<1_000).map { index in
             let root = URL(fileURLWithPath: "/tmp/AgentPresentationFixture/skills/skill-\(index)")
             return SkillCatalogEntry(id: root.path, logicalID: "skill-\(index)", provider: .codex, scope: .global, source: .userInstalled, kind: .workflow,
@@ -3702,7 +3765,7 @@ extension AppModel {
     }
 
     private static func makeAgentSelectionFixture(report: SystemScanReport = AgentSelectionFixture.report()) -> AppModel {
-        let model = AppModel(home: AgentSelectionFixture.home, readRunningApplicationIDs: { [] })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: AgentSelectionFixture.home, readRunningApplicationIDs: { [] })
         // Do not start inference or read real Agent resources for a selection check.
         model.isScanRunning = true
         model.systemReport = report
@@ -3888,7 +3951,7 @@ extension AppModel {
 
     static func checkAllDefaultCleanupPresentation() throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
-        let model = AppModel(home: NavigationPresentationFixture.home)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: NavigationPresentationFixture.home)
         let report = NavigationPresentationFixture.report()
         let system = report.generalCandidates[0]
         let automatic = report.agentAssets[0].candidate
@@ -3940,6 +4003,35 @@ extension AppModel {
         print("PASS: all-default mixed-plan totals, manual exclusions, deselection, Agent-only cleanup, auto-selection cache invalidation and scan/protection gates; no execution")
     }
 
+    static func checkCommercialAuthorization() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let denied = CommercialLicenseFixture.missingConfiguration()
+        for feature in [CommercialFeature.history, .restore, .removeHelper, .exportReceipts] {
+            try await denied.require(feature)
+        }
+        let denial = await Task { try await denied.require(.newCleanup) }.result
+        guard case .failure = denial else { throw Failure(description: "missing configuration allowed new cleanup") }
+        let model = AppModel(commercialAccess: denied, home: NavigationPresentationFixture.home)
+        model.bootstrapInProgress = false
+        let token = UUID()
+        model.activeScanToken = token
+        model.isScanRunning = true
+        await model.runScan(token: token)
+        guard !model.isScanRunning, model.systemReport == nil, model.permissionSnapshot == nil,
+              model.selection == .settings, model.commercial.error != nil, model.statusMessage != nil else {
+            throw Failure(description: "unlicensed scan must stop before permission probes and show the purchase route")
+        }
+        let licensed = CommercialLicenseFixture.make()
+        for feature in [CommercialFeature.standardScan, .agentScan, .newCleanup] { try await licensed.require(feature) }
+        let authorization = try await licensed.signedAuthorization()
+        let snapshot = try await licensed.snapshot()
+        guard let offlineValidUntil = snapshot.offlineValidUntil,
+              authorization.1 == snapshot.deviceID, offlineValidUntil > Date(), !authorization.0.signature.isEmpty else {
+            throw Failure(description: "offline license did not supply the same verified Helper authorization")
+        }
+        print("PASS: missing configuration denies scan before file/permission access and displays settings; cleanup denied; recovery rights preserved; explicit Ed25519 offline fixture authorizes scans, cleanup and Helper")
+    }
+
     static func checkProjectScanRootsSettings() async throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -3947,7 +4039,7 @@ extension AppModel {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let first = root.appendingPathComponent("First")
         let second = root.appendingPathComponent("Second")
-        let model = AppModel(home: root)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: root)
         model.bootstrapInProgress = false
         await model.loadProjectScanRoots()
         guard model.projectScanRootsLoaded, model.projectScanRoots.count > 3 else {
@@ -3959,7 +4051,7 @@ extension AppModel {
               !model.isScanRunning, !model.checkingScanPermissions else {
             throw Failure(description: "settings must deduplicate/persist all roots without starting the first scan")
         }
-        let reopened = AppModel(home: root)
+        let reopened = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: root)
         await reopened.loadProjectScanRoots()
         guard reopened.projectScanRoots == [first, second] else { throw Failure(description: "roots did not reload") }
         model.scanProgressByModule[.projects] = .init(module: .projects, state: .cancelled)
@@ -3993,7 +4085,7 @@ extension AppModel {
         let blockedHome = root.appendingPathComponent("BlockedHome")
         try FileManager.default.createDirectory(at: blockedHome, withIntermediateDirectories: true)
         try Data("not a directory".utf8).write(to: blockedHome.appendingPathComponent("Library"))
-        let unwritable = AppModel(home: blockedHome)
+        let unwritable = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: blockedHome)
         unwritable.bootstrapInProgress = false
         let failedWrite = await unwritable.saveProjectScanRoots([first], startInitialScan: true)
         guard !failedWrite, unwritable.projectScanRootsError != nil, !unwritable.hasScanResult(for: .projects),
@@ -4033,7 +4125,7 @@ extension AppModel {
 
     static func checkScanPermissionPresentation() throws {
         struct PermissionSheetStillPresented: Error {}
-        let model = AppModel(home: URL(fileURLWithPath: "/tmp/ScanPermissionPresentationFixture"))
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: URL(fileURLWithPath: "/tmp/ScanPermissionPresentationFixture"))
         model.showsScanPermissionPreparation = true
         model.isScanRunning = true
         model.continueScanWithCurrentPermissions()
@@ -4049,7 +4141,7 @@ extension AppModel {
         try checkResourceCleanupPresentation()
         try checkAllDefaultCleanupPresentation()
         struct Failure: Error, CustomStringConvertible { let description: String }
-        let model = AppModel(home: NavigationPresentationFixture.home)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: NavigationPresentationFixture.home)
         let report = NavigationPresentationFixture.report()
         model.systemReport = report
         model.scanProgressByModule = report.modules
@@ -4160,7 +4252,7 @@ extension AppModel {
         let suite = "SuperCleaner.ResourceSelectionCheck.\(UUID())"
         let preferences = UserDefaults(suiteName: suite)!
         preferences.set(true, forKey: projectArtifactPreselectionDefaultsKey)
-        let model = AppModel(home: ResourceCleanupPresentationFixture.home, preferences: preferences,
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ResourceCleanupPresentationFixture.home, preferences: preferences,
             readRunningApplicationIDs: { [] })
         preferences.removePersistentDomain(forName: suite)
         return model
@@ -4171,7 +4263,7 @@ extension AppModel {
         let suite = "SuperCleaner.ProjectPreferenceCheck.\(UUID())"
         let preferences = UserDefaults(suiteName: suite)!
         defer { preferences.removePersistentDomain(forName: suite) }
-        let model = AppModel(home: ResourceCleanupPresentationFixture.home, preferences: preferences,
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ResourceCleanupPresentationFixture.home, preferences: preferences,
             readRunningApplicationIDs: { [] })
         let report = try ResourceCleanupPresentationFixture.report()
         let projects = report.projectScanReport!.artifacts.map(\.candidate)
@@ -4191,7 +4283,7 @@ extension AppModel {
         model.resourceReviewFilters[.projects]!.query = "Example"
         model.resourceReviewFilters[.projects]!.sortOrder = .directory
         model.updateProjectArtifactPreselection(true)
-        let reopened = AppModel(home: ResourceCleanupPresentationFixture.home, preferences: UserDefaults(suiteName: suite)!,
+        let reopened = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ResourceCleanupPresentationFixture.home, preferences: UserDefaults(suiteName: suite)!,
             readRunningApplicationIDs: { [] })
         guard model.selectedIDs == ids, model.resourceReviewFilters[.projects]!.scope == .selected,
               model.defaultCleanupSummary(for: .projects) == .init(itemCount: 2, bytes: 700),
@@ -4509,7 +4601,7 @@ extension AppModel {
 
     static func checkCleanupCompletionPerformance() throws {
         struct Failure: Error { let message: String }
-        let model = AppModel(home: NavigationPresentationFixture.home, readRunningApplicationIDs: { [] })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: NavigationPresentationFixture.home, readRunningApplicationIDs: { [] })
         let report = NavigationPresentationFixture.report()
         model.isScanRunning = true
         model.systemReport = report
@@ -4542,7 +4634,7 @@ extension AppModel {
         try checkFirstApplicationPresentationPerformance()
         struct Failure: Error { let message: String }
         let read = ApplicationRefreshFixture()
-        let model = AppModel(home: NavigationPresentationFixture.home, readRunningApplicationIDs: { await read.identifiers() })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: NavigationPresentationFixture.home, readRunningApplicationIDs: { await read.identifiers() })
         let report = NavigationPresentationFixture.report()
         model.systemReport = report
         model.scanProgressByModule = report.modules
@@ -4569,7 +4661,7 @@ extension AppModel {
 
     private static func checkFirstApplicationPresentationPerformance() throws {
         struct Failure: Error { let message: String }
-        let model = AppModel(home: ApplicationPresentationFixture.home, readRunningApplicationIDs: { [] })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ApplicationPresentationFixture.home, readRunningApplicationIDs: { [] })
         let report = ApplicationPresentationFixture.report()
         model.systemReport = report
         model.scanProgressByModule = report.modules
@@ -4591,7 +4683,7 @@ extension AppModel {
 
     private static func checkStoppedApplicationPresentationPerformance() throws {
         struct Failure: Error { let message: String }
-        let model = AppModel(home: ApplicationPresentationFixture.home, readRunningApplicationIDs: { [] })
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ApplicationPresentationFixture.home, readRunningApplicationIDs: { [] })
         let report = ApplicationPresentationFixture.report()
         model.isScanRunning = true
         model.systemReport = report
@@ -4647,7 +4739,7 @@ extension AppModel {
     /// Isolated data for Computer Use; release builds contain no preview entry.
     static func applicationPresentationFixture() -> AppModel {
         let home = URL(fileURLWithPath: "/tmp/SuperCleaner-Uninstall-UI-Fixture")
-        let model = AppModel(home: home, readRunningApplicationIDs: {
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home, readRunningApplicationIDs: {
             try? await Task.sleep(for: .seconds(30))
             return []
         })
@@ -4698,7 +4790,7 @@ extension AppModel {
         let visibleStatus = hiddenAccess.status(for: accessResult)
         try check(visibleStatus.state == .completed && visibleStatus.limitations.isEmpty,
             "access-denied locations must not appear as skipped-location notices in the overview")
-        let model = AppModel(home: home)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home)
         let generation = UUID()
         let app = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Fixture.app"),
             bundleIdentifier: "com.contract.fixture", name: "Fixture", version: "1", isRunning: false, isSystem: false)
@@ -4719,7 +4811,7 @@ extension AppModel {
             modules: statuses, generalCandidates: [log, kept], applicationInventory: apps, applicationUninstallInventory: uninstall,
             diskUsageTree: .init(roots: [], largeFiles: [], coverage: .init(), scannedAt: Date()), largeFileCandidates: [], agentAssets: [])
         // Checkbox quit choices are independent of focus and uninstall items.
-        let quitModel = AppModel(home: home)
+        let quitModel = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home)
         let runningFirst = app.withRunningState(true)
         let runningSecond = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Second.app"),
             bundleIdentifier: "com.contract.second", name: "Second", version: "1", isRunning: true, isSystem: false)
@@ -4749,7 +4841,7 @@ extension AppModel {
             source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true,
             requiresExplicitSelection: true,
             cleanupApplication: .init(bundleIdentifier: "com.google.Chrome", name: "Google Chrome", kind: "Offline content"))
-        let cleanupModel = AppModel(home: home)
+        let cleanupModel = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: home)
         cleanupModel.selection = .systemCleanup
         let cleanupReport = report.replacing(module: .general,
             payload: .general(.init(candidates: [kept, offline], failures: [], startedAt: Date(), completedAt: Date())), completedAt: Date())
@@ -5043,7 +5135,7 @@ extension AppModel {
         func check(_ condition: Bool, _ message: String) throws {
             if !condition { throw Failure(description: message) }
         }
-        let model = AppModel(home: URL(fileURLWithPath: "/tmp/SuperCleaner-UninstallPermission-Fixture"))
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: URL(fileURLWithPath: "/tmp/SuperCleaner-UninstallPermission-Fixture"))
         model.phase = .executing
         model.executionProgress = .init(completed: 1, total: 7, currentURL: nil)
         let request = UninstallPermissionRequest(url: URL(fileURLWithPath: "/Applications/Permission-Fixture.app"),
@@ -5119,7 +5211,7 @@ extension AppModel {
         }
         let inventory = ApplicationUninstallInventory(applicationInventory: .init(applications: apps,
             coverage: original.applicationInventory.coverage, scannedAt: original.applicationInventory.scannedAt), analyses: analyses)
-        let model = AppModel(home: ApplicationPresentationFixture.home)
+        let model = AppModel(commercialAccess: CommercialLicenseFixture.make(), home: ApplicationPresentationFixture.home)
         model.systemReport = original.replacing(module: .applications, payload: .applications(inventory), completedAt: Date())
         model.scanProgressByModule = model.systemReport!.modules
         model.selection = .applications

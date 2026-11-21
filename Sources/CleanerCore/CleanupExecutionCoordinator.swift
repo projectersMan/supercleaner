@@ -44,6 +44,7 @@ public actor CleanupExecutionCoordinator {
     private let scheduleStore: QuarantineScheduleStore
     private let maintenanceCoordinator: QuarantineMaintenanceCoordinator
     private let lifecycleGate = ReceiptLifecycleGate.shared
+    private let authorizeNewCleanup: @Sendable () async throws -> Void
     private let now: @Sendable () -> Date
     private let refreshPlan: @Sendable (CleanupPlan) async throws -> CleanupPlan
     private var claimedPlanIDs = Set<UUID>()
@@ -56,6 +57,7 @@ public actor CleanupExecutionCoordinator {
         resolutionJournalStore: ResolutionJournalStore,
         scheduleStore: QuarantineScheduleStore,
         maintenanceCoordinator: QuarantineMaintenanceCoordinator,
+        authorizeNewCleanup: @escaping @Sendable () async throws -> Void,
         now: @escaping @Sendable () -> Date,
         refreshPlan: @escaping @Sendable (CleanupPlan) async throws -> CleanupPlan = { $0 },
         dockService: ApplicationDockService? = nil,
@@ -69,6 +71,7 @@ public actor CleanupExecutionCoordinator {
         self.resolutionJournalStore = resolutionJournalStore
         self.scheduleStore = scheduleStore
         self.maintenanceCoordinator = maintenanceCoordinator
+        self.authorizeNewCleanup = authorizeNewCleanup
         self.now = now
         self.refreshPlan = refreshPlan
     }
@@ -90,6 +93,7 @@ public actor CleanupExecutionCoordinator {
         progress: CleanupExecutor.ProgressHandler,
         permissionRecovery: CleanupExecutor.PermissionRecoveryHandler? = nil
     ) async throws -> OperationReceipt {
+        try await authorizeNewCleanup()
         let pendingEntries = try await journalStore.entries()
         let persistedReceipts = try await historyStore.receipts()
         guard !claimedPlanIDs.contains(plan.id),

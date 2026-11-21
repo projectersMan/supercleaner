@@ -1,5 +1,7 @@
 # SuperCleaner 开发指南
 
+商业授权、服务运行时、密钥边界和验证命令见 [现行开发补充](../doc/development.md)、[接入操作](../doc/commercial-onboarding.md) 和 [验收矩阵](../doc/commercial-launch-acceptance.md)。新清理必须注入授权检查，测试必须显式使用隔离签名夹具；不得增加生产绕过开关。规则发布使用 [独立签名工具](../Scripts/sign-rule-update.mjs) 与App相同RuleStore回读。
+
 ## 环境与构建
 
 全扫描用时只记录在AppModel，不从最后一个模块报告时间推断；须等待系统、应用、重复大文件、Agent、本地 AI 模型、项目产物六模块和Agent分析均结束。Dashboard用局部TimelineView每秒显示HH:MM:SS，停止后静态展示；计时位于按钮右侧，等宽数字防止抖动。全扫描启动后的必要预访问计入本轮、重扫归零、取消/失败冻结、继续同轮沿用起点，完成后的单模块刷新不改写上一轮全扫描用时。计时不得修改扫描任务、权限、清理或覆盖分析规则。

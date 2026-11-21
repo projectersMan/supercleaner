@@ -38,6 +38,7 @@ final class MutableCleanupTests: XCTestCase {
             executor: executor, resolutionJournalStore: resolutions)
         let coordinator = CleanupExecutionCoordinator(executor: executor, historyStore: history, journalStore: journal,
             resolutionJournalStore: resolutions, scheduleStore: schedules, maintenanceCoordinator: maintenance,
+            authorizeNewCleanup: {},
             now: Date.init, refreshPlan: { try await runtime.refreshMutableCleanupPlan($0) })
         let receipt = try await coordinator.execute(plan: plan, retentionPolicy: .hours24)
         XCTAssertEqual(receipt.results.first?.status, .succeeded)

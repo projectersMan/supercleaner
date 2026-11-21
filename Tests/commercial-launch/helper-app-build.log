@@ -1,0 +1,5 @@
+warning: /Users/bytedance/Library/org.swift.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
+warning: /Users/bytedance/Library/org.swift.swiftpm/security is not accessible or not writable, disabling user-level cache features.
+Building for debugging...
+[Planning deferred tasks]
+Build complete! (0.51秒)

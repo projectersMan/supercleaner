@@ -220,14 +220,26 @@ public struct HelperFileOperations: Sendable {
 public actor HelperRequestHandler {
     private let authorizer: HelperAuthorizer
     private let authorizationCheck: @Sendable (Data?) -> Bool
-    public init(authorizer: HelperAuthorizer, authorizationCheck: @escaping @Sendable (Data?) -> Bool = HelperAuthorizationSession.validateExternalForm) {
+    private let commercialConfiguration: CommercialConfiguration?
+    public init(authorizer: HelperAuthorizer, commercialConfiguration: CommercialConfiguration?, authorizationCheck: @escaping @Sendable (Data?) -> Bool = HelperAuthorizationSession.validateExternalForm) {
         self.authorizer = authorizer; self.authorizationCheck = authorizationCheck
+        self.commercialConfiguration = commercialConfiguration
     }
     public func handle(_ data: Data, scope: HelperFileScope) async -> HelperResponse {
         guard data.count <= 65_536, let request = try? JSONDecoder().decode(HelperRequest.self, from: data) else { return .init(authorization: .rejected(.unsupported)) }
         guard request.token.callerUserID == scope.userID else { return .init(authorization: .rejected(.callerMismatch)) }
         let operations = HelperFileOperations(scope: scope)
         do {
+            if request.operation.requiresCommercialAuthorization {
+                guard authorizationCheck(request.authorizationExternalForm) else { return .init(authorization: .rejected(.authorizationRequired)) }
+                guard let configuration = commercialConfiguration, let proof = request.commercialAuthorization else {
+                    return .init(authorization: .rejected(.commercialLicenseRequired))
+                }
+                let currentTime = Date()
+                let license = try LicenseStore(publicKey: configuration.licensePublicKey, signedLicense: proof.license,
+                    productID: configuration.productID, deviceID: proof.deviceID, now: currentTime, lastTrustedTime: nil)
+                try license.require(.newCleanup, now: currentTime)
+            }
             let identity: FileIdentity
             if case let .forgetInstallationReceipt(proof) = request.operation {
                 guard authorizationCheck(request.authorizationExternalForm) else { return .init(authorization: .rejected(.authorizationRequired)) }
@@ -246,7 +258,8 @@ public actor HelperRequestHandler {
                 guard authorizationCheck(request.authorizationExternalForm) else { return .init(authorization: .rejected(.authorizationRequired)) }
             }
             return .init(authorization: .accepted, identity: try operations.perform(request.operation, token: request.token))
-        } catch let rejection as HelperRejection { return .init(authorization: .rejected(rejection)) }
+        } catch is LicenseAuthorizationError { return .init(authorization: .rejected(.commercialLicenseRequired)) }
+        catch let rejection as HelperRejection { return .init(authorization: .rejected(rejection)) }
         catch { return .init(authorization: .rejected(.executionFailed), message: L10n.text("受限文件操作未完成；请检查恢复记录")) }
     }
 }

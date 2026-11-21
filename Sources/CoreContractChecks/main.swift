@@ -1,6 +1,16 @@
 import CleanerCore
 import Foundation
 
+if CommandLine.arguments.dropFirst().first == "--check-license-interop", CommandLine.arguments.count == 3 {
+    try runCommercialInteropContract(path: CommandLine.arguments[2])
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--validate-rule-update", CommandLine.arguments.count == 5 {
+    try await validateRulePublication(configurationPath: CommandLine.arguments[2], rawPackPath: CommandLine.arguments[3], envelopePath: CommandLine.arguments[4])
+    exit(0)
+}
+
 func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     guard condition() else {
         FileHandle.standardError.write(Data("Contract failed: \(message)\n".utf8))
@@ -50,6 +60,18 @@ if CommandLine.arguments.dropFirst().first == "--check-application-discovery" {
 
 if CommandLine.arguments.dropFirst().first == "--check-localization" {
     try runLocalizationContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--check-commercial" {
+    try runCommercialContracts()
+    exit(0)
+}
+
+if CommandLine.arguments.dropFirst().first == "--validate-commercial-config", CommandLine.arguments.count == 3 {
+    let url = URL(fileURLWithPath: CommandLine.arguments[2])
+    _ = try CommercialConfiguration(data: UpdateFileContent.read(url, maximumBytes: 65_536))
+    print("PASS: complete public commercial configuration, HTTPS endpoint and Ed25519 public key")
     exit(0)
 }
 

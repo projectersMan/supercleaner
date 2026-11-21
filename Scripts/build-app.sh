@@ -16,6 +16,7 @@ BUNDLE_ID=${SUPERCLEANER_BUNDLE_ID:-com.example.SuperCleaner}
 [[ ${BUNDLE_ID} =~ '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+){2,}$' ]] || { print -u2 "Invalid Bundle ID"; exit 1; }
 HELPER_ID=${BUNDLE_ID}.helper
 RELEASE_CONFIG=${SUPERCLEANER_RELEASE_CONFIG:-}
+COMMERCIAL_CONFIG=${SUPERCLEANER_COMMERCIAL_CONFIG:-}
 /usr/bin/python3 "${SCRIPT_DIR}/check-localizations.py"
 MODEL_ASSET=${PROJECT_ROOT}/Sources/AgentOverlapAI/Resources/Models/embeddinggemma-2-Q8_0.gguf
 [[ -f ${MODEL_ASSET} && ! -L ${MODEL_ASSET} ]] || { print -u2 "FAIL: bundled Agent model missing"; exit 1; }
@@ -57,6 +58,11 @@ if [[ -n ${RELEASE_CONFIG} ]]; then
   HELPER_ID=${BUNDLE_ID}.helper
 fi
 
+if [[ -n ${COMMERCIAL_CONFIG} ]]; then
+  [[ ${COMMERCIAL_CONFIG} == /* && -f ${COMMERCIAL_CONFIG} && ! -L ${COMMERCIAL_CONFIG} ]] || { print -u2 "Commercial configuration must be an absolute regular file"; exit 1; }
+  ${BIN_PATH}/CoreContractChecks --validate-commercial-config ${COMMERCIAL_CONFIG}
+fi
+
 if [[ ${DEVELOPER_DIR} != */CommandLineTools && ${SUPERCLEANER_SKIP_XCTEST:-0} != 1 ]]; then
   /usr/bin/swift test ${COMMON[@]}
 elif [[ ${SUPERCLEANER_SKIP_XCTEST:-0} == 1 ]]; then
@@ -74,6 +80,9 @@ fi
 /bin/cp ${PROJECT_ROOT}/Resources/AppInfo.plist ${APP}/Contents/Info.plist
 /usr/bin/plutil -insert DTSDKName -string macosx${SDK_VERSION} ${APP}/Contents/Info.plist
 /bin/cp ${PROJECT_ROOT}/Resources/AppIcon.icns ${APP}/Contents/Resources/AppIcon.icns
+if [[ -n ${COMMERCIAL_CONFIG} ]]; then
+  /bin/cp ${COMMERCIAL_CONFIG} ${APP}/Contents/Resources/commercial-configuration.json
+fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${BUNDLE_ID}" ${APP}/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER}" ${APP}/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${DISPLAY_VERSION}" ${APP}/Contents/Info.plist

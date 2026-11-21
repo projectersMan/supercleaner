@@ -1,4 +1,5 @@
 import CleanerCore
+import CryptoKit
 import Darwin
 import Foundation
 import Security
@@ -41,7 +42,7 @@ func runHelperIntegrationContracts() async throws {
         .init(planID: planID ?? plan, operationDigest: operation.digest, expiresAt: Date().addingTimeInterval(60), callerRequirement: expectedSigning.callerRequirement, identity: identity, callerUserID: uid)
     }
     let move = HelperOperation.moveToQuarantine(path: source, destination: destination)
-    let denied = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), authorizationCheck: { _ in false })
+    let denied = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), commercialConfiguration: nil, authorizationCheck: { _ in false })
     let missingAuthorization = await denied.handle(try JSONEncoder().encode(HelperRequest(operation: move, token: token(move, identity: identity))), scope: scope)
     require(missingAuthorization.authorization == .rejected(.authorizationRequired) && manager.fileExists(atPath: source), "root handler must independently require operation authorization")
     let wrongUser = await denied.handle(try JSONEncoder().encode(HelperRequest(operation: move, token: token(move, identity: identity, uid: getuid() + 1))), scope: scope)
@@ -74,8 +75,17 @@ func runHelperIntegrationContracts() async throws {
     try manager.setAttributes([.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: source)
     let updatedIdentity = try operations.inspect(source)
     require(updatedIdentity != identity, "fixture must change the bundle snapshot")
-    let handler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), authorizationCheck: { $0 == Data("test-only-authorization".utf8) })
-    let request = HelperRequest(operation: move, token: token(move, identity: identity), authorizationExternalForm: Data("test-only-authorization".utf8))
+    let unlicensedHandler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), commercialConfiguration: nil, authorizationCheck: { _ in true })
+    let unlicensedRequest = HelperRequest(operation: move, token: token(move, identity: updatedIdentity), authorizationExternalForm: Data("test-only-authorization".utf8))
+    let unlicensedResponse = await unlicensedHandler.handle(try JSONEncoder().encode(unlicensedRequest), scope: scope)
+    require(unlicensedResponse.authorization == .rejected(.commercialLicenseRequired) && manager.fileExists(atPath: source), "administrator permission alone must not permit unlicensed privileged cleanup")
+    let commercial = try helperCommercialFixture()
+    let handler = HelperRequestHandler(authorizer: .init(expectedCallerRequirement: expectedSigning.callerRequirement), commercialConfiguration: commercial.configuration, authorizationCheck: { $0 == Data("test-only-authorization".utf8) })
+    let forged = CommercialAuthorization(license: .init(claimsData: commercial.proof.license.claimsData, signature: Data(repeating: 0, count: 64)), deviceID: commercial.proof.deviceID)
+    let forgedRequest = HelperRequest(operation: move, token: token(move, identity: updatedIdentity), authorizationExternalForm: Data("test-only-authorization".utf8), commercialAuthorization: forged)
+    let forgedResponse = await handler.handle(try JSONEncoder().encode(forgedRequest), scope: scope)
+    require(forgedResponse.authorization == .rejected(.commercialLicenseRequired) && manager.fileExists(atPath: source), "forged commercial proof must be rejected before privileged mutation")
+    let request = HelperRequest(operation: move, token: token(move, identity: identity), authorizationExternalForm: Data("test-only-authorization".utf8), commercialAuthorization: commercial.proof)
     let response = await handler.handle(try JSONEncoder().encode(request), scope: scope)
     require(response.authorization == .accepted && !manager.fileExists(atPath: source) && manager.fileExists(atPath: destination), "same root handler must perform authorized fd-relative move without root privileges in fixture")
     let replay = await handler.handle(try JSONEncoder().encode(request), scope: scope)
@@ -85,7 +95,9 @@ func runHelperIntegrationContracts() async throws {
     try manager.createDirectory(atPath: source, withIntermediateDirectories: true)
     do { _ = try operations.perform(restore, token: token(restore, identity: movedIdentity)); require(false, "helper restore overwrote an existing app") } catch { }
     try manager.removeItem(atPath: source)
-    _ = try operations.perform(restore, token: token(restore, identity: movedIdentity))
+    let restoreRequest = HelperRequest(operation: restore, token: token(restore, identity: movedIdentity), authorizationExternalForm: Data("test-only-authorization".utf8))
+    let restoreResponse = await unlicensedHandler.handle(try JSONEncoder().encode(restoreRequest), scope: scope)
+    require(restoreResponse.authorization == .accepted, "unlicensed root handler must preserve recovery without a commercial proof")
     require(manager.fileExists(atPath: payload) && !manager.fileExists(atPath: destination), "restore returns the same quarantined bundle without copy/chown")
     let stale = FileIdentity(device: identity.device, inode: identity.inode + 1, size: identity.size, modificationTime: identity.modificationTime, kind: .directory)
     do { _ = try operations.perform(move, token: token(move, identity: stale)); require(false, "identity replacement accepted") } catch HelperRejection.identityMismatch { }
@@ -103,7 +115,7 @@ func runHelperIntegrationContracts() async throws {
     let oversized = await handler.handle(Data(repeating: 32, count: 65_537), scope: scope)
     require(oversized.authorization == .rejected(.unsupported), "XPC request size must be bounded before decoding")
 
-    let inactive = AuthorizedApplicationOperations(session: session, registrationEnabled: { true }, identity: expectedSigning, client: NeverCalledHelperClient())
+    let inactive = AuthorizedApplicationOperations(session: session, registrationEnabled: { true }, commercialAuthorization: { throw LicenseAuthorizationError.licenseRequired }, identity: expectedSigning, client: NeverCalledHelperClient())
     let candidate = CleanupCandidate(url: URL(fileURLWithPath: "/Applications/Example.app"), displayName: "Example", category: .application, bytes: 1, risk: .review, evidence: [], identity: identity, source: .application, lastAccessDate: nil, isActive: false)
     let attempted = try await inactive.moveToQuarantine(candidate: candidate, destination: URL(fileURLWithPath: destination), planID: plan)
     require(!attempted, "no session means no helper request, not automatic elevation after permission failure")
@@ -117,6 +129,20 @@ func runHelperIntegrationContracts() async throws {
     do { _ = try await cancelledPing.value; require(false, "cancelled/unavailable XPC ping succeeded") } catch { }
     require(manager.fileExists(atPath: sentinel), "native unavailable/cancelled XPC checks must not mutate any fixture or register a daemon")
     print("PASS: helper peer requirements, explicit authorization, uid/path/plan/identity checks, no-follow move/restore/purge and budgets")
+}
+
+private func helperCommercialFixture() throws -> (configuration: CommercialConfiguration, proof: CommercialAuthorization) {
+    let key = Curve25519.Signing.PrivateKey()
+    let deviceID = UUID()
+    let now = Int64(Date().timeIntervalSince1970)
+    let claims = LicenseClaims(licenseID: UUID(), productID: "supercleaner.buyout", email: "helper@supercleaner.app",
+        deviceID: deviceID, issuedAt: now - 1, offlineValidUntil: now + 3_600, capabilities: [.newCleanup])
+    let data = try JSONEncoder().encode(claims)
+    let license = SignedLicense(claimsData: data, signature: try key.signature(for: data))
+    let configuration = try CommercialConfiguration(data: JSONSerialization.data(withJSONObject: [
+        "schemaVersion": 1, "productID": "supercleaner.buyout", "apiBaseURL": "https://licenses.supercleaner.app",
+        "licensePublicKey": key.publicKey.rawRepresentation.base64EncodedString()]))
+    return (configuration, CommercialAuthorization(license: license, deviceID: deviceID))
 }
 
 private struct NeverCalledHelperClient: PrivilegedHelperClient {

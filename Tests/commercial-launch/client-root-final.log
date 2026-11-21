@@ -1,0 +1,9 @@
+PASS: payment to activation, persisted recovery and second-device code, network/5xx retention, invalid activation retention, bounded streaming, device list/local and remote deactivation, revocation and safe restore
+PASS: stopping payment polling cancels the real HTTP task and preserves order recovery
+PASS: a new Mac can release an old device slot after an explicit 409 and then activate without any bypass
+PASS: delayed old-license refresh 403 cannot erase a newly activated license
+PASS: expired concurrent authorization shares one renewal and fresh authorization stays offline
+PASS: due background renewal preserves valid offline access on disconnect, throttles retries, and immediately honors definitive revocation
+PASS: failed expiry persists observed time, clock rollback stays denied, safety rights remain, and a fresh HTTPS-signed lease recovers after clock calibration
+PASS: commercial client URLSession runtime checks
+PASS: 1340 bilingual messages, source coverage, rule evidence, and placeholder parity

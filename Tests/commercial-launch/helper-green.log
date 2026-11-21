@@ -1,0 +1,2 @@
+PASS: helper peer requirements, explicit authorization, uid/path/plan/identity checks, no-follow move/restore/purge and budgets
+PASS: helper execution routing, restore verification, durable uncertain-result journal and late-completion recovery
