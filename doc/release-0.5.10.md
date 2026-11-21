@@ -6,4 +6,8 @@
 - 资源页保留右键操作，删除重复展开区域；卸载页图标改用固定尺寸比较，减少首次进入的主线程工作。
 - 切回应用不再刷新容量；侧栏只显示容量条和当前可用空间。
 
-当前安装包为 [SuperCleaner-0.5.10.dmg](../build/SuperCleaner-0.5.10.dmg)，版本与 App、Helper 一致。342 项 Release 测试与 1272 条双语检查通过。详细行为见 [架构](architecture.md)，运行和检查命令见 [开发指南](development.md)。
+该历史版本安装包为 [SuperCleaner-0.5.10.dmg](../build/SuperCleaner-0.5.10.dmg)，版本与 App、Helper 一致。342 项 Release 测试与 1272 条双语检查通过。详细行为见 [架构](architecture.md)，运行和检查命令见 [开发指南](development.md)。
+
+后续 0.5.11 修复：容量已恢复应用激活刷新，并新增 60 秒后台心跳及独立侧栏状态；系统清理按 System / Applications 分区。该修改已随 0.5.11（156）构建安装，见 [修复说明](disk-refresh-system-groups.md)。
+
+System Cleanup 的最终历史恢复见 [0.5.15 说明](release-0.5.15.md)。

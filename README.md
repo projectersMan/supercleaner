@@ -9,7 +9,7 @@
 - Plan application uninstallations with related files and installation ownership checks.
 - Find project artifacts such as `node_modules`, `target`, `.build`, `build`, `dist`, and project DMG installers, without restricting selection based on running status.
 - Review local AI models and download caches by provider, with shared files preserved as needed and every cleanup choice made manually.
-- Read the current volume's total, used, and available capacity separately from scan results and cleanup totals.
+- Read the current volume's total, used, and available capacity separately from scan results and cleanup totals. Capacity refreshes every minute and when returning to the app, using a background read that only updates the sidebar.
 - Discover Codex, Claude, Cursor, Trae, and other AI agent environments. Inspect Skills, MCP configurations, sessions, caches, and worktrees with protections for sensitive data.
 - Quarantine eligible items for recovery, keep an operation history, and protect paths you choose.
 
@@ -26,11 +26,13 @@ open build/SuperCleaner.app
 
 Each run of `build-app.sh` automatically increments the patch version and build number in [Version.json](Version.json) once before compilation. For an explicitly requested release, pass `--version <version>` to that script; the target must be greater than the current configured version. Subsequent ordinary builds resume patch increments. Separate verification and DMG creation reuse the assigned version.
 
-The current build is **0.5.10 (155)**. Install it from [SuperCleaner-0.5.10.dmg](build/SuperCleaner-0.5.10.dmg). The installed copy is `/Applications/SuperCleaner.app`.
+The current local build is **0.5.17 (162)**, installed at `/Applications/SuperCleaner.app`. The verified application bundle is [SuperCleaner.app](build/SuperCleaner.app); this update was installed directly without creating a new DMG.
 
 The Cleanup Center fits into one page with no vertical scrolling. Three compact safety cards sit below the title. The scan button stays aligned with the title text, with elapsed time to its right; session cleanup totals and the larger **Empty Trash…** button stay on the right. Disk capacity appears below **Tools** at the bottom of the sidebar, using a drive icon and **Disk Space** title above a capacity bar and available space. The sidebar and default cleanup footer share the same opaque system-based background, avoiding tint differences from transparent materials. Six scope rows remain visible. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout, with the actual build SDK recorded separately from the minimum macOS version.
 
 All six scope pages use the same centered spinner and status text while their own module is waiting or scanning, including rescans with previous results. Completed modules show their results while other modules continue scanning.
+
+**System Cleanup** puts all **Recommended Cleanup** items together in one expanded section, with **Deep Cleanup** collapsed below. Inside each recommendation section, **System** and individual application names sit at the same level, with no extra Applications parent. Expand System or an application to review its items. Items without an identified application owner stay under System. Ordinary app caches and typed logs regain their earlier cleanup recommendations; shared caches, offline content, and WeChat chat files still require individual selection; **Uninstall Apps** remains a separate page.
 
 **Clean All Defaults** processes the still-selected system recommendations, large-file preselection, Agent automatic preselection, and project artifacts together. Canceling a default checkmark removes it from the total. Each module row labels its nonzero operation count and size as **Cleanup**; application uninstallations, local AI models, and other manual choices remain excluded from this dashboard queue. Overlapping paths are consolidated before counting and execution.
 
@@ -161,3 +163,5 @@ Skill 与 MCP 使用相同的覆盖信息右栏：固定360 pt，标题、名称
 Project-owned DMG files appear under **Project Artifacts**, including installers found in build output; downloaded DMGs outside discovered projects remain under **Duplicate Large Files**. A selected build directory covers its DMG children in the execution total. Git-tracked, protected, or in-use installers remain protected. The two resource pages have no header action buttons; configure project scan folders in Settings and start scans from Cleanup Center.
 
 Project DMG ownership is checked against the saved project roots and manifests before publishing large-file results. Project installers never appear temporarily in the large-file cleanup total; Project Artifacts performs their own content verification and preserves retained-copy constraints.
+
+系统清理已追溯到 0.3.35 的统一手动选择变更：恢复 0.3.30 普通应用缓存与日志的推荐资格，保留共享缓存、离线内容及微信聊天文件的手动限制。两级分组为建议清理/保留 → System/具体应用，默认展开清理、折叠保留。历史依据与回归验证见 [修复记录](doc/disk-refresh-system-groups.md)。

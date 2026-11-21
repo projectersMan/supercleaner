@@ -138,7 +138,7 @@ Agent 目录扫描的预算限制、身份读取失败和目录枚举失败均�
 
 [DiskCapacityReader](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 对 Home 所在文件系统调用 `statfs`，以 block size × blocks 得到总量，以 block size × `f_bavail` 得到当前用户可用量，`DiskCapacitySnapshot.usedBytes` 为总量减可用量。该口径不叠加系统估计的 purgeable 容量，也不把家目录扫描树当作整卷空间分布。
 
-`AppModel` 异步保存容量快照或明确读取错误，ContentView 侧栏底部展示容量条与可用空间。启动、扫描、清理、恢复及清空废纸篓后重新读取，普通切回窗口不触发；失败清除过期快照并显示错误，不用 0 掩盖。`CleanupSessionSummary` 累计成功回执的逻辑字节，候选合计同样不是物理释放测量。移到 Trash/隔离区、APFS 共享与系统并发写入都可能使该累计值与卷可用量变化不同，界面不以累计值承诺已释放容量。
+[DiskCapacityMonitor](../Sources/CleanerApp/DiskCapacityMonitor.swift) 独立保存容量快照或明确读取错误，仅侧栏订阅。启动、每 60 秒、应用激活及扫描/清理/恢复/清空废纸篓后重新读取。读取在 utility 后台执行，单次并发、重复容量不发布，避免使清理列表重算；失败清除过期快照并显示错误，不用 0 掩盖。`CleanupSessionSummary` 累计成功回执的逻辑字节，候选合计同样不是物理释放测量。移到 Trash/隔离区、APFS 共享与系统并发写入都可能使该累计值与卷可用量变化不同，界面不以累计值承诺已释放容量。
 
 ## 执行日志 → 执行 → 历史 → 调度
 
@@ -280,7 +280,7 @@ Agent 显示筛选用同名计算属性解析可选的 Published 手动覆盖：
 
 本地模型逐模型选择、共享引用、独立恢复快照和失败清理边界见 [现行模型架构](../doc/architecture.md)、[现行架构](../doc/architecture.md) 及 [模型清理回归源码](../Tests/CleanerCoreTests/OllamaModelCleanupTests.swift)。模型不检测运行状态，沿公共删除与恢复流程执行，无新增依赖。
 
-当前本地交付为 [0.5.10（155）](../doc/release-0.5.10.md)，已安装并启动于 `/Applications/SuperCleaner.app`。版本及当前安装包见 [当前版本说明](../doc/release-0.5.10.md)。
+当前本地交付为 [0.5.17（162）](../doc/release-0.5.17.md)，已安装并启动于 `/Applications/SuperCleaner.app`；安装副本逐文件及符号链接核对通过，沿用原签名身份。本轮直接安装已验证的 App，没有生成新 DMG。
 
 Helper 与切回应用的性能边界见 [激活路径审计](../doc/helper-activation-audit.md)：普通激活只查询注册状态，不发起 XPC 文件操作；已授权会话的系统校验仍有主线程风险，不能由未授权状态自检推断整条激活链路无阻塞。当前开发安装包的 Helper 未启用，偶发转圈尚未复现并归因。
 
@@ -293,3 +293,7 @@ Helper 与切回应用的性能边界见 [激活路径审计](../doc/helper-acti
 项目页和默认项目候选通过同一展示投影隐藏可清理父目录内的 DMG 平铺行，保留根目录安装包和受保护目录中可独立清理的安装包。原始记录仍用于归属与复验；当前保护应用后再投影，目录选择迁移到大文件时保留其子路径决定。
 
 侧栏按用户要求只显示当前磁盘容量条和可用空间，不再显示本次启动以来的增减值；变化基准、派生计算、专用检查及双语提示均已删除，现有容量读取和失败展示继续保留。
+
+## 系统清理展示分区
+
+[GuidedCleanupView](../Sources/CleanerApp/GuidedCleanupView.swift) 首先按建议清理/深度清理（Deep Cleanup）分组：建议清理统一汇总并默认展开，深度清理统一汇总并默认折叠；深度清理仅为原建议保留组的标题更名，候选分类与默认选择保持；每个建议组内直接并列 System 和具体应用，没有 Applications 中间层；明细初始折叠。复用历史版本的应用归属分组，已知应用显示名称，没有归属信息的项目进入 System，按容量排序。应用缓存和日志恢复 0.3.30 的推荐资格；共享缓存、离线内容及微信聊天文件仍需手动选择，扫描保护和执行复验保持。历史证据与验证见 [修复说明](../doc/disk-refresh-system-groups.md)。

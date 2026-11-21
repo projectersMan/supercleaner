@@ -24,7 +24,7 @@ SuperCleaner 使用 Swift 6 和 SwiftUI 构建 macOS 应用，核心扫描、计
 
 标题下直接展示三张安全卡，位于扫描按钮行上方；原副说明和扫描范围小字已移除。扫描按钮加大并与标题文字左对齐，清空废纸篓按钮加大并靠右。六模块行显示非零的默认清理数量与容量；手动维度不显示零值。全部默认清理汇总系统推荐、大文件预选、Agent 自动预选及项目可清理预选，排除已取消勾选、未就绪、保护和失败项；模块统计与底栏使用同一合并后的可执行集合。
 
-[DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 用 `statfs` 读取 Home 所在卷的总容量及当前用户可用容量，已用为总量减可用；不加入 estimated purgeable。侧栏容量条及可用空间在启动、扫描、清理、恢复及清空废纸篓后由 AppModel 刷新，普通切回窗口不触发容量读取。读取失败保留明确错误，不回填 0。扫描候选和本次清理累计仍为逻辑字节，移动到废纸篓或恢复区不能等同于物理容量释放。
+[DiskCapacitySnapshot](../Sources/CleanerCore/DiskCapacitySnapshot.swift) 用 `statfs` 读取 Home 所在卷的总容量及当前用户可用容量，已用为总量减可用；不加入 estimated purgeable。侧栏容量由独立的 [DiskCapacityMonitor](../Sources/CleanerApp/DiskCapacityMonitor.swift) 管理：启动立即读取、每 60 秒刷新、切回应用立即刷新，扫描、清理、恢复和清空废纸篓后继续刷新。文件系统读取在 utility 后台任务执行，同一时刻只允许一个读取；相同容量不发布变化，容量更新只通知侧栏，不使 AppModel 和清理列表重算。读取失败保留明确错误，不回填 0。扫描候选和本次清理累计仍为逻辑字节，移动到废纸篓或恢复区不能等同于物理容量释放。
 
 清理中心移除外层 ScrollView：标题下方的扫描/用时、紧凑容量、累计清理/清空废纸篓为三个同行等高区域，六行导航填充剩余高度，安全卡直接位于标题下、扫描行上方，移除原两行说明。长行说明使用单行与 tooltip，最小 detail 760×560 pt 不通过扩大窗口下限掩盖溢出。
 
@@ -101,7 +101,7 @@ Controller 的 Bool 只表示清空结果。明确退出时 delegate 等待公�
 
 常规构建继续自动递增 patch/build；显式 `build-app.sh --version <version>` 在同一分配入口验证目标严格增加，精确使用目标展示版本并递增 build。校验完成后才原子保存，App、Helper、验证及 DMG 复用同一份 [Version.json](../Version.json)。本轮汇总六模块、项目与本地模型、统一扫描提示、Trash 生命周期及界面调整；见 [发布记录](../doc/release-0.5.0.md)。
 
-当前本地交付为 [0.5.10（155）](release-0.5.10.md)，已安装并启动于 `/Applications/SuperCleaner.app`；App、Helper、DMG 及安装副本的版本和二进制一致，签名身份与旧包相同。
+当前本地交付为 [0.5.17（162）](release-0.5.17.md)，已安装并启动于 `/Applications/SuperCleaner.app`；安装副本逐文件及符号链接核对通过，沿用原签名身份。本轮直接安装已验证的 App，没有生成新 DMG。
 
 应用图标继续共用 [ApplicationIconCache](../Sources/CleanerApp/ApplicationIconView.swift) 的同步缓存；判断内嵌应用是否为系统通用图标时，只比较 32×32 的 RGBA 位图，不编码原图的所有 TIFF 表示。原图、专用图标、最近外层 APPL 包与非标准安装目录的继承保持原规则，不在扫描结束时预热。
 
@@ -116,3 +116,7 @@ Controller 的 Bool 只表示清空结果。明确退出时 delegate 等待公�
 项目页和默认项目候选通过同一展示投影隐藏可清理父目录内的 DMG 平铺行，保留根目录安装包和受保护目录中可独立清理的安装包。原始记录仍用于归属与复验；当前保护应用后再投影，目录选择迁移到大文件时保留其子路径决定。
 
 侧栏按用户要求只显示当前磁盘容量条和可用空间，不再显示本次启动以来的增减值；变化基准、派生计算、专用检查及双语提示均已删除，现有容量读取和失败展示继续保留。
+
+## 系统清理展示分区
+
+[GuidedCleanupView](../Sources/CleanerApp/GuidedCleanupView.swift) 首先按建议清理/深度清理（Deep Cleanup）分组：建议清理统一汇总并默认展开，深度清理统一汇总并默认折叠；深度清理仅为原建议保留组的标题更名，候选分类与默认选择保持；每个建议组内直接并列 System 和具体应用，没有 Applications 中间层；明细初始折叠。复用历史版本的应用归属分组，已知应用显示名称，没有归属信息的项目进入 System，按容量排序。应用缓存和日志恢复 0.3.30 的推荐资格；共享缓存、离线内容及微信聊天文件仍需手动选择，扫描保护和执行复验保持。历史证据与验证见 [修复说明](disk-refresh-system-groups.md)。

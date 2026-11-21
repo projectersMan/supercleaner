@@ -24,7 +24,7 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         XCTAssertFalse(result.candidates.contains { $0.url.path.contains("db_storage") || $0.url.lastPathComponent == "msg" })
     }
 
-    func testRegenerableApplicationCacheIsKeptForManualSelection() async throws {
+    func testRegenerableApplicationCacheRestoresRecommendedCleanup() async throws {
         let f = try Fixture(); defer { f.remove() }
         try f.put("Library/Caches/com.example.generated/nested/payload")
         let scanner = ApplicationCleanupScanner(), context = ScanContext(homeDirectory: f.home)
@@ -33,10 +33,33 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         let result = try await scanner.scan(discovery: discovery, context: context)
         let cache = try XCTUnwrap(result.candidates.first)
         XCTAssertEqual(cache.bytes, 7)
-        XCTAssertEqual(cache.requiresExplicitSelection, true)
-        XCTAssertEqual(cache.defaultSelection, false)
-        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: cache), .retain)
+        XCTAssertEqual(cache.requiresExplicitSelection, false)
+        XCTAssertEqual(cache.defaultSelection, true)
+        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: cache), .recommended)
         try await scanner.validateForExecution(cache, context: context, applications: [f.app("com.example.generated")])
+    }
+
+    func testRecommendationRestorationSelectsCacheAndLogsButKeepsOfflineAndSharedData() async throws {
+        let f = try Fixture(); defer { f.remove() }
+        let app = f.app("com.example.generated")
+        let paths = ["Library/Caches/com.example.generated",
+                     "Library/Logs/com.example.generated",
+                     "Library/Application Support/com.example.generated/Service Worker/CacheStorage",
+                     "Library/Caches/shared"]
+        for path in paths { try f.put(path + "/payload.log") }
+        var discovery = await ApplicationCleanupScanner().discover(applications: [app], context: .init(homeDirectory: f.home))
+        discovery.targets.append(ApplicationCleanupTarget(url: f.home.appendingPathComponent(paths[3]),
+            application: app, kind: "Shared cache", manualOnly: true, allowOfflineContent: false,
+            logExtensions: nil, allowedSensitiveDirectoryNames: [], userFiles: false))
+        let result = try await ApplicationCleanupScanner().scan(discovery: discovery, context: .init(homeDirectory: f.home))
+        XCTAssertEqual(result.candidates.count, 4)
+        let selected = CleanupRecommendationPolicy().defaultSelectedIDs(for: result.candidates)
+        let cleanup = result.candidates.filter { selected.contains($0.id) }
+        XCTAssertEqual(Set(cleanup.map(\.category)), [.cache, .log])
+        XCTAssertEqual(cleanup.reduce(0) { $0 + $1.bytes }, 14)
+        XCTAssertEqual(result.candidates.filter { !selected.contains($0.id) }.reduce(0) { $0 + $1.bytes }, 14)
+        XCTAssertTrue(cleanup.allSatisfy { !$0.evidence.contains { $0.code == "manual-only" } })
+        XCTAssertTrue(result.candidates.filter { !selected.contains($0.id) }.allSatisfy { $0.requiresExplicitSelection == true })
     }
 
     func testEmptyApplicationCacheDoesNotCreateZeroByteRows() async throws {
@@ -60,7 +83,7 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         let discovery = await scanner.discover(applications: [f.app("com.example.generated")], context: context)
         let result = try await scanner.scan(discovery: discovery, context: context)
         XCTAssertEqual(Set(result.candidates.map { $0.url.path }), Set(leaves.map { f.home.appendingPathComponent($0).path }))
-        XCTAssertTrue(result.candidates.allSatisfy { $0.bytes == 7 && $0.requiresExplicitSelection == true })
+        XCTAssertTrue(result.candidates.allSatisfy { $0.bytes == 7 && $0.requiresExplicitSelection == false })
     }
 
     func testWeChatChatFileExecutionRequiresStoppedApplication() async throws {

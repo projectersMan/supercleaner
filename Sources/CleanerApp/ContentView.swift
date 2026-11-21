@@ -23,7 +23,7 @@ struct ContentView: View {
             .scrollContentBackground(.hidden)
             .navigationSplitViewColumnWidth(min: 210, ideal: 238)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                SidebarDiskCapacityView(model: model)
+                SidebarDiskCapacityView(monitor: model.diskCapacityMonitor)
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
                     .padding(.bottom, 16)
@@ -102,20 +102,20 @@ struct ContentView: View {
 }
 
 private struct SidebarDiskCapacityView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var monitor: DiskCapacityMonitor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(L10n.text("磁盘空间"), systemImage: "internaldrive")
                 .font(.caption.weight(.semibold))
                 .foregroundColor(.primary)
-            if let capacity = model.diskCapacity {
+            if let capacity = monitor.snapshot {
                 ProgressView(value: capacity.usedFraction)
                     .tint(.blue)
                     .accessibilityLabel(L10n.text("磁盘空间"))
                 Text(L10n.text("可用空间：{0}", ByteCountFormatter.cleanerString(bytes: capacity.availableBytes)))
                     .monospacedDigit().lineLimit(1)
-            } else if let error = model.diskCapacityReadError {
+            } else if let error = monitor.readError {
                 Label(L10n.text("无法读取磁盘空间"), systemImage: "exclamationmark.triangle")
                     .help(error)
             } else {

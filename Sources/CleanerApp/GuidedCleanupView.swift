@@ -33,7 +33,7 @@ struct GuidedCleanupView: View {
                         )
                         DispositionCandidatesDisclosure(
                             model: model,
-                            title: L10n.text("建议保留"),
+                            title: L10n.text("深度清理"),
                             subtitle: retainedCandidates.isEmpty
                                 ? L10n.text("本次扫描没有需要保留复核的项目")
                                 : L10n.text("可在自定义模式中逐项复核；受保护项目仍不能加入删除计划"),
@@ -169,7 +169,7 @@ private struct ApplicationCleanupGroupRow<Content: View>: View {
                         if let bundleURL = application?.bundleURL {
                             ApplicationIconView(bundleURL: bundleURL, version: nil)
                         } else {
-                            Image(systemName: "square.grid.2x2")
+                            Image(systemName: group.id == "system-and-unassigned" ? "desktopcomputer" : "square.grid.2x2")
                                 .font(.system(size: 18)).foregroundColor(.secondary).frame(width: 32, height: 32)
                         }
                         Text(group.title).fontWeight(.medium).lineLimit(1)

@@ -29,5 +29,6 @@ let package = Package(
         .executableTarget(name: "CleanerHelper", dependencies: ["CleanerCore"]),
         .executableTarget(name: "CoreContractChecks", dependencies: ["CleanerCore"]),
         .testTarget(name: "CleanerCoreTests", dependencies: ["CleanerCore"]),
+        .testTarget(name: "CleanerAppTests", dependencies: ["CleanerApp"]),
     ]
 )

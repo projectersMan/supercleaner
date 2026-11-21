@@ -106,7 +106,7 @@
 "最近使用" = "Recently used";
 "已完成" = "Completed";
 "未知" = "Unknown";
-"建议清理" = "Recommended cleanup";
+"建议清理" = "Recommended Cleanup";
 "深度候选" = "Deep cleanup candidates";
 "默认保留" = "Keep by default";
 "内置" = "Built-in";
@@ -325,6 +325,7 @@
 "用户知识" = "User knowledge";
 "可重建" = "Rebuildable";
 "建议保留" = "Recommended to keep";
+"深度清理" = "Deep Cleanup";
 "不会进入执行计划。" = "Will not enter the execution plan.";
 "通过执行前复验后删除，可从恢复记录找回。" = "Deleted after validation; can be restored from Recovery.";
 "保留 Skills、MCP 配置、Prompt、凭证、会话和代码；只处理计划中这一条路径。" = "Skills, MCP configurations, prompts, credentials, sessions, and source code are kept. Only this exact planned path is processed.";
@@ -965,7 +966,7 @@
 "位置已发生变化" = "Location changed during scan";
 "扫描已取消" = "Scan canceled";
 "清理规则暂时无法读取" = "Cleanup rules are temporarily unavailable";
-"系统与其它应用" = "System and other applications";
+"系统" = "System";
 "网页离线内容" = "Offline website content";
 "达到扫描数量上限" = "Scan entry limit reached";
 "达到扫描数量或深度上限" = "Scan entry or depth limit reached";

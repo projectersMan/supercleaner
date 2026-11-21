@@ -186,13 +186,11 @@ struct ResourceReviewFilter: Equatable {
     @Published private(set) var cleanedModules = Set<ScanModuleID>()
     @Published private(set) var oneClickCompletedByModule: [ScanModuleID: OneClickCleanupResult] = [:]
     @Published private(set) var sessionCleanupSummary = CleanupSessionSummary()
-    @Published private(set) var diskCapacity: DiskCapacitySnapshot?
-    @Published private(set) var diskCapacityReadError: String?
+    let diskCapacityMonitor: DiskCapacityMonitor
     @Published private(set) var projectScanRoots: [URL] = []
     @Published private(set) var projectScanRootsLoaded = false
     @Published private(set) var projectScanRootsError: String?
     @Published private(set) var projectRootsOperationInProgress = false
-    private var diskCapacityTask: Task<Void, Never>?
     @Published private(set) var cleanupFailures: [DefaultCleanupFailure] = [] {
         didSet { cachedDefaultCleanupSelection = nil }
     }
@@ -234,7 +232,6 @@ struct ResourceReviewFilter: Equatable {
     }
 
     private let home: URL
-    private let readDiskCapacity: @Sendable (URL) async -> DiskCapacityReadResult
     private let preferences: UserDefaults
     private let fileSystem: any FileSystemAccess
     private let runtime: CleanupRuntime
@@ -318,7 +315,7 @@ struct ResourceReviewFilter: Equatable {
              await Task.detached(priority: .utility) { DiskCapacityReader.read(at: directory) }.value
          }) {
         self.home = home
-        self.readDiskCapacity = readDiskCapacity
+        diskCapacityMonitor = DiskCapacityMonitor(directory: home, refreshInterval: 60, read: readDiskCapacity)
         self.readRunningApplicationIDs = readRunningApplicationIDs
         self.preferences = preferences
         protectionPolicy = ProtectionPolicy(homeDirectory: home)
@@ -375,7 +372,7 @@ struct ResourceReviewFilter: Equatable {
         return model
     }
 
-    func waitForTrashEmptyingCapacityCheck() async { await diskCapacityTask?.value }
+    func waitForTrashEmptyingCapacityCheck() async { await diskCapacityMonitor.waitForRefresh() }
 
     static func checkClosedWindowTrashResultGate(preferences: UserDefaults) throws {
         let execution = TrashEmptyingFixture()
@@ -1422,21 +1419,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func refreshDiskCapacity() {
-        guard diskCapacityTask == nil else { return }
-        let directory = home
-        diskCapacityTask = Task { [weak self] in
-            guard let self else { return }
-            let result = await readDiskCapacity(directory)
-            switch result {
-            case let .available(snapshot):
-                diskCapacity = snapshot
-                diskCapacityReadError = nil
-            case let .unavailable(code):
-                diskCapacity = nil
-                diskCapacityReadError = NSError(domain: NSPOSIXErrorDomain, code: Int(code)).localizedDescription
-            }
-            diskCapacityTask = nil
-        }
+        diskCapacityMonitor.refresh()
     }
 
     var canBeginTrashEmptying: Bool {
@@ -1457,9 +1440,9 @@ struct ResourceReviewFilter: Equatable {
 
     func finishTrashEmptying() async {
         // An earlier capacity read must finish before scheduling the post-operation measurement.
-        await diskCapacityTask?.value
+        await diskCapacityMonitor.waitForRefresh()
         refreshDiskCapacity()
-        await diskCapacityTask?.value
+        await diskCapacityMonitor.waitForRefresh()
         trashEmptyingInProgress = false
     }
 
@@ -1526,7 +1509,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func bootstrap() {
-        refreshDiskCapacity()
+        diskCapacityMonitor.start()
         helper.refresh()
         // Reopening a window must not restart initialization or maintenance.
         guard maintenanceTask == nil else { return }
@@ -1774,6 +1757,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func applicationDidBecomeActive() {
+        refreshDiskCapacity()
         if selection == .applications { refreshRunningApplications() }
         Task { [weak self] in
             guard let self else { return }

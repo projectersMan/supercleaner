@@ -69,7 +69,7 @@ Agent 默认空回退必须区分自动默认和用户主动筛选；Picker、�
 
 本轮更新见 [计划](project-installer-discovery-plan.md)。项目 DMG 发现与副本证明由 ProjectArtifactScanner 承担；大文件发布前依据同一项目根/manifest 规则排除其清单与容量树，避免临时默认数后续消失。正式 App 显式链接实际 SDK 与独立的 macOS 13 最低版本，记录 DTSDKName 并与 Mach-O 复核。删除手动标题栏背景干预，由原生 NavigationSplitView 和 unified 工具栏管理边界；不再混淆 SDK 与最低系统版本，不使用固定偏移。模型保留分类，但始终手选；证据见 [验证记录](../Tests/project-installer-discovery/README.md)。
 
-当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
+当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；统一使用独立 DiskCapacityMonitor 的读取、错误与自动刷新状态，只由侧栏订阅，不向 AppModel 转发变更。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
 
 
 本轮项目选择策略见 [实施计划](project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包和保护；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
@@ -95,7 +95,7 @@ Agent 默认空回退必须区分自动默认和用户主动筛选；Picker、�
 `--trash-emptying-self-check` 覆盖扫描中两个入口×成功/失败，在模拟清空挂起期间用真实进度接收方法更新事件，验证 token、扫描状态、去重、容量刷新与统计。原生夹具检查显示的 NSAlert 清空按钮始终 enabled；不再提醒和退出回归保留。并发模拟不冒充真实扫描/Finder 执行，见 [验证记录](../Tests/trash-during-scan/README.md)。
 
 
-本次普通构建自动分配 0.5.10（155），完整 Release 回归、稳定签名、DMG 挂载核对及固定路径安装启动已完成；下一次普通构建将为 0.5.11（156）。执行及逐文件复核见 [当前版本说明](release-0.5.10.md)，本轮没有新增依赖或修改提交规范。
+本次普通构建分配 0.5.17（162），351 项 Release 测试、核心契约、签名和打包自检通过，已替换安装并打开。下一次普通构建自动分配 0.5.18（163）。本轮直接安装 App，不生成新 DMG；记录见 [当前版本说明](release-0.5.17.md)。
 
 
 模型/项目条目不再提供展开入口、状态或按钮区，Finder 与永久保护统一使用既有原生右键菜单；主行限制原因继续展示。修改展示不得删减 Core 的验证证据。实施与验收见 [现行架构](architecture.md)。
@@ -104,7 +104,7 @@ Agent 默认空回退必须区分自动默认和用户主动筛选；Picker、�
 
 偶发切回卡顿按 [Helper 激活审计](helper-activation-audit.md) 取样：记录是否真实启用/授权、当前页面、采样时段，区分 MainActor 等待、后台注册查询与 SwiftUI 重算。按 Helper 文档中的原生 sample 命令只读捕获五秒，不注册 Helper 或请求权限；非事发采样和独立探针不能冒充卡顿复现。
 
-应用激活回调不得仅因切回窗口而刷新容量；容量仍由既有操作生命周期更新。此轮只删除 `applicationDidBecomeActive` 中的一个调用，复用现有构建和容量/清空回归，不增加状态、节流或自定义刷新入口。详见 [现行架构](architecture.md)。
+容量在应用激活及每 60 秒刷新，既有操作生命周期刷新保持。文件系统读取必须离开 MainActor，同一时刻只允许一个请求；独立容量状态只通知侧栏，同值不发布。回归覆盖慢读取、重复请求、错误恢复、计时器释放和 AppModel 不受容量通知影响；清空垃圾桶仍等待操作后的容量读取。
 
 项目产物回归必须覆盖运行中和活动未知均可选择、实时活动恒为 true 仍可隔离恢复，以及保护路径/凭据/重复文件保留规则继续生效。不得仅放开 UI 而让执行阶段继续拒绝；不得删除其它来源所需的共享探针。见 [项目活动策略回归源码](../Tests/CleanerCoreTests/ProjectArtifactActivityTests.swift)。
 
@@ -112,6 +112,10 @@ Agent 默认空回退必须区分自动默认和用户主动筛选；Picker、�
 
 项目目录/DMG 展示去重须验证：父目录取消后无隐藏安装包留在计划，根目录及相似前缀兄弟路径不误隐藏，受保护父目录仍有单项安装包，原始项目归属不回流大文件；目录消失后的跨模块迁移继承勾选与撤选。见 [目录去重回归源码](../Tests/CleanerCoreTests/ProjectArtifactPresentationTests.swift)。
 
-容量变化指标已撤回；不得保留无展示用途的基准、差值或专用测试夹具。继续验证 statfs 快照、读取失败和既有扫描/清理/恢复/清空后的容量更新，不恢复应用激活读取。见 [容量读取源码](../Sources/CleanerCore/DiskCapacitySnapshot.swift)。
+容量变化指标已撤回；不得保留无展示用途的基准、差值或专用测试夹具。继续验证 statfs 快照、读取失败和既有扫描/清理/恢复/清空后的容量更新，并覆盖每分钟与应用激活读取；容量状态独立通知侧栏。见 [容量读取源码](../Sources/CleanerCore/DiskCapacitySnapshot.swift)。
 
 回归测试保留可运行源码；本机输出、采样和一次性验证材料统一写入已忽略的 `Tests/temporary/`，不随源码分发。构建产物仅保留当前版本 DMG，App 目录和编译缓存沿现有忽略规则处理。
+
+系统清理先展示统一的建议清理（默认展开）/深度清理 Deep Cleanup（默认折叠，仅原建议保留组更名），组内直接并列 System 和具体应用，沿用 cleanupApplication 的既有归属，不增加 Applications 父组，禁止靠目录名猜测归属；推荐资格修改须由历史依据与混合数据回归共同验证。回归文件为 [容量测试](../Tests/CleanerAppTests/DiskCapacityRefreshTests.swift) 和 [分组测试](../Tests/CleanerCoreTests/SystemCleanupApplicationGroupTests.swift)，执行 `swift test` 同时运行 CleanerCoreTests / CleanerAppTests。无新增依赖，Swift 项目不创建 requirements.txt。
+
+系统清理已追溯到 0.3.35 的统一手动选择变更：恢复 0.3.30 普通应用缓存与日志的推荐资格，保留共享缓存、离线内容及微信聊天文件的手动限制。两级分组为建议清理/保留 → System/具体应用，默认展开清理、折叠保留。历史依据与回归验证见 [修复记录](disk-refresh-system-groups.md)。

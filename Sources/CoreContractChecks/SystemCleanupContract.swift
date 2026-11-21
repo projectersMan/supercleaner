@@ -127,15 +127,15 @@ func runSystemCleanupContracts() async throws {
     require(result.failures.isEmpty, "complete fixture discovery must have no silent coverage gaps")
     require(candidate("Library/Caches/com.openai.codex", in: result.candidates)?.cleanupApplication?.name == "ChatGPT", "real bundle ID owns ChatGPT cache")
     require(candidate("Library/Caches/com.openai.codex", in: result.candidates)?.risk == .safe
-        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.defaultSelection == false
-        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.requiresExplicitSelection == true,
-        "verified application cache remains manually selectable in the keep group")
+        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.defaultSelection == true
+        && candidate("Library/Caches/com.openai.codex", in: result.candidates)?.requiresExplicitSelection == false,
+        "verified application cache restores recommended cleanup")
     require(candidate("Library/Caches/Google/Chrome/Profile 1/Cache", in: result.candidates) != nil, "Chrome nondefault profiles supported")
     require(candidate("Library/Application Support/Trae CN/Code Cache", in: result.candidates) != nil, "Electron cache leaves supported without deleting user data")
     let weChatAccountCache = candidate(wx + "Documents/xwechat_files/accountB/cache", in: result.candidates)
     require(weChatAccountCache?.risk == .safe
-        && CleanupRecommendationPolicy().disposition(for: weChatAccountCache!) == .retain,
-        "typed WeChat Message/Thumb derivatives remain available for manual cleanup")
+        && CleanupRecommendationPolicy().disposition(for: weChatAccountCache!) == .recommended,
+        "typed WeChat Message/Thumb derivatives restore recommended cleanup")
     require(result.candidates.contains { $0.url == wxLog && $0.category == .log }, "WeChat 4 xlog supported")
     let activeWeChatContext = ScanContext(homeDirectory: home, runningBundleIdentifiers: [wechat.bundleIdentifier])
     let activeWeChatDiscovery = await scanner.discover(applications: apps, context: activeWeChatContext)
@@ -143,10 +143,10 @@ func runSystemCleanupContracts() async throws {
     let activeWeChatLog = activeWeChatScan.candidates.first { $0.url == wxLog }!
     let activeCurrentWeChatLog = activeWeChatScan.candidates.first { $0.url == currentWxLog }!
     require(!activeWeChatLog.isActive
-        && CleanupRecommendationPolicy().disposition(for: activeWeChatLog) == .retain,
+        && CleanupRecommendationPolicy().disposition(for: activeWeChatLog) == .deepClean,
         "historical typed WeChat logs remain cleanup candidates while WeChat is running")
     require(!activeCurrentWeChatLog.isActive
-        && CleanupRecommendationPolicy().disposition(for: activeCurrentWeChatLog) == .retain,
+        && CleanupRecommendationPolicy().disposition(for: activeCurrentWeChatLog) == .deepClean,
         "recently modified typed WeChat logs remain cleanup candidates while WeChat is running")
     try await scanner.validateForExecution(activeWeChatLog, context: activeWeChatContext, applications: apps)
     try await scanner.validateForExecution(activeCurrentWeChatLog, context: activeWeChatContext, applications: apps)
@@ -278,8 +278,12 @@ func runSystemCleanupContracts() async throws {
     try fm.createSymbolicLink(at: link, withDestinationURL: external)
     let linkedDiscovery = await scanner.discover(applications: apps, context: context)
     require(!linkedDiscovery.targets.contains { $0.url == link } && linkedDiscovery.failures.contains { $0.path == link }, "symlinked cache roots rejected visibly")
-    require(activeChromeCandidates.allSatisfy { $0.requiresExplicitSelection == true && !$0.isActive },
-            "exact non-shared Chrome cache/log roots are manually selectable while running")
+    require(activeChromeCandidates.allSatisfy { !$0.isActive },
+            "exact non-shared Chrome cache/log roots remain eligible while running")
+    let activeOrdinaryChrome = activeChromeCandidates.filter { $0.url != activeOffline.url && $0.url != activeScript.url }
+    require(!activeOrdinaryChrome.isEmpty && activeOrdinaryChrome.allSatisfy {
+        $0.requiresExplicitSelection == false && policy.defaultSelectedIDs(for: [$0]).contains($0.id)
+    }, "ordinary Chrome caches restore default cleanup while offline roots retain individual consent")
 
     let plan = try PlanBuilder(ruleVersion: "fixture", protectionPolicy: context.protectionPolicy).build(candidates: [offline], selectedIDs: [offline.id])
     let executor = CleanupExecutor(pathPolicy: context.pathPolicy, quarantineRoot: home.appendingPathComponent("quarantine"),

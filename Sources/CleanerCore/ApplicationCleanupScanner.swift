@@ -14,11 +14,11 @@ public struct ApplicationCleanupTarget: Sendable {
     public let allowedSensitiveDirectoryNames: Set<String>
     public let userFiles: Bool
 
+    var requiresManualSelection: Bool { manualOnly || allowOfflineContent || userFiles }
     var allowRuntimeCleanup: Bool { logExtensions == nil && !manualOnly }
     var manualExplanation: String {
         if userFiles { return "仅手动选择；会删除本机聊天文件，请确认已备份，并先退出微信。" }
-        if manualOnly || allowOfflineContent { return "必须逐项手动选择；清理后离线内容或共享缓存可能不可用" }
-        return "默认保留，可手动选择清理；应用后续运行时可能重新生成这些缓存或日志。"
+        return "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"
     }
 
     var ruleID: String {
@@ -33,14 +33,14 @@ public struct ApplicationCleanupTarget: Sendable {
             defaultRisk: logExtensions == nil && !manualOnly ? .safe : .review,
             ownershipEvidence: application.bundleIdentifier,
             regenerationEvidence: manualOnly ? nil : "缓存可能需要重新下载，日志将不再保留",
-            defaultSelection: false, sourceKind: "platform-convention-and-local-observation",
+            defaultSelection: logExtensions == nil && !requiresManualSelection, sourceKind: "platform-convention-and-local-observation",
             sourceReference: "SRC-SYSTEM-APP-CLEANUP-001", testFixture: "SystemCleanupContract",
             granularity: logExtensions == nil ? .root : .descendantFiles,
             fileExtensions: logExtensions,
             activeBundleIdentifiers: logExtensions == nil ? [application.bundleIdentifier] : [],
             maximumEntries: maximumEntries,
             allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames,
-            requiresExplicitSelection: true, manualExplanation: manualExplanation)
+            requiresExplicitSelection: requiresManualSelection, manualExplanation: requiresManualSelection ? manualExplanation : nil)
     }
 }
 
@@ -250,14 +250,15 @@ public struct ApplicationCleanupScanner: Sendable {
                 } else if target.logExtensions != nil && applicationIsRunning {
                     evidence.append(Evidence(code: "active-log-cleanup", summary: L10n.text("应用运行中；日志清理后可能继续生成")))
                 }
-                if !evidence.contains(where: { $0.code == "manual-only" }) {
+                if target.requiresManualSelection && !evidence.contains(where: { $0.code == "manual-only" }) {
                     evidence.append(Evidence(code: "manual-only", summary: L10n.text(target.manualExplanation)))
                 }
                 return CleanupCandidate(id: candidate.id, url: candidate.url, displayName: candidate.displayName,
                     category: candidate.category, bytes: candidate.bytes, risk: candidate.risk, evidence: evidence,
                     identity: candidate.identity, source: .general, lastAccessDate: candidate.lastAccessDate,
                     isActive: target.allowRuntimeCleanup || target.logExtensions != nil ? false : appIsActive, ruleID: rule.ruleID,
-                    defaultSelection: false, requiresExplicitSelection: true,
+                    defaultSelection: candidate.defaultSelection,
+                    requiresExplicitSelection: target.requiresManualSelection || candidate.requiresExplicitSelection == true,
                     cleanupApplication: CleanupApplication(bundleIdentifier: target.application.bundleIdentifier,
                         name: target.application.name, kind: target.kind, bundleURL: target.application.bundleURL))
             }
