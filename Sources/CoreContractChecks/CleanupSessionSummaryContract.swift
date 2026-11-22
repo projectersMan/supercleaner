@@ -38,8 +38,8 @@ func runCleanupSessionSummaryContracts() {
     )
 
     var summary = CleanupSessionSummary()
-    summary.record(receipt)
-    summary.record(receipt)
+    summary.record(receipt, attemptedCandidates: [cleaned, retryable, stale])
+    summary.record(receipt, attemptedCandidates: [cleaned, retryable, stale])
     require(summary == CleanupSessionSummary(itemCount: 1, bytes: 1_024), "session cleanup summary must count each receipt once and exclude unsuccessful deletions")
 
     let outcome = DefaultCleanupAttemptOutcome(

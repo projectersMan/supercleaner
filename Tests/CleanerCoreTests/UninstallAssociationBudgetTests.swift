@@ -3,7 +3,24 @@ import XCTest
 @testable import CleanerCore
 
 final class UninstallAssociationBudgetTests: XCTestCase {
-    func testAssociatedChecksShareABudgetAndCannotStarveTheSelectedApplication() async throws {
+    func testSlowAssociationValidationCompletesInsteadOfBeingSkipped() async throws {
+        let home = URL(fileURLWithPath: "/Users/tester")
+        let candidate = CleanupCandidate(url: home.appendingPathComponent("Library/Caches/org.example.slow"),
+            displayName: "Slow check", category: .applicationSupport, bytes: 1, risk: .review, evidence: [],
+            identity: .init(device: 1, inode: 7, size: 1, modificationTime: 1, kind: .directory),
+            source: .application, lastAccessDate: nil, isActive: false)
+        let plan = try PlanBuilder(ruleVersion: "rules-1").build(candidates: [candidate], selectedIDs: [candidate.id])
+        let fileSystem = BudgetFileSystem([candidate])
+        let executor = CleanupExecutor(fileSystem: fileSystem, pathPolicy: .init(homeDirectory: home),
+            quarantineRoot: home.appendingPathComponent("quarantine"), currentRuleVersion: "rules-1",
+            validateCandidate: { _ in try await Task.sleep(for: .milliseconds(50)) })
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.map(\.status), [.succeeded])
+        let remains = await fileSystem.has(candidate.url)
+        XCTAssertFalse(remains)
+    }
+
+    func testAssociatedChecksDoNotShareAnElapsedTimeBudget() async throws {
         let home = URL(fileURLWithPath: "/Users/tester")
         func candidate(_ index: Int, body: Bool = false) -> CleanupCandidate {
             .init(url: body ? home.appendingPathComponent("Applications/Fixture.app")
@@ -25,10 +42,11 @@ final class UninstallAssociationBudgetTests: XCTestCase {
                     await calls.record()
                     try await Task.sleep(for: .milliseconds(10))
                 }
-            }, applicationValidationTimeout: 0.1)
+            })
         let receipt = await executor.execute(plan: plan)
         let validationCount = await calls.count
-        XCTAssertLessThan(validationCount, data.count, "A fresh timeout for every association still accumulates into minutes")
+        XCTAssertEqual(validationCount, data.count * 2, "Completed validations must not consume the allowance of later items")
+        XCTAssertTrue(receipt.results.allSatisfy { $0.status == .succeeded })
         XCTAssertEqual(receipt.results.count, candidates.count)
         XCTAssertEqual(receipt.results.first { $0.candidateID == body.id }?.status, .succeeded)
         let bodyStillExists = await fileSystem.has(body.url)

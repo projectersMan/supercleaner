@@ -6,7 +6,13 @@ private struct PreparedValidationRefusal: Error, Sendable, CustomStringConvertib
 }
 
 public struct ExecutionProgress: Sendable, Equatable {
-    public enum Phase: Sendable, Equatable { case processing, savingResults, movingToTrash, updatingResults }
+    public enum Phase: Sendable, Equatable {
+        case processing, savingResults, updatingDock, preparingTrash, movingToTrash, updatingResults
+
+        public var isFinalizing: Bool {
+            self == .savingResults || self == .updatingDock || self == .preparingTrash || self == .updatingResults
+        }
+    }
     public let completed: Int
     public let total: Int
     public let currentURL: URL?
@@ -63,7 +69,6 @@ public actor CleanupExecutor {
     private let loadRuleVersion: (@Sendable () async throws -> String)?
     private let validateCandidate: @Sendable (CleanupCandidate) async throws -> Void
     private let finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)?
-    private let applicationValidationTimeout: TimeInterval
     private let prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)?
     private let privilegedApplications: (any PrivilegedApplicationOperations)?
 
@@ -80,7 +85,6 @@ public actor CleanupExecutor {
         prepareValidationBatch: (@Sendable ([CleanupCandidate]) async throws -> CleanupValidationBatch)? = nil,
         privilegedApplications: (any PrivilegedApplicationOperations)? = nil,
         finalCandidateCheck: (@Sendable (CleanupCandidate) async throws -> Void)? = nil,
-        applicationValidationTimeout: TimeInterval = 15,
         permanentRemove: @escaping @Sendable (URL) async throws -> Void = { url in
             try FileManager.default.removeItem(at: url)
         }
@@ -96,7 +100,6 @@ public actor CleanupExecutor {
         self.loadRuleVersion = loadRuleVersion
         self.validateCandidate = validateCandidate
         self.finalCandidateCheck = finalCandidateCheck
-        self.applicationValidationTimeout = max(0.01, applicationValidationTimeout)
         self.prepareValidationBatch = prepareValidationBatch
         self.privilegedApplications = privilegedApplications
     }
@@ -169,7 +172,6 @@ public actor CleanupExecutor {
         var stoppedByCancellation = false
         var quarantineDirectoryCreated = false
         var checkedGeneralActivity = false
-        let applicationValidationBudget = ApplicationValidationBudget(seconds: applicationValidationTimeout)
         let planDirectory = quarantineRoot.appendingPathComponent(plan.id.uuidString, isDirectory: true)
 
         var permissionAttempts: [UUID: Int] = [:]
@@ -200,12 +202,6 @@ public actor CleanupExecutor {
                 continue
             }
             progress(ExecutionProgress(completed: index, total: selected.count, currentURL: candidate.url))
-            if candidate.source == .application, candidate.category != .application,
-               await applicationValidationBudget.associationBudgetExhausted {
-                results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected,
-                    message: String(describing: ApplicationValidationDeadlineError.timedOut)))
-                continue
-            }
 
             do {
                 let initialIdentity = try await fileSystem.identity(at: candidate.url)
@@ -234,7 +230,7 @@ public actor CleanupExecutor {
                 } else {
                     if candidate.source == .application {
                         let validate = validateCandidate
-                        try await applicationValidationBudget.validate(candidate) {
+                        try await ApplicationValidation.run {
                             try await validate(candidate)
                         }
                     } else { try await validateCandidate(candidate) }
@@ -318,7 +314,7 @@ public actor CleanupExecutor {
                     quarantineDirectoryCreated = true
                 }
                 let destination = uniqueDestination(for: candidate, in: planDirectory)
-                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
+                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem), planDirectory: planDirectory)
                     .prepare(candidate, destination: destination)
                 guard !plan.isExpired(at: now()) else {
                     results.append(result(for: candidate, disposition: .skipped, status: .skippedProtected, message: L10n.text("计划在隔离目录准备期间已过期，请重新扫描")))
@@ -331,7 +327,7 @@ public actor CleanupExecutor {
                     do {
                         let check = finalCandidateCheck ?? validateCandidate
                         if candidate.source == .application {
-                            try await applicationValidationBudget.validate(candidate) { try await check(candidate) }
+                            try await ApplicationValidation.run { try await check(candidate) }
                         } else {
                             try await check(candidate)
                             try await validateModelReferencesBeforeMove(candidate)
@@ -626,7 +622,7 @@ public actor CleanupExecutor {
             if !sourceExists {
                 let destinationExists = await fileSystem.fileExists(destination)
                 if item.sourceExistedAtPreparation, destinationExists {
-                    if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: false) {
+                    if let failure = await modelRecoveryDisposalFailure(result, planID: entry.receipt.planID, moveToTrash: false) {
                         restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
                             destinationURL: destination, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
                         continue
@@ -650,7 +646,8 @@ public actor CleanupExecutor {
             }
             do {
                 let expectedIdentity = try await fileSystem.identity(at: source)
-                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
+                try await OllamaModelRecovery(context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem),
+                    planDirectory: quarantineRoot.appendingPathComponent(entry.receipt.planID.uuidString))
                     .restoreDependencies(result, receipt: entry.receipt)
                 let handled = try await privilegedApplications?.restore(source: source, destination: destination, planID: entry.receipt.planID) ?? false
                 if !handled { try await fileSystem.move(source, to: destination) }
@@ -661,7 +658,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)), matches else {
                     throw HelperMutationUncertain()
                 }
-                try await disposeModelRecoveryFiles(result, moveToTrash: false)
+                try await disposeModelRecoveryFiles(result, planID: entry.receipt.planID, moveToTrash: false)
                 let hasConflict = destination != result.originalURL
                 restored.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL, destinationURL: destination, disposition: .restored, status: hasConflict ? .restoreConflict : .restored, bytes: result.bytes, message: hasConflict ? L10n.text("原路径已有文件，已恢复到相邻路径") : nil))
             } catch {
@@ -712,7 +709,7 @@ public actor CleanupExecutor {
             }
             let source = item.sourceURL
             guard await fileSystem.fileExists(source) else {
-                if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: true) {
+                if let failure = await modelRecoveryDisposalFailure(result, planID: entry.receipt.planID, moveToTrash: true) {
                     trashed.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
                         destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
                     continue
@@ -738,7 +735,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)) else {
                     throw FileSystemError.trashUnavailable(source)
                 }
-                try await disposeModelRecoveryFiles(result, moveToTrash: true)
+                try await disposeModelRecoveryFiles(result, planID: entry.receipt.planID, moveToTrash: true)
                 trashed.append(OperationResult(
                     candidateID: result.candidateID,
                     originalURL: result.originalURL,
@@ -783,7 +780,7 @@ public actor CleanupExecutor {
             }
             let source = item.sourceURL
             guard await fileSystem.fileExists(source) else {
-                if let failure = await modelRecoveryDisposalFailure(result, moveToTrash: false) {
+                if let failure = await modelRecoveryDisposalFailure(result, planID: entry.receipt.planID, moveToTrash: false) {
                     deleted.append(OperationResult(candidateID: result.candidateID, originalURL: result.originalURL,
                         destinationURL: source, disposition: .failed, status: .failed, bytes: result.bytes, message: failure))
                     continue
@@ -817,7 +814,7 @@ public actor CleanupExecutor {
                 guard !(await fileSystem.fileExists(source)) else {
                     throw FileSystemError.trashUnavailable(source)
                 }
-                try await disposeModelRecoveryFiles(result, moveToTrash: false)
+                try await disposeModelRecoveryFiles(result, planID: entry.receipt.planID, moveToTrash: false)
                 deleted.append(OperationResult(
                     candidateID: result.candidateID,
                     originalURL: result.originalURL,
@@ -876,7 +873,7 @@ public actor CleanupExecutor {
             guard !(await fileSystem.fileExists(destination)), await fileSystem.fileExists(candidate.url) else { continue }
             let attempted = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
                 disposition: .failed, status: .failed, bytes: candidate.bytes)
-            if let failure = await modelRecoveryDisposalFailure(attempted, moveToTrash: false) {
+            if let failure = await modelRecoveryDisposalFailure(attempted, planID: plan.id, moveToTrash: false) {
                 let result = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
                     disposition: .failed, status: .failed, bytes: candidate.bytes, message: failure,
                     verificationNotBefore: now().addingTimeInterval(60))
@@ -887,17 +884,18 @@ public actor CleanupExecutor {
         return updated
     }
 
-    private func modelRecoveryDisposalFailure(_ result: OperationResult, moveToTrash: Bool) async -> String? {
-        let outcome = await Task { try await disposeModelRecoveryFiles(result, moveToTrash: moveToTrash) }.result
+    private func modelRecoveryDisposalFailure(_ result: OperationResult, planID: UUID, moveToTrash: Bool) async -> String? {
+        let outcome = await Task { try await disposeModelRecoveryFiles(result, planID: planID, moveToTrash: moveToTrash) }.result
         if case let .failure(error) = outcome { return L10n.text("模型恢复快照清理失败：{0}", String(describing: error)) }
         return nil
     }
 
-    private func disposeModelRecoveryFiles(_ result: OperationResult, moveToTrash: Bool) async throws {
+    private func disposeModelRecoveryFiles(_ result: OperationResult, planID: UUID, moveToTrash: Bool) async throws {
         let context = ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem)
-        guard let directory = OllamaModelRecovery(context: context).directory(for: result),
+        let recovery = OllamaModelRecovery(context: context, planDirectory: quarantineRoot.appendingPathComponent(planID.uuidString))
+        guard let directory = try recovery.directory(for: result),
               await fileSystem.fileExists(directory) else { return }
-        guard try await LocalAIModelScanner().validatedIdentity(directory, context: context).kind == .directory else {
+        guard try await recovery.validatedArchiveIdentity(directory).kind == .directory else {
             throw FileSystemError.invalidAttributes(directory)
         }
         if moveToTrash { _ = try await fileSystem.trash(directory) }

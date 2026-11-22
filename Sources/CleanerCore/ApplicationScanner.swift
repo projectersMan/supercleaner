@@ -196,14 +196,19 @@ public struct ApplicationScanner: Sendable {
         let sharedRootPaths = Set(ApplicationAssociationPathRegistry.roots(home: context.homeDirectory).map { $0.url.path })
         output = output.mapValues { $0.filter { !sharedRootPaths.contains($0.url.standardizedFileURL.path)
             && !ApplicationDiagnosticScanner.isDiagnosticDirectory($0.url, home: context.homeDirectory) } }
-        let diagnostics = await diagnosticScanner.scan(applications: applications, context: context)
-        for (owner, values) in diagnostics.associations { output[owner, default: []] += values }
+        // A cache/preference/container cannot gain ownership from a crash report.
+        // Keep the full diagnostic proof for report candidates and discovery only.
+        let needsDiagnostics = resourceURL.map { ApplicationDiagnosticScanner.isDiagnosticDirectory($0.deletingLastPathComponent(), home: context.homeDirectory) } ?? true
+        if needsDiagnostics {
+            let diagnostics = await diagnosticScanner.scan(applications: applications, context: context)
+            for (owner, values) in diagnostics.associations { output[owner, default: []] += values }
+            scannedRoots += diagnostics.coverage.scannedRoots
+            unavailableRoots += diagnostics.coverage.unavailableRoots
+            limited = limited || !diagnostics.coverage.budgetLimitedModules.isEmpty
+        }
         if let resourceURL {
             output = output.mapValues { $0.filter { $0.url.standardizedFileURL.path == resourceURL.standardizedFileURL.path } }
         }
-        scannedRoots += diagnostics.coverage.scannedRoots
-        unavailableRoots += diagnostics.coverage.unavailableRoots
-        limited = limited || !diagnostics.coverage.budgetLimitedModules.isEmpty
         return await ownershipBuilder.build(
             applications: applications, associations: output,
             coverage: CoverageSummary(scannedRoots: scannedRoots, unavailableRoots: unavailableRoots, budgetLimitedModules: limited ? [.applications] : []), context: context,

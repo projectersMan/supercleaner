@@ -3,6 +3,7 @@ import Foundation
 public struct CleanupSessionSummary: Equatable, Sendable {
     public private(set) var itemCount: Int
     public private(set) var bytes: UInt64
+    public private(set) var completedByModule: [ScanModuleID: DefaultCleanupModuleResult] = [:]
     private var recordedReceiptIDs = Set<UUID>()
 
     public init(itemCount: Int = 0, bytes: UInt64 = 0) {
@@ -14,11 +15,21 @@ public struct CleanupSessionSummary: Equatable, Sendable {
         lhs.itemCount == rhs.itemCount && lhs.bytes == rhs.bytes
     }
 
-    public mutating func record(_ receipt: OperationReceipt) {
+    public mutating func record(_ receipt: OperationReceipt, attemptedCandidates: [CleanupCandidate]) {
         guard recordedReceiptIDs.insert(receipt.id).inserted else { return }
         let successfulResults = receipt.results.filter(\.countsAsCleanedContent)
-        itemCount += successfulResults.count
-        bytes += successfulResults.reduce(0) { $0 + $1.bytes }
+        let modulesByCandidate = Dictionary(uniqueKeysWithValues: attemptedCandidates.map { ($0.id, $0.defaultCleanupModule) })
+        for result in successfulResults {
+            guard let module = modulesByCandidate[result.candidateID] else {
+                preconditionFailure("Successful cleanup result has no owning scan module: \(result.candidateID)")
+            }
+            let previous = completedByModule[module]
+            completedByModule[module] = DefaultCleanupModuleResult(
+                itemCount: (previous?.itemCount ?? 0) + 1,
+                bytes: (previous?.bytes ?? 0) + result.bytes)
+            itemCount += 1
+            bytes += result.bytes
+        }
     }
 }
 

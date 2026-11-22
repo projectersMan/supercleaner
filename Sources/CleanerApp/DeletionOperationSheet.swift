@@ -36,7 +36,8 @@ struct DeletionOperationSheet: View {
             VStack(alignment: .leading, spacing: 9) {
                 Text(model.executionProgressDescription)
                     .font(.headline).monospacedDigit()
-                if model.executionProgress.phase == .movingToTrash, model.executionProgress.currentURL != nil {
+                if model.executionProgress.phase.isFinalizing
+                    || (model.executionProgress.phase == .movingToTrash && model.executionProgress.currentURL != nil) {
                     // macOS reports completion per item, not bytes copied within
                     // a single system Trash operation. Do not invent a fraction.
                     ProgressView().progressViewStyle(.linear)
@@ -51,7 +52,11 @@ struct DeletionOperationSheet: View {
                     Text(L10n.text("当前项目处理结束后停止，已经完成的操作不会自动撤销。"))
                         .foregroundColor(.secondary)
                 } else if model.executionProgress.phase == .savingResults {
-                    Text(L10n.text("正在保存清理和恢复记录…")).foregroundColor(.secondary)
+                    Text(L10n.text("正在记录已完成项目及其恢复位置。")).foregroundColor(.secondary)
+                } else if model.executionProgress.phase == .updatingDock {
+                    Text(L10n.text("正在移除已卸载应用的 Dock 图标，恢复信息已经保存。")).foregroundColor(.secondary)
+                } else if model.executionProgress.phase == .preparingTrash {
+                    Text(L10n.text("正在核对待移入废纸篓的项目并保存移动记录。")).foregroundColor(.secondary)
                 } else if model.executionProgress.phase == .updatingResults {
                     Text(L10n.text("正在更新清理清单…")).foregroundColor(.secondary)
                 } else if model.executionProgress.total > 0 && completed == total {
@@ -68,6 +73,12 @@ struct DeletionOperationSheet: View {
                     }
                 } else {
                     Text(L10n.text("正在准备删除…")).foregroundColor(.secondary)
+                }
+                if model.executionProgress.phase.isFinalizing, let started = model.executionPhaseStartedAt {
+                    TimelineView(.periodic(from: started, by: 1)) { context in
+                        Text(L10n.text("当前阶段已用 {0} 秒", String(max(0, Int(context.date.timeIntervalSince(started))))))
+                            .font(.caption).foregroundColor(.secondary).monospacedDigit()
+                    }
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 70, alignment: .topLeading)
@@ -90,6 +101,8 @@ struct DeletionOperationSheet: View {
         switch model.executionProgress.phase {
         case .movingToTrash: L10n.text("正在移入系统废纸篓")
         case .savingResults: L10n.text("正在保存清理和恢复记录…")
+        case .updatingDock: L10n.text("正在同步 Dock 图标…")
+        case .preparingTrash: L10n.text("正在准备移入系统废纸篓…")
         case .updatingResults: L10n.text("正在更新清理清单…")
         case .processing: model.activeCleanupModules == [.applications]
             ? L10n.text("正在删除应用内容") : L10n.text("正在检查并删除所选项目")

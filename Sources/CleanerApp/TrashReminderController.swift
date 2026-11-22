@@ -12,6 +12,7 @@ struct TrashEmptyingConfirmation {
 @MainActor final class TrashReminderController: ObservableObject {
     private var state: TrashReminderState
     private var isPresenting = false
+    private var lastEmptiedSummary: CleanupSessionSummary?
     private var pendingCloseReminder: AnyCancellable?
     private var terminationObservation: AnyCancellable?
     private var applicationIsTerminating = false
@@ -43,6 +44,7 @@ struct TrashEmptyingConfirmation {
 
     func canEmptyTrash(model: AppModel) -> Bool {
         !isPresenting && !isEmptyingTrash && model.canBeginTrashEmptying
+            && lastEmptiedSummary != model.sessionCleanupSummary
     }
 
     @discardableResult func requestEmptyTrash(model: AppModel) -> Task<Bool, Never> {
@@ -52,7 +54,8 @@ struct TrashEmptyingConfirmation {
     private func requestEmptyTrash(model: AppModel, showsSuppressionOption: Bool) -> Task<Bool, Never> {
         guard canEmptyTrash(model: model), model.beginTrashEmptying() else { return Task { false } }
         pendingCloseReminder = nil
-        let cleanedBytes = model.sessionCleanupSummary.bytes
+        let capturedSummary = model.sessionCleanupSummary
+        let cleanedBytes = capturedSummary.bytes
         isPresenting = true
         let confirmation = confirmEmptyTrash(showsSuppressionOption)
         isPresenting = false
@@ -67,6 +70,7 @@ struct TrashEmptyingConfirmation {
             let result = await operation.result
             if case .success = result {
                 state.recordTrashEmptied(cleanedBytes: cleanedBytes)
+                lastEmptiedSummary = capturedSummary
             }
             await model.finishTrashEmptying()
             isEmptyingTrash = false
@@ -166,11 +170,18 @@ enum FinderTrashEmptyingError: Error, LocalizedError {
 }
 
 enum FinderTrashEmptying {
+    static let confirmationScript = """
+    tell application id "com.apple.finder"
+        if (count of items of trash) is 0 then return "SUPERCLEANER_TRASH_EMPTY_CONFIRMED"
+        return "SUPERCLEANER_TRASH_NOT_EMPTY"
+    end tell
+    """
     // Finder's empty command may return before background deletion completes.
     // Read Finder's combined Trash after the command and require an empty result.
     static let script = """
     with timeout of 120 seconds
         tell application id "com.apple.finder"
+            if (count of items of trash) is 0 then return "SUPERCLEANER_TRASH_EMPTY_CONFIRMED"
             empty trash
             repeat 240 times
                 if (count of items of trash) is 0 then return "SUPERCLEANER_TRASH_EMPTY_CONFIRMED"
@@ -182,8 +193,26 @@ enum FinderTrashEmptying {
     """
 
     static func execute() async throws {
-        let output = try await BoundedProcess.run("/usr/bin/osascript", arguments: ["-e", script], timeout: 125, maximumOutputBytes: 65_536)
+        try await execute(using: runScript)
+    }
+
+    static func execute(using run: @Sendable (String) async throws -> (status: Int32, stdout: Data, stderr: Data)) async throws {
+        let output = try await run(script)
+        // Trash may become empty after the precheck (Finder or another app).
+        // An error code alone is never success: independently confirm the target state.
+        if output.status != 0 {
+            let confirmation = try await run(confirmationScript)
+            if confirmation.status == 0,
+               String(decoding: confirmation.stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                == "SUPERCLEANER_TRASH_EMPTY_CONFIRMED" { return }
+        }
         try validate(status: output.status, stdout: output.stdout, stderr: output.stderr)
+    }
+
+    private static func runScript(_ script: String) async throws -> (status: Int32, stdout: Data, stderr: Data) {
+        let output = try await BoundedProcess.run("/usr/bin/osascript", arguments: ["-e", script],
+            timeout: script == confirmationScript ? 5 : 125, maximumOutputBytes: 65_536)
+        return (output.status, output.stdout, output.stderr)
     }
 
     static func validate(status: Int32, stdout: Data, stderr: Data) throws {

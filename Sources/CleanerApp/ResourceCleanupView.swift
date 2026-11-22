@@ -347,7 +347,7 @@ private struct ResourceCleanupCandidateRow: View {
     }
 }
 
-private struct ResourceSelectionCheckbox: NSViewRepresentable {
+struct ResourceSelectionCheckbox: NSViewRepresentable {
     let state: SelectionTriState
     let isEnabled: Bool
     let title: String

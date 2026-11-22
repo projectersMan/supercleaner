@@ -19,7 +19,7 @@ struct DiskUsageOutlineView: View {
     }
 }
 
-private struct DiskUsageTreeRow: View {
+struct DiskUsageTreeRow: View {
     @ObservedObject var model: AppModel
     let node: DiskUsageNode
     let depth: Int

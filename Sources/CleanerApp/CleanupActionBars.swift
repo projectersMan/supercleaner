@@ -159,25 +159,25 @@ struct OneClickCleanupActionBar: View {
                 ProgressView().controlSize(.small)
             }
             Button { model.runOneClickCleanup() } label: {
-                Label(model.oneClickCleanupIsRunning ? L10n.text("正在清理默认项…") : L10n.text("清理全部默认项"), systemImage: "sparkles")
+                Label(model.oneClickCleanupIsRunning ? L10n.text("正在执行全部推荐清理") : L10n.text("清理全部推荐项"), systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(!model.canRunOneClickCleanup)
-            .accessibilityHint(L10n.text("清理各维度仍默认勾选的内容，不包含手动选择的项目"))
+            .accessibilityHint(L10n.text("清理各维度仍推荐的内容，不包含手动选择的项目"))
         }
         .background(SidebarSurface())
     }
 
     private func title(candidateCount: Int) -> String {
-        if model.oneClickCleanupIsRunning { return L10n.text("正在清理默认项…") }
+        if model.oneClickCleanupIsRunning { return L10n.text("正在执行全部推荐清理") }
         if candidateCount > 0 {
-            return L10n.text("默认清理已就绪 · {0} 项", String(candidateCount))
+            return L10n.text("推荐清理已就绪 · {0} 项", String(candidateCount))
         }
         guard ScanModuleID.allCases.contains(where: { model.hasScanResult(for: $0) }) else {
-            return L10n.text("等待默认项扫描完成")
+            return L10n.text("等待推荐清理结果")
         }
-        return L10n.text("当前无需默认清理")
+        return L10n.text("当前无需推荐清理")
     }
 
     private func detail(candidateCount: Int, bytes: UInt64) -> String {
@@ -186,9 +186,9 @@ struct OneClickCleanupActionBar: View {
         }
         if case .failed = model.phase, let message = model.statusMessage { return message }
         guard candidateCount > 0 else {
-            return L10n.text("默认项就绪后可清理；手动选择的内容请到对应页面确认。")
+            return L10n.text("推荐结果就绪后可清理；手动选择的内容请到对应页面确认。")
         }
-        return L10n.text("约 {0}；清理所有已默认勾选的项目，可从恢复记录找回。",
+        return L10n.text("约 {0}；清理所有推荐项目，可从恢复记录找回。",
             ByteCountFormatter.cleanerString(bytes: bytes))
     }
 }

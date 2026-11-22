@@ -161,6 +161,10 @@ public actor QuarantineMaintenanceCoordinator {
             }
 
             let resolutionAction: ResolutionAction = schedule.policy == .immediate ? .trash : .purge
+            if resolutionAction == .trash {
+                progress(.init(completed: 0, total: receipt.results.filter { $0.disposition == .quarantined }.count,
+                    currentURL: nil, phase: .preparingTrash))
+            }
             let pendingResolution = try await resolutionJournalStore.entries().first {
                 $0.action == resolutionAction && $0.receipt.id == receipt.id
             }

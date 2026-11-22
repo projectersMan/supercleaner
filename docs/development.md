@@ -1,5 +1,19 @@
 # SuperCleaner 开发指南
 
+2026-11-23 同版本重新构建：0.6.0（176）的最新安装包已在清除编译产物后重新生成；源码和依赖不变。前次本机安装记录保留为历史证据，本次构建及覆盖交付见 [重新构建验证](../Tests/rebuild-0.6.0-20261123/README.md)。
+
+清理中心未扫描的维度右侧保持空白，不预先显示“手动选择清理”；开始扫描后显示状态，有扫描结果后显示选择摘要。已有本次清理累计继续独立保留。
+
+> 当前交付为 [0.6.0（176）](../doc/release-0.6.0.md)，包含标题、统计同步及本批全部修复；历史版本记录保留当时事实。
+
+> 大文件目录组现支持折叠和三态批量勾选；仅操作当前可见可选文件，保留隐藏项与其他组选择，见 [目录控件](../doc/large-file-directory-controls.md)。
+
+> 目录分组改动须覆盖稀疏/密集分支、单链压缩、无组数限制、关联性、无遗漏/重复和搜索稳定性，并验证实际扫描后的选择范围；见 [实现与验证](../doc/large-file-directory-groups.md)。
+
+> 2026-11-22：[取消固定校验期限与共享模型规则](../doc/validation-cancellation-shared-models.md)。外层 60 秒限制已取消；全部引用模型成功移除后，共享文件进入清理。
+
+> 当前清理执行与验证要求见 [开发指南](../doc/development.md) 及 [2026-11-21 修复](../doc/cleanup-execution-repair.md)。模型回归必须覆盖生产 Quarantine 路径；不再要求整批关联项共用 15 秒额度。
+
 ## 环境与构建
 
 全扫描用时只记录在AppModel，不从最后一个模块报告时间推断；须等待系统、应用、重复大文件、Agent、本地 AI 模型、项目产物六模块和Agent分析均结束。Dashboard用局部TimelineView每秒显示HH:MM:SS，停止后静态展示；计时位于按钮右侧，等宽数字防止抖动。全扫描启动后的必要预访问计入本轮、重扫归零、取消/失败冻结、继续同轮沿用起点，完成后的单模块刷新不改写上一轮全扫描用时。计时不得修改扫描任务、权限、清理或覆盖分析规则。
@@ -14,7 +28,7 @@ Dock reopen优先把最小化的主窗口逐一deminiaturize；若窗口已被�
 
 首页显式清空按钮由同一个 TrashReminderController 实现；确认永久删除后再异步调用固定 Finder 命令，成功且实际已空才记录启动时累计量。取消/失败不确认，原 suppress 偏好不能被重置；结束刷新并等待容量读取完成。清空忙碌门禁必须覆盖模型执行入口、更新/退出及界面，不能只禁用按钮。只增加 Apple Events Automation entitlement 与本地化用途描述；不直接 rm Trash。验证使用假执行器，实机只走确认取消，详见 [本批计划](../doc/dashboard-compact-trash-plan.md)。
 
-清理中心UI约定：六行只保留整行导航与最右对齐状态，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。悬停色与应用卸载保持accentColor/0.08，移出恢复。completed/limited在首页共用绿色勾选“扫描完成”，不得反向修改原始扫描状态、覆盖证据或删除保护。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。
+清理中心UI约定：六行只保留整行导航与最右对齐的当前选择及本次已清理信息，不把模块取消/继续重复放在首页；内部DimensionActionBar必须仍能操作当前模块。已完成或受限模块在信息右侧只显示绿色勾选，不再重复显示“扫描完成”文字；不得反向修改原始扫描状态、覆盖证据或删除保护。已有扫描结果且未选择项目时显示“手动选择清理”；有选择时显示推荐、手动或混合摘要。三张能力卡以最高内容自适应等高，保持顶部对齐；不要按某种语言的当前行数硬编码高度。英文右侧信息使用标题式大小写。
 
 首页压缩为单页，扫描按钮下显示用时，与紧凑容量、累计清理/清空按钮同行等高；不得仅隐藏滚动条而裁切内容。中英文本、detail 760×560 pt 和默认窗口均检查六行导航与头部能力卡可见。大标题/说明缩小，长说明通过单行与 tooltip 保留。
 
@@ -30,7 +44,7 @@ Agent分析排查：先核对安装包版本与源码版本，再检查索引mod
 
 应用行的正常分析完成状态不显示徽标；隐藏逻辑仅位于ApplicationsView展示层，不修改Core状态或statusTitle，以保留其他调用方语义。系统保护、运行保护、受限、不可用和等待状态继续展示。
 
-界面布局约定：应用卸载与[重复大文件页](../Sources/CleanerApp/DiskSpaceView.swift)共用原生分段控件。在[ApplicationsView](../Sources/CleanerApp/ApplicationsView.swift)固定搜索260 pt、分段420 pt、排序/数量各140 pt；[ApplicationScopePicker](../Sources/CleanerApp/ApplicationScopePicker.swift)使用原生等分分段控件，纵向按固有高度。窄窗口用ViewThatFits分两行，切换四个选项、计数变化都不能改变同一窗口中的控件位置。两页标题间距、栏内边距和字号保持一致。
+界面布局约定：应用卸载与[重复大文件页](../Sources/CleanerApp/DiskSpaceView.swift)共用原生分段控件。在[ApplicationsView](../Sources/CleanerApp/ApplicationsView.swift)固定搜索260 pt、分段420 pt、排序/数量各140 pt；[ApplicationScopePicker](../Sources/CleanerApp/ApplicationScopePicker.swift)使用原生等分分段控件，纵向按固有高度。资源页和重复大文件页的顶部摘要复用原生三态“全选”，只作用于当前可见可清理项；重复大文件页还要把搜索、All/Duplicate 范围和可读性纳入同一个候选快照。窄窗口用ViewThatFits分两行，切换四个选项、计数变化都不能改变同一窗口中的控件位置。两页标题间距、栏内边距和字号保持一致。
 
 - 平台：macOS 13 或更高版本。
 - 语言与 UI：Swift 6、SwiftUI、AppKit。
@@ -276,7 +290,7 @@ Agent行底线和高亮必须在同一内容padding后绘制，ListRowBackground
 
 Agent双栏验收：Skill/MCP切换及长名称/路径时右栏起点保持一致，标题与各覆盖项名称/路径左对齐，比例保持固定数值列；无结果状态也使用相同360pt右栏。左栏minWidth=0允许收缩，覆盖栏优先保持宽度。不要恢复每行MCP服务器数量徽标。FDA Available来自只读探测，App管理不做试删或伪造Available。
 
-全部默认清理必须复用 DefaultCleanupSelection 的可执行集合；系统与大文件默认项需仍在 selectedIDs，Agent 需同时属于自动预选 IDs。修改选中或自动预选时使缓存失效；分模块统计在全局父子/重复去重后计算，零值和手动维度不显示。三张安全卡直接放在标题下、扫描按钮行上方；不再展示原两行说明。回归覆盖 Agent 单独可执行、取消勾选、活动/保护、异步预选与扫描门禁；只读夹具不执行真实清理。
+全部默认清理必须复用 DefaultCleanupSelection 的可执行集合；系统与大文件默认项需仍在 selectedIDs，Agent 需同时属于自动预选 IDs。修改选中或自动预选时使缓存失效；推荐统计在全局父子/重复去重后计算；首页另显示手动/混合选择，并从 CleanupSessionSummary 同源读取每维已清理累计，六维之和等于全局总计。现行实现与回归见 [统计开发约束](../doc/development.md)。三张安全卡直接放在标题下、扫描按钮行上方；不再展示原两行说明。回归覆盖 Agent 单独可执行、取消勾选、活动/保护、异步预选与扫描门禁；只读夹具不执行真实清理。
 
 跨模块默认计划通过 DefaultCleanupSelection.buildPlan(using:) 将原始候选先交给 PlanBuilder；不得将已去重的展示候选直接当成计划输入，以免系统安装包别名或父目录遮蔽大文件保留副本证明。执行和回执使用最终 plan.selectedItems。
 

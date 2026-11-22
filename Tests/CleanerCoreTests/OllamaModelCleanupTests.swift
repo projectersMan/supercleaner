@@ -3,6 +3,92 @@ import XCTest
 @testable import CleanerCore
 
 final class OllamaModelCleanupTests: XCTestCase {
+    func testFailedSelectedManifestKeepsSharedBlobsButDoesNotBlockOtherModel() async throws {
+        let fixture = try makeFixture()
+        let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
+        let plan = try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: Set(inventory.candidates.map(\.id)))
+        let context = fixture.context
+        let refusedManifest = fixture.firstManifest
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: fixture.home),
+            quarantineRoot: fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"),
+            currentRuleVersion: "bundled-1", loadProtection: { context.protectionPolicy },
+            validateCandidate: { candidate in
+                if candidate.url == refusedManifest { throw RuleScanError.executionRefused("fixture-manifest-refusal") }
+                try await LocalAIModelScanner().validateForExecution(candidate, context: context)
+            })
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.first { $0.originalURL == fixture.firstManifest }?.status, .skippedProtected)
+        XCTAssertEqual(receipt.results.first { $0.originalURL == fixture.secondManifest }?.status, .succeeded)
+        for name in ["a", "b", "c"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.blob(name).path))
+            XCTAssertEqual(receipt.results.first { $0.originalURL == fixture.blob(name) }?.status, .skippedProtected)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.blob("d").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.firstManifest.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.secondManifest.path))
+    }
+
+    func testModelsMoveToTrashUsingProductionRecoveryDirectory() async throws {
+        let fixture = try makeFixture()
+        let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
+        let plan = try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: Set(inventory.candidates.map(\.id)))
+        let receipt = await fixture.executor().execute(plan: plan)
+        XCTAssertTrue(receipt.results.allSatisfy { $0.status == .succeeded })
+        let fileSystem = ModelTrashFixtureFileSystem(trashRoot: fixture.root.appendingPathComponent("fake-trash"))
+        let executor = CleanupExecutor(fileSystem: fileSystem, pathPolicy: PathPolicy(homeDirectory: fixture.home),
+            quarantineRoot: fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"),
+            currentRuleVersion: "bundled-1")
+        let entry = await executor.prepareResolution(action: .trash, receipt: receipt, id: UUID(), startedAt: Date())
+        let results = await executor.resolve(entry)
+        XCTAssertEqual(results.count, 6)
+        XCTAssertTrue(results.allSatisfy { $0.status == .succeeded && $0.disposition == .trashed })
+        for result in receipt.results {
+            let source = try XCTUnwrap(result.destinationURL)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.appendingPathExtension("ollama-files").path))
+        }
+    }
+
+    func testRecoveryRejectsForgedSnapshotDestination() async throws {
+        let fixture = try makeFixture()
+        let planDirectory = fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine/" + UUID().uuidString)
+        let recovery = OllamaModelRecovery(context: fixture.context, planDirectory: planDirectory)
+        let forged = OperationResult(candidateID: UUID(), originalURL: fixture.firstManifest,
+            destinationURL: fixture.home.appendingPathComponent("Documents/important"), disposition: .quarantined, status: .succeeded, bytes: 1)
+        XCTAssertThrowsError(try recovery.directory(for: forged))
+    }
+
+    func testRecoverySnapshotSymlinkCannotAuthorizeDeletionOfItsTarget() async throws {
+        let fixture = try makeFixture()
+        let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
+        let candidate = try XCTUnwrap(inventory.candidates.first { $0.ollamaModelProof != nil })
+        let planDirectory = fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine/" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: planDirectory, withIntermediateDirectories: true)
+        let destination = planDirectory.appendingPathComponent(candidate.id.uuidString + "-" + candidate.url.lastPathComponent)
+        try FileManager.default.createSymbolicLink(at: destination.appendingPathExtension("ollama-files"), withDestinationURL: fixture.storage)
+        let recovery = OllamaModelRecovery(context: fixture.context, planDirectory: planDirectory)
+        let outcome = await Task { try await recovery.prepare(candidate, destination: destination) }.result
+        if case .success = outcome { XCTFail("Recovery preparation must reject a symlink") }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.firstManifest.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.blob("b").path))
+    }
+
+    func testRecoveryRejectsPlanDirectorySymlinkBeforeCreatingAnything() async throws {
+        let fixture = try makeFixture()
+        let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
+        let candidate = try XCTUnwrap(inventory.candidates.first { $0.ollamaModelProof != nil })
+        let planDirectory = fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine/" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: planDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let target = fixture.root.appendingPathComponent("unrelated")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: planDirectory, withDestinationURL: target)
+        let recovery = OllamaModelRecovery(context: fixture.context, planDirectory: planDirectory)
+        let destination = planDirectory.appendingPathComponent(candidate.id.uuidString + "-" + candidate.url.lastPathComponent)
+        let outcome = await Task { try await recovery.prepare(candidate, destination: destination) }.result
+        if case .success = outcome { XCTFail("A symlinked plan directory must be rejected before mutation") }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: target.path).isEmpty)
+    }
+
     func testModelsHaveNamesAndSingleSelectionPreservesSharedBlobs() async throws {
         let fixture = try makeFixture()
         let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
@@ -186,7 +272,7 @@ final class OllamaModelCleanupTests: XCTestCase {
         let plan = try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: [first.id])
         let context = fixture.context
         let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: fixture.home),
-            quarantineRoot: fixture.home.appendingPathComponent("Quarantine"), currentRuleVersion: "bundled-1",
+            quarantineRoot: fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"), currentRuleVersion: "bundled-1",
             loadProtection: { context.protectionPolicy },
             validateCandidate: { try await LocalAIModelScanner().validateForExecution($0, context: context) },
             finalCandidateCheck: { _ in throw RuleScanError.executionRefused("fixture-refusal") })
@@ -194,7 +280,7 @@ final class OllamaModelCleanupTests: XCTestCase {
         let receipt = await executor.execute(plan: plan)
 
         XCTAssertFalse(receipt.results.contains { $0.status == .succeeded })
-        let archived = fixture.home.appendingPathComponent("Quarantine/" + plan.id.uuidString)
+        let archived = fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine/" + plan.id.uuidString)
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(at: archived, includingPropertiesForKeys: nil)
             .allSatisfy { $0.pathExtension != "ollama-files" })
     }
@@ -204,9 +290,10 @@ final class OllamaModelCleanupTests: XCTestCase {
         let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
         let first = try XCTUnwrap(inventory.candidates.first { $0.displayName == "qwen3:0.6b" })
         let plan = try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: [first.id])
-        let archived = fixture.home.appendingPathComponent("Quarantine/" + plan.id.uuidString)
+        let archived = fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine/" + plan.id.uuidString)
         let destination = archived.appendingPathComponent(first.id.uuidString + "-" + first.url.lastPathComponent)
-        try await OllamaModelRecovery(context: fixture.context).prepare(first, destination: destination)
+        try FileManager.default.createDirectory(at: archived, withIntermediateDirectories: true)
+        try await OllamaModelRecovery(context: fixture.context, planDirectory: archived).prepare(first, destination: destination)
         let entry = ExecutionJournalEntry(id: UUID(), plan: plan, startedAt: Date(), retentionPolicy: .manual)
 
         let recovered = await fixture.executor().recoverInterruptedExecution(entry)
@@ -224,7 +311,7 @@ final class OllamaModelCleanupTests: XCTestCase {
             let receipt = await fixture.executor().execute(plan: try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: [first.id]))
             let remover = ModelSnapshotRemovalFailure()
             let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: fixture.home),
-                quarantineRoot: fixture.home.appendingPathComponent("Quarantine"), currentRuleVersion: "bundled-1",
+                quarantineRoot: fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"), currentRuleVersion: "bundled-1",
                 permanentRemove: { try await remover.remove($0) })
             let entry = await executor.prepareResolution(action: action, receipt: receipt, id: UUID(), startedAt: Date())
             let initial = await executor.resolve(entry)
@@ -242,6 +329,25 @@ final class OllamaModelCleanupTests: XCTestCase {
         let fixture = try OllamaCleanupFixture()
         addTeardownBlock { try FileManager.default.removeItem(at: fixture.root) }
         return fixture
+    }
+}
+
+private struct ModelTrashFixtureFileSystem: FileSystemAccess {
+    let trashRoot: URL
+    private let local = LocalFileSystem()
+    func identity(at url: URL) async throws -> FileIdentity { try await local.identity(at: url) }
+    func children(of url: URL) async throws -> [URL] { try await local.children(of: url) }
+    func fileExists(_ url: URL) async -> Bool { await local.fileExists(url) }
+    func isReadable(_ url: URL) async -> Bool { await local.isReadable(url) }
+    func isWritable(_ url: URL) async -> Bool { await local.isWritable(url) }
+    func move(_ source: URL, to destination: URL) async throws { try await local.move(source, to: destination) }
+    func createDirectory(_ url: URL) async throws { try await local.createDirectory(url) }
+    func removeEmptyDirectory(_ url: URL) async throws { try await local.removeEmptyDirectory(url) }
+    func trash(_ url: URL) async throws -> URL {
+        try await local.createDirectory(trashRoot)
+        let destination = trashRoot.appendingPathComponent(url.lastPathComponent)
+        try await local.move(url, to: destination)
+        return destination
     }
 }
 
@@ -286,7 +392,7 @@ private struct OllamaCleanupFixture {
     func executor() -> CleanupExecutor {
         let context = context
         return CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: PathPolicy(homeDirectory: home),
-            quarantineRoot: home.appendingPathComponent("Quarantine"), currentRuleVersion: "bundled-1",
+            quarantineRoot: home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"), currentRuleVersion: "bundled-1",
             isActive: { _ in XCTFail("Model cleanup must never request activity state"); return true },
             loadProtection: { context.protectionPolicy },
             validateCandidate: { try await LocalAIModelScanner().validateForExecution($0, context: context) },

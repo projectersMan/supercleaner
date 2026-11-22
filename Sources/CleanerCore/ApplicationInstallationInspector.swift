@@ -93,8 +93,8 @@ public struct LocalApplicationInstallationInspector: ApplicationInstallationInsp
                     let bom = receipt.deletingPathExtension().appendingPathExtension("bom")
                     guard await context.fileSystem.fileExists(bom) else { continue }
                     guard (try await context.fileSystem.identity(at: bom)).kind == .file else { unavailable.append(bom); continue }
-                    let output = try await BoundedProcess.run("/usr/bin/lsbom", arguments: ["-s", "-d", bom.path], timeout: min(2, max(0.05, deadline.timeIntervalSinceNow)), maximumOutputBytes: 2_097_152)
-                    guard output.status == 0, let paths = String(data: output.stdout, encoding: .utf8) else { unavailable.append(bom); continue }
+                    let paths = try await ApplicationReceiptDirectoryCache.shared.directories(in: bom, context: context,
+                        timeout: min(2, max(0.05, deadline.timeIntervalSinceNow)))
                     let prefix = plist["InstallPrefixPath"] as? String ?? "/"
                     let base = URL(fileURLWithPath: prefix.hasPrefix("/") ? prefix : "/" + prefix)
                     for path in paths.split(separator: "\n") where path.lowercased().hasSuffix(".app") {

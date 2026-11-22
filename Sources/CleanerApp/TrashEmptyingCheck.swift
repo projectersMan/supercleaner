@@ -149,7 +149,7 @@ extension AppModel {
                   await execution.calls == 1, presentation.confirmationCount == 1 else {
                 throw TrashEmptyingCheckFailure(description: "pending emptying must block duplicates and every cleanup entry")
             }
-            try model.checkTrashEmptyingExecutionGate()
+            try model.checkTrashEmptyingExecutionGate(additionalBytes: 1_024)
             let delegate = CleanerApplicationDelegate()
             delegate.model = model
             guard !delegate.allowsTermination else {

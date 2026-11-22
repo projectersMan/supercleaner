@@ -93,7 +93,7 @@ func runCleanupRefreshContracts() {
         require(withoutAbsent.diskUsageTree.node(at: log.url) == nil && withoutAbsent.generalCandidates.isEmpty,
                 "confirmed missing sources disappear across system and disk views")
         var cleaned = CleanupSessionSummary()
-        cleaned.record(receipt([absent]))
+        cleaned.record(receipt([absent]), attemptedCandidates: [log])
         require(cleaned.itemCount == 0 && cleaned.bytes == 0, "missing files must never count as cleaned content")
     }
     print("PASS: cleanup refresh reconciles app lists, indexed/hierarchical disk rows, counts, bytes and partial/uncertain outcomes")

@@ -20,7 +20,7 @@
 
 ## 选择与执行
 
-页面默认打开「全部大文件」，并使用「按选择」排序，把选中文件及其所在目录排在前面。递归发现的目录树默认展开顶层目录。「重复大文件」分段只显示有重复证据的文件，底栏也只提交该范围内的选择。两个范围均显示建议原因，重复项额外显示保留路径。选中表示可提交清理，仍须点击确认。参见 [DiskSpaceView.swift](../Sources/CleanerApp/DiskSpaceView.swift)、[DiskUsageOutlineView.swift](../Sources/CleanerApp/DiskUsageOutlineView.swift) 和 [AppModel.swift](../Sources/CleanerApp/AppModel.swift)。
+页面默认打开左侧「全部大文件」，右侧为「重复大文件」，默认使用「按目录」。现行展示为建议清理置顶、完整路径标题和组内平铺文件；目录按分布自适应聚类，详见 [目录分组](large-file-directory-groups.md)。其它排序仍保留原树形展示。「重复大文件」分段只显示有重复证据的文件，底栏也只提交该范围内的选择。两个范围均显示建议原因，重复项额外显示保留路径。选中表示可提交清理，仍须点击确认。参见 [DiskSpaceView.swift](../Sources/CleanerApp/DiskSpaceView.swift)、[DiskUsageOutlineView.swift](../Sources/CleanerApp/DiskUsageOutlineView.swift) 和 [AppModel.swift](../Sources/CleanerApp/AppModel.swift)。
 
 满足大文件阈值、通过本地文件检查的 `.dmg`、`.pkg`、`.mpkg`、`.xip`、`.iso` 按格式预选，沿用 [InstallerDiscovery.swift](../Sources/CleanerCore/InstallerDiscovery.swift) 的格式表。受保护、活跃或不可读的文件不预选。已经查实的副本组仍只预选一份，已解压 ZIP 依赖的安装文件也保留。普通 ZIP 不会因为扩展名获得安装包建议。
 
@@ -39,7 +39,7 @@
 - `swift test --filter DuplicateLargeFileTests` 验证任意格式精确副本、递归与 Spotlight 结果一致、安装包预选与保留件冲突、同级 ZIP、含小文件和空文件的有效匹配、总大小不足或小成员内容变化时排除、计划保留约束、隔离与恢复。
 - `swift run CoreContractChecks` 验证导航、扫描和清理契约。
 - `python3 Scripts/check-localizations.py` 检查双语资源。
-- `CleanerApp --scan-cleanup-self-check` 验证扫描与选择状态。设置 `SUPERCLEANER_DUPLICATE_FIXTURE` 指向 `Tests/` 中的夹具目录，提供超过 10 MB 的 `a.rip`、`b.data` 相同副本，可与同级文件夹完整匹配的 `packed.zip`，以及比上述选中项大但小于一个未选中文件的 `setup.dmg`。自检验证默认范围、选择排序、安装包预选、重复筛选隔离和保留路径失效。
+- `CleanerApp --scan-cleanup-self-check` 验证扫描与选择状态。设置 `SUPERCLEANER_DUPLICATE_FIXTURE` 指向 `Tests/` 中的夹具目录，提供超过 10 MB 的 `a.rip`、`b.data` 相同副本，可与同级文件夹完整匹配的 `packed.zip`，以及比上述选中项大但小于一个未选中文件的 `setup.dmg`。自检验证默认范围、路径分组、安装包预选、重复筛选隔离和保留路径失效。
 
 `0.3.5 (79)` 通过 93 项 Swift 测试、全量核心契约、双语资源和应用包签名验证。签名包通过含 1 字节及空文件成员的真实 ZIP 夹具自检。新包位于 `build/zip-folder-fix/SuperCleaner.app`。
 

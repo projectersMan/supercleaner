@@ -77,6 +77,7 @@ struct ResourceReviewFilter: Equatable {
     private var scanPresentedStatuses: [ScanModuleID: ScanModuleStatus] = [:]
     @Published private(set) var executionProgress = ExecutionProgress(completed: 0, total: 0, currentURL: nil)
     @Published private(set) var executionItemStartedAt: Date?
+    @Published private(set) var executionPhaseStartedAt: Date?
     @Published var selectedIDs = Set<UUID>() {
         didSet {
             cachedSelectedCandidates.removeAll()
@@ -112,7 +113,7 @@ struct ResourceReviewFilter: Equatable {
     private var uninstallPermissionReply: CheckedContinuation<UninstallPermissionRequest.Decision, Never>?
     @Published var selectedApplicationID: URL?
     @Published var selectedDiskNodeURL: URL?
-    @Published var largeFileSortOrder: LargeFileSortOrder = .selection
+    @Published var largeFileSortOrder: LargeFileSortOrder = .directory
     @Published var showsDuplicateLargeFilesOnly = false {
         didSet {
             cachedSelectedCandidates.removeValue(forKey: .largeFiles)
@@ -429,7 +430,7 @@ struct ResourceReviewFilter: Equatable {
         }
     }
 
-    func checkTrashEmptyingExecutionGate() throws {
+    func checkTrashEmptyingExecutionGate(additionalBytes: UInt64) throws {
         let plan = try planBuilder.build(candidates: [], selectedIDs: [])
         executeSelection(plan: plan)
         startFullScan()
@@ -438,7 +439,7 @@ struct ResourceReviewFilter: Equatable {
             throw TrashEmptyingCheckFailure(description: "direct execution, scanning and updating must remain blocked")
         }
         // Simulate a new receipt arriving after the button captured its reminder baseline.
-        sessionCleanupSummary = CleanupSessionSummary(itemCount: 2, bytes: 2_048)
+        sessionCleanupSummary = CleanupSessionSummary(itemCount: sessionCleanupSummary.itemCount + 1, bytes: sessionCleanupSummary.bytes + additionalBytes)
     }
 
     static func checkTrashExecutionDuringScanning() async throws {
@@ -1075,11 +1076,15 @@ struct ResourceReviewFilter: Equatable {
     }
 
     var selectedCandidates: [CleanupCandidate] {
-        if let cached = cachedSelectedCandidates[selection] { return cached }
-        let scoped = selection == .largeFiles && showsDuplicateLargeFilesOnly
-            ? duplicateLargeFiles : candidates(for: selection)
+        selectedCandidates(for: selection)
+    }
+
+    func selectedCandidates(for destination: SidebarDestination) -> [CleanupCandidate] {
+        if let cached = cachedSelectedCandidates[destination] { return cached }
+        let scoped = destination == .largeFiles && showsDuplicateLargeFilesOnly
+            ? duplicateLargeFiles : candidates(for: destination)
         let selected = scoped.filter { selectedIDs.contains($0.id) }
-        cachedSelectedCandidates[selection] = selected
+        cachedSelectedCandidates[destination] = selected
         return selected
     }
 
@@ -1087,14 +1092,20 @@ struct ResourceReviewFilter: Equatable {
         candidates(for: .largeFiles).filter { $0.largeFileProof != nil && $0.largeFileRecommendation != nil }
     }
     var executionSelectionCandidates: [CleanupCandidate] {
-        if let cached = cachedExecutionCandidates[selection] { return cached }
-        let result = CleanupSelection.executionCandidates(from: selectedCandidates)
-        cachedExecutionCandidates[selection] = result
+        executionSelectionCandidates(for: selection)
+    }
+
+    func executionSelectionCandidates(for destination: SidebarDestination) -> [CleanupCandidate] {
+        if let cached = cachedExecutionCandidates[destination] { return cached }
+        let result = CleanupSelection.executionCandidates(from: selectedCandidates(for: destination))
+        cachedExecutionCandidates[destination] = result
         return result
     }
     var selectedBytes: UInt64 { executionSelectionCandidates.reduce(0) { $0 + $1.bytes } }
     var executionProgressDescription: String {
         if executionProgress.phase == .savingResults { return L10n.text("正在保存清理和恢复记录…") }
+        if executionProgress.phase == .updatingDock { return L10n.text("正在同步 Dock 图标…") }
+        if executionProgress.phase == .preparingTrash { return L10n.text("正在准备移入系统废纸篓…") }
         if executionProgress.phase == .updatingResults { return L10n.text("正在更新清理清单…") }
         return L10n.text(executionProgress.phase == .movingToTrash ? "废纸篓处理进度 {0}/{1} 项" : "已处理 {0}/{1} 项",
             String(executionProgress.completed), String(executionProgress.total))
@@ -1166,7 +1177,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func oneClickStatus(for module: ScanModuleID) -> String? {
-        if oneClickActiveModules.contains(module) { return L10n.text("正在清理默认项…") }
+        if oneClickActiveModules.contains(module) { return L10n.text("正在执行全部推荐清理") }
         if let result = oneClickCompletedByModule[module] {
             return result.itemCount > 0
                 ? L10n.text("已清理 {0} 项 · {1}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)))
@@ -1180,12 +1191,12 @@ struct ResourceReviewFilter: Equatable {
            defaultCleanupSelection?.systemCleanup.contains(where: { candidate in
                candidate.evidence.contains { $0.code == "active-cleanup" }
            }) == true {
-            return L10n.text("已默认勾选 {0} 项；运行中缓存可能重新生成", String(describing: count))
+            return L10n.text("已推荐 {0} 项；运行中缓存可能重新生成", String(describing: count))
         }
-        if count > 0 { return L10n.text("已默认勾选 {0} 项", String(describing: count)) }
+        if count > 0 { return L10n.text("已推荐 {0} 项", String(describing: count)) }
         return module == .largeFiles
-            ? L10n.text("无安全默认项 · 可手动选择")
-            : L10n.text("无需默认清理")
+            ? L10n.text("无安全推荐项 · 可手动选择")
+            : L10n.text("无需推荐清理")
     }
 
     func failedCleanupResult(for module: ScanModuleID) -> OneClickCleanupResult {
@@ -1960,6 +1971,14 @@ struct ResourceReviewFilter: Equatable {
 
     func focusDiskNode(_ node: DiskUsageNode) { selectedDiskNodeURL = node.url }
 
+    func largeFileDirectorySections(in tree: DiskUsageTree) -> [LargeFileDirectorySection] {
+        let candidates = showsDuplicateLargeFilesOnly ? duplicateLargeFiles : candidates(for: .largeFiles)
+        let visibleURLs = Set(candidates.map { $0.url.standardizedFileURL })
+        let recommendedURLs = Set(candidates.filter { $0.largeFileRecommendation != nil }.map { $0.url.standardizedFileURL })
+        let files = showsDuplicateLargeFilesOnly ? tree.largeFiles.filter { visibleURLs.contains($0.id) } : tree.largeFiles
+        return LargeFileDirectorySection.sections(files: files, home: home, recommendedURLs: recommendedURLs, query: reviewQuery)
+    }
+
     func sortedDiskNodes(_ nodes: [DiskUsageNode]) -> [DiskUsageNode] {
         let selectedURLs = largeFileSortOrder == .selection
             ? DiskUsageSelectionState(
@@ -1968,6 +1987,35 @@ struct ResourceReviewFilter: Equatable {
             ).selectedFileURLs
             : []
         return largeFileSortOrder.sorted(nodes, selectedFileURLs: selectedURLs)
+    }
+
+    func selectableLargeFileCandidates(in section: LargeFileDirectorySection) -> [CleanupCandidate] {
+        section.selectableCandidates(from: showsDuplicateLargeFilesOnly ? duplicateLargeFiles : candidates(for: .largeFiles))
+    }
+
+    func visibleLargeFileCandidates(in tree: DiskUsageTree) -> [CleanupCandidate] {
+        let scopedCandidates = showsDuplicateLargeFilesOnly ? duplicateLargeFiles : candidates(for: .largeFiles)
+        let query = reviewQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visibleURLs = Set(tree.largeFiles.filter {
+            $0.kind == .file && $0.isReadable && (query.isEmpty || $0.url.path.localizedCaseInsensitiveContains(query))
+        }.map { $0.url.standardizedFileURL })
+        return scopedCandidates.filter { candidate in
+            candidate.risk.isSelectable && visibleURLs.contains(candidate.url.standardizedFileURL)
+        }
+    }
+
+    func largeFileSelectionState(in tree: DiskUsageTree) -> SelectionTriState {
+        cleanupSelectionState(for: visibleLargeFileCandidates(in: tree), includesManualOnly: true)
+    }
+
+    func toggleVisibleLargeFiles(in tree: DiskUsageTree) {
+        guard selection == .largeFiles, !isDeletionInProgress, !updateInProgress, !isCurrentModuleScanning else { return }
+        toggleCleanupCategory(visibleLargeFileCandidates(in: tree), includesManualOnly: true)
+    }
+
+    func toggleLargeFileDirectorySection(_ section: LargeFileDirectorySection) {
+        guard selection == .largeFiles, !isDeletionInProgress, !updateInProgress, !isCurrentModuleScanning else { return }
+        toggleCleanupCategory(selectableLargeFileCandidates(in: section), includesManualOnly: true)
     }
 
     func diskFileCandidate(for node: DiskUsageNode) -> CleanupCandidate? {
@@ -2085,7 +2133,7 @@ struct ResourceReviewFilter: Equatable {
             if case .failed = phase { phase = isScanRunning ? .scanning : .completed }
             oneClickActiveModules = checkedModules
             oneClickCleanupIsRunning = true
-            statusMessage = L10n.text("正在执行全部默认清理")
+            statusMessage = L10n.text("正在执行全部推荐清理")
             let progress = executionProgressHandler(total: plan.selectedItems.count)
             oneClickExecutionTask = Task { [weak self] in
                 guard let self else { return }
@@ -2097,20 +2145,15 @@ struct ResourceReviewFilter: Equatable {
                         permissionRecovery: uninstallPermissionRecoveryHandler()
                     )
                     finishExecutionProgress(receipt)
-                    let outcome = recordCleanupOutcome(
-                        attemptedCandidates: candidates,
-                        receipt: receipt
-                    )
+                    let outcome = recordCompletedCleanup(receipt, attemptedCandidates: candidates)
                     recordDefaultCleanupProgress(
                         outcome: outcome,
                         attemptedCandidates: candidates,
                         checkedModules: checkedModules
                     )
-                    sessionCleanupSummary.record(receipt)
-                    refreshDiskCapacity()
                     await reloadHistory()
                     await reloadQuarantineSchedules()
-                    statusMessage = L10n.text("默认清理完成")
+                    statusMessage = L10n.text("推荐清理完成")
                     deletionResult = receipt
                 } catch {
                     finishCleanupSilently(error)
@@ -2122,7 +2165,7 @@ struct ResourceReviewFilter: Equatable {
         } catch {
             oneClickActiveModules.removeAll()
             oneClickCleanupIsRunning = false
-            statusMessage = L10n.text("无法开始默认清理：{0}", String(describing: error.localizedDescription))
+            statusMessage = L10n.text("无法开始推荐清理：{0}", String(describing: error.localizedDescription))
             phase = .failed(statusMessage ?? L10n.text("无法删除"))
         }
     }
@@ -2303,6 +2346,7 @@ struct ResourceReviewFilter: Equatable {
         executionResultsTask?.cancel()
         executionResultsTask = nil
         pendingExecutionResults.removeAll()
+        executionPhaseStartedAt = Date()
         executionProgress = .init(completed: 0, total: total, currentURL: nil)
         executionItemStartedAt = nil
         return { [weak self] progress in
@@ -2319,6 +2363,9 @@ struct ResourceReviewFilter: Equatable {
     }
 
     private func updateExecutionProgress(_ progress: ExecutionProgress) {
+        if executionPhaseStartedAt == nil || executionProgress.phase != progress.phase {
+            executionPhaseStartedAt = Date()
+        }
         if progress.currentURL == nil { executionItemStartedAt = nil }
         else if executionProgress.currentURL != progress.currentURL || executionProgress.phase != progress.phase {
             executionItemStartedAt = Date()
@@ -2357,6 +2404,7 @@ struct ResourceReviewFilter: Equatable {
         else { pendingExecutionResults.removeAll() }
         if let receipt {
             recordScanCleanupEffects(receipt.results)
+            executionPhaseStartedAt = Date()
             executionProgress = .init(completed: receipt.displayResults.count, total: max(receipt.displayResults.count, executionProgress.total),
                 currentURL: nil, phase: .updatingResults)
         }
@@ -2796,11 +2844,11 @@ struct ResourceReviewFilter: Equatable {
     }
 
     @discardableResult
-    private func recordCompletedCleanup(
+    func recordCompletedCleanup(
         _ receipt: OperationReceipt,
         attemptedCandidates: [CleanupCandidate]
     ) -> DefaultCleanupAttemptOutcome {
-        sessionCleanupSummary.record(receipt)
+        sessionCleanupSummary.record(receipt, attemptedCandidates: attemptedCandidates)
         refreshDiskCapacity()
         return recordCleanupOutcome(attemptedCandidates: attemptedCandidates, receipt: receipt)
     }
@@ -3346,7 +3394,7 @@ struct ResourceReviewFilter: Equatable {
         )
     }
 
-    private func install(_ incoming: SystemScanReport) {
+    func install(_ incoming: SystemScanReport) {
         var next = incoming
         if let status = incoming.modules[.applications] {
             let result = SystemScanModuleResult(generationID: incoming.generationID, status: status,
@@ -3525,8 +3573,7 @@ extension AppModel {
         let domain = "SuperCleaner.LargeFilePreferencesTests.\(UUID().uuidString)"
         guard let preferences = UserDefaults(suiteName: domain),
               let report = await coordinator.scan(context: context, modules: [.largeFiles]),
-              let retained = report.largeFileCandidates.first(where: { $0.url.lastPathComponent == "a.rip" }),
-              let root = report.diskUsageTree.roots.first, case let .loaded(files) = root.children else {
+              let retained = report.largeFileCandidates.first(where: { $0.url.lastPathComponent == "a.rip" }) else {
             throw InvalidSelection(description: "Missing recursive large-file fixture")
         }
         defer { preferences.removePersistentDomain(forName: domain) }
@@ -3540,14 +3587,65 @@ extension AppModel {
         model.installProgressive(report, completedModule: .largeFiles, token: token)
         model.completeScan(report, token: token)
         let selectedNames = Set(model.selectedCandidates.map(\.displayName))
-        guard model.preselectLargeFileInstallers, !model.showsDuplicateLargeFilesOnly, model.largeFileSortOrder == .selection,
+        guard model.preselectLargeFileInstallers, !model.showsDuplicateLargeFilesOnly, model.largeFileSortOrder == .directory,
               selectedNames == ["b.data", "packed.zip", "setup.dmg"],
-              model.sortedDiskNodes(files).first?.url.lastPathComponent == "setup.dmg",
+              Set(model.largeFileDirectorySections(in: report.largeFileReviewTree).first?.files.map { $0.url.lastPathComponent } ?? []) == selectedNames,
               model.canExecuteSelection else { throw InvalidSelection(description: "Wrong default scope, order, or selection: \(selectedNames.sorted())") }
+        let initialSelection = model.selectedIDs
+        let visibleSelectionCandidates = model.visibleLargeFileCandidates(in: report.largeFileReviewTree)
+        guard Set(visibleSelectionCandidates.map(\.displayName)) == ["a.rip", "b.data", "packed.zip", "payload.bin", "setup.dmg"],
+              model.largeFileSelectionState(in: report.largeFileReviewTree) == .partial else {
+            throw InvalidSelection(description: "Select-all scope must include the visible readable files and report a partial state")
+        }
+        model.toggleVisibleLargeFiles(in: report.largeFileReviewTree)
+        guard model.largeFileSelectionState(in: report.largeFileReviewTree) == .all,
+              Set(model.selectedIDs).isSuperset(of: Set(visibleSelectionCandidates.map(\.id))) else {
+            throw InvalidSelection(description: "Select-all must select every visible readable file")
+        }
+        model.toggleVisibleLargeFiles(in: report.largeFileReviewTree)
+        guard model.largeFileSelectionState(in: report.largeFileReviewTree) == .none else {
+            throw InvalidSelection(description: "Selecting all again must clear the same visible scope")
+        }
+        model.selectedIDs = initialSelection
+        guard let recommendedGroup = model.largeFileDirectorySections(in: report.largeFileReviewTree).first else {
+            throw InvalidSelection(description: "Missing recommended group")
+        }
+        model.toggleLargeFileDirectorySection(recommendedGroup)
+        guard model.selectedCandidates.isEmpty else { throw InvalidSelection(description: "Group deselection must clear all its selected files") }
+        model.toggleLargeFileDirectorySection(recommendedGroup)
+        guard model.selectedIDs == initialSelection else { throw InvalidSelection(description: "Group selection must restore all selectable files") }
+        model.reviewQuery = "b.data"
+        guard let filteredGroup = model.largeFileDirectorySections(in: report.largeFileReviewTree).first else {
+            throw InvalidSelection(description: "Missing filtered group")
+        }
+        model.toggleLargeFileDirectorySection(filteredGroup)
+        guard Set(model.selectedCandidates.map(\.displayName)) == ["packed.zip", "setup.dmg"],
+              model.cleanupSelectionState(for: model.selectableLargeFileCandidates(in: recommendedGroup), includesManualOnly: true) == .partial else {
+            throw InvalidSelection(description: "Filtered group toggle must preserve hidden selections and show partial state")
+        }
+        model.reviewQuery = ""
+        model.toggleLargeFileDirectorySection(recommendedGroup)
+        guard model.selectedIDs == initialSelection else { throw InvalidSelection(description: "Partial group toggle must select all") }
+        guard let manualGroup = model.largeFileDirectorySections(in: report.largeFileReviewTree).first(where: { $0.files.contains { $0.url == retained.url } }) else {
+            throw InvalidSelection(description: "Missing manual-file group")
+        }
+        model.toggleLargeFileDirectorySection(manualGroup)
+        guard model.selectedIDs.contains(retained.id), initialSelection.isSubset(of: model.selectedIDs) else {
+            throw InvalidSelection(description: "Group selection must include manual files without altering other groups")
+        }
+        model.toggleLargeFileDirectorySection(manualGroup)
+        guard model.selectedIDs == initialSelection else { throw InvalidSelection(description: "Manual group clear must preserve recommended selections") }
+        let initialGroups = model.largeFileDirectorySections(in: report.largeFileReviewTree).map(\.id)
         model.toggle(retained)
+        guard model.largeFileDirectorySections(in: report.largeFileReviewTree).map(\.id) == initialGroups else {
+            throw InvalidSelection(description: "Manual selection changed recommendation or directory grouping")
+        }
         guard model.selectedCandidates.contains(where: { $0.id == retained.id }) else { throw InvalidSelection(description: "Retained file is missing from all-file selection") }
         model.showsDuplicateLargeFilesOnly = true
-        guard Set(model.selectedCandidates.map(\.displayName)) == ["b.data", "packed.zip"] else { throw InvalidSelection(description: "Duplicate selection includes other files") }
+        guard Set(model.selectedCandidates.map(\.displayName)) == ["b.data", "packed.zip"],
+              Set(model.largeFileDirectorySections(in: report.largeFileReviewTree).flatMap(\.files).map { $0.url.lastPathComponent }) == ["b.data", "packed.zip"] else {
+            throw InvalidSelection(description: "Duplicate selection or directory groups include other files")
+        }
         let removed = OperationResult(candidateID: retained.id, originalURL: retained.url,
             disposition: .quarantined, status: .succeeded, bytes: retained.bytes)
         model.install(report.reconcilingCleanup([removed]))
@@ -4963,7 +5061,7 @@ extension AppModel {
         try check(model.applications.map(\.id) == [app.id] && model.uninstallSelectedIDs == [item.id]
             && model.uninstallSelectionState(for: model.applicationUninstallPlans[0]) == .all,
             "partial deletion removes completed rows but keeps the app and remaining item checked")
-        for progressPhase in [ExecutionProgress.Phase.processing, .movingToTrash, .savingResults, .updatingResults] {
+        for progressPhase in [ExecutionProgress.Phase.processing, .movingToTrash, .savingResults, .updatingDock, .preparingTrash, .updatingResults] {
             model.updateExecutionProgress(.init(completed: 0, total: 2, currentURL: support.url, phase: progressPhase))
             try check(model.canStopDeletion, "Stop stays enabled during validation, system Trash moves and result saving")
         }

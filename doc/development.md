@@ -1,5 +1,29 @@
 # 开发与验证
 
+2026-11-23 同版本重新构建：0.6.0（176）的最新安装包已在清除编译产物后重新生成；源码和依赖不变。前次本机安装记录保留为历史证据，本次构建及覆盖交付见 [重新构建验证](../Tests/rebuild-0.6.0-20261123/README.md)。
+
+清理中心未扫描的维度右侧保持空白，不预先显示“手动选择清理”；开始扫描后显示状态，有扫描结果后显示选择摘要。已有本次清理累计继续独立保留。
+
+2026-11-22 初次交付为 [0.6.0（176）](release-0.6.0.md)：正式构建、383 项 Release 测试、核心契约、固定证书签名、完整应用自检及 DMG 校验通过，安装副本与当次构建产物逐项一致。证据见 [交付记录](../Tests/release-0.6.0/README.md)；下文更早版本的构建记录保留为历史信息。
+
+清理中心主标题采用已确认的句式 **Reclaim your Mac. Clear the AI clutter.**（中文：**释放 Mac 空间，清理 AI 冗余。**），保留句式大小写与标点。修改时同步 [DashboardView](../Sources/CleanerApp/DashboardView.swift)、[英文资源](../Sources/CleanerCore/Resources/en.lproj/Localizable.strings) 和 [中文资源](../Sources/CleanerCore/Resources/zh-Hans.lproj/Localizable.strings)，执行 `python3 Scripts/check-localizations.py` 检查键覆盖与双语一致性。
+
+清理统计必须通过 `recordCompletedCleanup` 提交回执与执行候选，禁止单独增加首页模块数字。成功结果缺少候选归属应立即失败，不能静默归到任意维度。`CleanupSessionSummary` 同时记录分维度与全局统计，并以回执 ID 去重；重扫只刷新候选，不重置会话累计。首页读取选择必须显式传入目标页面，不能在切回清理中心后使用依赖当前页面的 getter。验证见 [DashboardModuleSummaryTests](../Tests/CleanerAppTests/DashboardModuleSummaryTests.swift)、[SessionCleanupMetricTests](../Tests/CleanerCoreTests/SessionCleanupMetricTests.swift) 与 [本批记录](../Tests/dashboard-module-metrics/README.md)。本批无新增依赖，Package.swift 和依赖版本保持不变。
+
+> 大文件目录组现支持折叠和三态批量勾选；仅操作当前可见可选文件，保留隐藏项与其他组选择，见 [目录控件](large-file-directory-controls.md)。
+
+> 清理中心模块行的右侧信息统一右对齐，显示推荐/手动/混合选择，并独立显示本次已清理累计；完成/受限状态保留右侧绿色勾选，不再显示 `Scan complete` 文案。英文展示文案采用标题式大小写。
+
+> 目录分组改动须覆盖稀疏/密集分支、单链压缩、无组数限制、关联性、无遗漏/重复和搜索稳定性，并验证实际扫描后的选择范围；见 [实现与验证](large-file-directory-groups.md)。
+
+## 清理执行回归要求（2026-11-22）
+
+修复与逐文件理由见 [清理事务修复](cleanup-execution-repair.md)。禁止用整批耗时额度静默跳过健康关联项；应用归属验证不设固定 60 秒截止时间，显式停止时必须取消等待，阻止后续项及迟到结果移动；底层外部命令边界和计划有效性复验继续保留。缓存仅复用经 generation 复验的 BOM 解析文本，不能缓存安全结论；覆盖解析期间变更与后续重读。
+
+共享文件测试必须覆盖仅选一个引用者、全部引用者均成功删除、其中一个所选清单删除失败以及扫描后新增引用；不能仅根据“已选中”就假定引用已消失。模型测试必须使用 `Library/Application Support/SuperCleaner/Quarantine` 的生产布局，覆盖准备、恢复、模拟移入废纸篓、永久处置、失败重试、伪造目的地与祖先/末级链接。不得用放松 ProtectionPolicy 解决内部快照问题。清空测试用模拟 Finder，覆盖空篓、并发变空、真实非空失败、成功禁用以及只增加零字节项目后的重新启用。
+
+执行 `swift test`、`CleanerApp --trash-emptying-self-check`、`CleanerApp --cleanup-completion-self-check`、`CleanerApp --uninstall-permission-self-check` 和 `python3 Scripts/check-localizations.py`；初次修复材料在 [Tests/cleanup-execution-repair](../Tests/cleanup-execution-repair)，取消固定期限与共享模型回归在 [Tests/validation-cancellation](../Tests/validation-cancellation)。本批无新增 Python 或 Swift 依赖，Package.swift/Package.resolved 保持现有版本，不创建 requirements.txt。`.trae/rules/project_rules.md` 在本工作区不存在。
+
 本地模型现行规则见 [现行架构](architecture.md) 和 [模型清理回归源码](../Tests/CleanerCoreTests/OllamaModelCleanupTests.swift)。不得重新引入基于 Python/Ollama 进程名的模型锁定或 In use 展示。模型名称与 tag 来自清单，共享引用贯穿选择、计划、执行及回执对账；快照必须保证跨回执独立恢复。底栏按模型计数、按实际文件去重计量，不能把底层文件误报为隐藏模型。定向回归覆盖共享保留、单项/多项、内容变化、引用新增、清单失败、分批删除、后批清理后前批恢复、恢复链接拒绝和中断快照清理。复用公共执行器和恢复记录，无新增依赖。
 
 完整开发指南见 [现有开发文档](../docs/development.md)。本项目主体为 Swift，不使用 Python conda 环境；依赖声明保持在 [Package.swift](../Package.swift)，本次未新增依赖，也没有需要更新的 `requirements.txt`。

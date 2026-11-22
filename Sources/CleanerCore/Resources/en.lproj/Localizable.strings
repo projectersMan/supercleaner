@@ -107,6 +107,8 @@
 "已完成" = "Completed";
 "未知" = "Unknown";
 "建议清理" = "Recommended Cleanup";
+"全部展开" = "Expand All";
+"全部折叠" = "Collapse All";
 "深度候选" = "Deep cleanup candidates";
 "默认保留" = "Keep by default";
 "内置" = "Built-in";
@@ -370,7 +372,7 @@
 "只读扫描系统清理、应用、大文件和 Agent 环境" = "Read-only scan of system cleanup, applications, large files, and Agent resources";
 "正在扫描整个支持范围" = "Scanning all supported locations";
 "清理中心" = "Cleanup Center";
-"先完整扫描，再决定清理什么" = "Scan first, then decide what to clean";
+"释放 Mac 空间，清理 AI 冗余。" = "Reclaim your Mac. Clear the AI clutter.";
 "扫描依据清晰、删除前复核、删除后可恢复" = "Clear scan evidence, checks before deletion, recovery after deletion";
 "系统清理扫描完成后即可一键处理默认勾选项；应用、大文件和 Agent 环境请进入对应页面手动选择。" = "Once system scanning completes, clean default system items with one click. Select applications, large files, and Agent resources manually on their pages.";
 "扫描所有受支持且可安全访问的位置，统一生成系统清理、应用、大文件和 Agent 环境报告。扫描过程零写入。" = "Scan all supported, safely accessible locations to generate system, application, large file, and Agent reports together. Surface overlapping capabilities among Skills and among MCP configurations before you decide what to clean.";
@@ -1297,7 +1299,6 @@
 "已删除 {0} 项 · 未完成 {1} 项" = "Deleted {0} items · {1} items incomplete";
 "未完成 {0} 项" = "{0} items incomplete";
 "安装凭据：已清理 {0} 项，保留 {1} 项" = "Installation receipts: {0} cleared, {1} retained";
-"安全校验超时，未执行删除；可稍后重试。" = "Safety validation timed out. Nothing was removed for this item; try again later.";
 "权限不足，应用本体仍在原位。请检查 App 管理权限，或在 Finder 中完成需要管理员确认的移除。" = "Permission was denied and the application bundle is still in its original location. Check App Management access, or use Finder to remove it with administrator approval.";
 
 "卸载已暂停，需要权限" = "Uninstall paused: permission required";
@@ -1399,6 +1400,7 @@
 /* Resource cleanup lists */
 "可清理" = "Cleanable";
 "全选当前筛选中可清理的项目" = "Select all cleanable items in the current filter";
+"全选当前筛选中可清理的大文件" = "Select all cleanable large files in the current filter";
 "{0} / {1} 项" = "{0} / {1} items";
 "{0} 项" = "{0} items";
 "调整搜索或范围后再查看。已勾选项目不会因此取消。" = "Adjust the search or scope to view items. Existing selections are retained.";
@@ -1406,6 +1408,25 @@
 "默认清理完成" = "Default cleanup complete";
 "无法开始默认清理：{0}" = "Could not start default cleanup: {0}";
 "清理 {0} 项 · {1}" = "Cleanup: {0} items · {1}";
+"推荐清理：{0} 项 · {1}" = "Recommended Cleanup: {0} Items · {1}";
+"手动选择清理" = "Manual Selection Required";
+"手动已选：{0} 项 · {1}" = "Manually Selected: {0} Items · {1}";
+"当前已选：{0} 项 · {1}" = "Selected: {0} Items · {1}";
+"本次已清理：{0} 项 · {1}" = "Cleaned This Session: {0} Items · {1}";
+"正在执行全部推荐清理" = "Running All Recommended Cleanup";
+"推荐清理完成" = "Recommended Cleanup Complete";
+"无法开始推荐清理：{0}" = "Could Not Start Recommended Cleanup: {0}";
+"清理全部推荐项" = "Clean All Recommended";
+"清理各维度仍推荐的内容，不包含手动选择的项目" = "Clean Items Still Recommended Across Modules; Manually Selected Items Are Excluded";
+"推荐清理已就绪 · {0} 项" = "Recommended Cleanup Ready · {0} Items";
+"等待推荐清理结果" = "Waiting for Recommended Cleanup Results";
+"当前无需推荐清理" = "No Recommended Cleanup Needed";
+"无需推荐清理" = "No Recommended Cleanup Needed";
+"推荐结果就绪后可清理；手动选择的内容请到对应页面确认。" = "Clean Recommended Items When Results Are Ready; Review Manual Selections on Their Module Pages.";
+"约 {0}；清理所有推荐项目，可从恢复记录找回。" = "Approximately {0}; Clean All Recommended Items, With Recovery Available.";
+"已推荐 {0} 项；运行中缓存可能重新生成" = "{0} Recommended Items; Active Caches May Regenerate";
+"已推荐 {0} 项" = "{0} Recommended Items";
+"无安全推荐项 · 可手动选择" = "No Safe Recommended Items · Select Manually";
 "清理全部默认项" = "Clean All Defaults";
 "清理各维度仍默认勾选的内容，不包含手动选择的项目" = "Clean items still selected by default across modules; manually selected items are excluded";
 "默认清理已就绪 · {0} 项" = "Default cleanup ready · {0} items";
@@ -1437,3 +1458,9 @@
 "清理提醒" = "Cleanup Reminders";
 "关闭窗口或退出时提醒清空废纸篓" = "Remind me to empty the Trash when closing or quitting";
 "仅控制自动提醒；手动点击清空废纸篓始终需要确认。" = "Controls automatic reminders only. Emptying the Trash manually always requires confirmation.";
+"正在同步 Dock 图标…" = "Updating Dock icons…";
+"正在准备移入系统废纸篓…" = "Preparing to move items to Trash…";
+"正在记录已完成项目及其恢复位置。" = "Recording completed items and their recovery locations.";
+"正在移除已卸载应用的 Dock 图标，恢复信息已经保存。" = "Removing Dock icons for uninstalled apps. Recovery information has been saved.";
+"正在核对待移入废纸篓的项目并保存移动记录。" = "Checking items for Trash and saving the move record.";
+"当前阶段已用 {0} 秒" = "Current stage: {0} seconds elapsed";

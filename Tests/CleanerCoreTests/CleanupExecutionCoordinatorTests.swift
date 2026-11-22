@@ -3,6 +3,17 @@ import XCTest
 @testable import CleanerCore
 
 final class CleanupExecutionCoordinatorTests: XCTestCase {
+    func testImmediateRetentionReportsPreparationBeforeTrashMoves() async throws {
+        let fixture = try makeFixture()
+        let progress = CleanupProgressCapture()
+        _ = try await fixture.coordinator.execute(plan: fixture.plan, retentionPolicy: .immediate,
+            progress: { progress.record($0) })
+        let phases = progress.phases
+        let preparation = try XCTUnwrap(phases.firstIndex(of: "preparingTrash"))
+        let movement = try XCTUnwrap(phases.firstIndex(of: "movingToTrash"))
+        XCTAssertLessThan(preparation, movement)
+    }
+
     func testJournalCommitFailurePreventsFileSystemMutation() async throws {
         let fixture = try makeFixture()
         await fixture.journal.failNextCommitForTesting()
@@ -260,6 +271,15 @@ final class CleanupExecutionCoordinatorTests: XCTestCase {
             schedules: schedules,
             coordinator: coordinator
         )
+    }
+}
+
+private final class CleanupProgressCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String] = []
+    var phases: [String] { lock.withLock { values } }
+    func record(_ progress: ExecutionProgress) {
+        lock.withLock { values.append(String(describing: progress.phase)) }
     }
 }
 

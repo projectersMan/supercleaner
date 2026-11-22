@@ -3,6 +3,24 @@ import XCTest
 @testable import CleanerCore
 
 final class ApplicationScannerTests: XCTestCase {
+    func testOrdinaryAssociationDoesNotDependOnDiagnosticScanBudget() async {
+        let fixture = ApplicationFixture()
+        let scanner = ApplicationScanner(diagnosticScanner: ApplicationDiagnosticScanner(timeout: 0))
+        let target = fixture.context.homeDirectory.appendingPathComponent("Library/Caches/com.example.app")
+        let index = await scanner.associationIndex(for: [fixture.application], context: fixture.context, resourceURL: target)
+        XCTAssertFalse(index.coverage.budgetLimitedModules.contains(.applications))
+        XCTAssertTrue(index.associations[fixture.application.id]?.contains { $0.url.path == target.path && $0.risk.isSelectable } == true)
+    }
+
+    func testDiagnosticCandidateStillRequiresDiagnosticProof() async {
+        let fixture = ApplicationFixture()
+        let scanner = ApplicationScanner(diagnosticScanner: ApplicationDiagnosticScanner(timeout: 0))
+        let target = fixture.context.homeDirectory.appendingPathComponent("Library/Logs/DiagnosticReports/Example.ips")
+        let index = await scanner.associationIndex(for: [fixture.application], context: fixture.context, resourceURL: target)
+        XCTAssertTrue(index.coverage.budgetLimitedModules.contains(.applications))
+        XCTAssertFalse(index.associations[fixture.application.id]?.contains { $0.url.path == target.path && $0.risk.isSelectable } == true)
+    }
+
     func testInstallationReceiptsAreMetadataNotProtectedDeletionRows() async throws {
         let fixture = ApplicationFixture()
         let receipt = URL(fileURLWithPath: "/var/db/receipts/org.example.installer.plist")

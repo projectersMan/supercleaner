@@ -20,6 +20,10 @@ public struct SystemDockPreferences: DockPreferencesAccess {
         guard CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) else {
             throw ApplicationDockError.writeFailed
         }
+        return try currentValue(key)
+    }
+
+    private func currentValue(_ key: String) throws -> Data? {
         guard let value = CFPreferencesCopyValue(key as CFString, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) else { return nil }
         return try PropertyListSerialization.data(fromPropertyList: value, format: .binary, options: 0)
     }
@@ -30,7 +34,7 @@ public struct SystemDockPreferences: DockPreferencesAccess {
         let object = try PropertyListSerialization.propertyList(from: value, format: nil)
         CFPreferencesSetValue(key as CFString, object as CFPropertyList, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         guard CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost),
-              try Self.equal(read(key), value) else { throw ApplicationDockError.writeFailed }
+              try Self.equal(currentValue(key), value) else { throw ApplicationDockError.writeFailed }
     }
 
     private static func equal(_ lhs: Data?, _ rhs: Data?) throws -> Bool {

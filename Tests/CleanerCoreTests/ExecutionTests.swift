@@ -3,13 +3,12 @@ import XCTest
 @testable import CleanerCore
 
 final class ExecutionTests: XCTestCase {
-    func testStalledUninstallValidationFinishesWithoutMovingOrStartingMoreAssociationChecks() async throws {
+    func testStoppingStalledUninstallValidationReturnsWithoutWaitingForTheRead() async throws {
         let original = executionFixtureCandidate(path: "/tmp/association-a", inode: 2)
-        func applicationCandidate(_ url: URL) -> CleanupCandidate {
-            .init(url: url, displayName: "association", category: .applicationSupport, bytes: 1, risk: .review,
+        let candidates = [original.url, URL(fileURLWithPath: "/tmp/association-b")].map { url in
+            CleanupCandidate(url: url, displayName: "association", category: .applicationSupport, bytes: 1, risk: .review,
                 evidence: [], identity: original.identity, source: .application, lastAccessDate: nil, isActive: false)
         }
-        let candidates = [applicationCandidate(original.url), applicationCandidate(URL(fileURLWithPath: "/tmp/association-b"))]
         let plan = try PlanBuilder(ruleVersion: "rules-1").build(candidates: candidates, selectedIDs: Set(candidates.map(\.id)))
         let fileSystem = ExecutionFixtureFileSystem(url: original.url, identity: original.identity)
         let gate = StalledValidationGate()
@@ -18,13 +17,16 @@ final class ExecutionTests: XCTestCase {
             await gate.release()
         }
         let executor = CleanupExecutor(fileSystem: fileSystem, quarantineRoot: URL(fileURLWithPath: "/tmp/quarantine"),
-            currentRuleVersion: "rules-1", validateCandidate: { _ in await gate.read() }, applicationValidationTimeout: 0.02)
-        let receipt = await executor.execute(plan: plan)
+            currentRuleVersion: "rules-1", validateCandidate: { _ in await gate.read() })
+        let operation = Task { await executor.execute(plan: plan) }
+        await fulfillment(of: [gate.started], timeout: 1)
+        operation.cancel()
+        let receipt = await operation.value
         let releasedBeforeCompletion = await gate.released
         let calls = await gate.calls
         XCTAssertFalse(releasedBeforeCompletion, "A blocked read-only ownership check must not hold the uninstall window open")
-        XCTAssertEqual(calls, 1, "Do not stack more reads behind a stalled system directory")
-        XCTAssertTrue(receipt.results.allSatisfy { $0.status == .skippedProtected })
+        XCTAssertEqual(calls, 1, "A user stop must not begin another item's validation")
+        XCTAssertFalse(receipt.results.contains { $0.status == .succeeded })
         await gate.release()
         release.cancel()
         _ = await release.value
@@ -135,11 +137,13 @@ final class ExecutionTests: XCTestCase {
 }
 
 private actor StalledValidationGate {
+    nonisolated let started = XCTestExpectation(description: "Read-only validation started")
     private(set) var released = false
     private(set) var calls = 0
     private var waiting: [CheckedContinuation<Void, Never>] = []
     func read() async {
         calls += 1
+        started.fulfill()
         if released { return }
         await withCheckedContinuation { waiting.append($0) }
     }

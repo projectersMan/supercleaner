@@ -189,7 +189,7 @@ import XCTest
         let fs = ReceiptProgressFileSystem(candidates: candidates, failingBody: failing ? app : nil)
         let executor = CleanupExecutor(fileSystem: fs, quarantineRoot: root.appendingPathComponent("Quarantine"), currentRuleVersion: "fixture",
             validateCandidate: { candidate in
-                if failing && candidate.url.lastPathComponent == "data-4" { throw ApplicationValidationDeadlineError.timedOut }
+                if failing && candidate.url.lastPathComponent == "data-4" { throw RuleScanError.executionRefused("fixture-association-refusal") }
             })
         let history = HistoryStore(url: root.appendingPathComponent("history.json"))
         let schedules = QuarantineScheduleStore(url: root.appendingPathComponent("schedules.json"))

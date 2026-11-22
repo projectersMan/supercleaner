@@ -21,7 +21,7 @@ struct DashboardView: View {
             HStack(spacing: 12) {
                 Image(systemName: "shield.lefthalf.filled")
                     .font(.system(size: 32)).foregroundStyle(.tint).frame(width: 40)
-                Text(L10n.text("先完整扫描，再决定清理什么"))
+                Text(L10n.text("释放 Mac 空间，清理 AI 冗余。"))
                     .font(.system(size: 24, weight: .semibold))
                 Spacer(minLength: 0)
             }
@@ -121,18 +121,8 @@ struct DashboardView: View {
                         .lineLimit(1).help(module.scopeDetail)
                 }
                 Spacer(minLength: 12)
-                if let summary = model.defaultCleanupSummary(for: module) {
-                    Text(L10n.text("清理 {0} 项 · {1}", String(summary.itemCount),
-                        ByteCountFormatter.cleanerString(bytes: summary.bytes)))
-                        .font(.caption.weight(.medium)).foregroundColor(.secondary)
-                        .monospacedDigit().lineLimit(1)
-                }
-                HStack {
-                    if let status = model.scanProgressByModule[module] {
-                        ScanModuleStateView(state: status.state)
-                    }
-                }
-                .frame(width: 150, alignment: .trailing)
+                moduleCleanupInfo(module)
+                    .frame(minWidth: 280, alignment: .trailing)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
@@ -143,6 +133,40 @@ struct DashboardView: View {
         .buttonStyle(.plain)
         .onHover { hoveredModule = $0 ? module : nil }
         .accessibilityHint(L10n.text("打开{0}扫描结果", module.resultDestinationTitle))
+    }
+
+    @ViewBuilder private func moduleCleanupInfo(_ module: ScanModuleID) -> some View {
+        let selected = model.cleanupCenterSelectionSummary(for: module)
+        let cleaned = model.sessionCleanupSummary.completedByModule[module]
+        let state = model.scanProgressByModule[module]?.state
+        HStack(spacing: 8) {
+            VStack(alignment: .trailing, spacing: 3) {
+                if model.activeCleanupModules.contains(module) || model.oneClickActiveModules.contains(module) {
+                    Text(L10n.text("正在检查并删除所选项目"))
+                } else if let state, state != .completed && state != .limited {
+                    ScanModuleStateView(state: state)
+                } else if let selected {
+                    Text(selected.title)
+                } else if cleaned == nil && model.hasScanResult(for: module) {
+                    Text(L10n.text("手动选择清理"))
+                }
+                if let cleaned {
+                    Text(L10n.text("本次已清理：{0} 项 · {1}", String(cleaned.itemCount),
+                        ByteCountFormatter.cleanerString(bytes: cleaned.bytes)))
+                        .foregroundColor(.green)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            if state == .completed || state == .limited {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .accessibilityLabel(L10n.text("扫描完成"))
+            }
+        }
+        .font(.caption.weight(.medium))
+        .foregroundColor(.secondary)
+        .monospacedDigit()
+        .lineLimit(1)
     }
 
     private var preScanTrust: some View {

@@ -4,12 +4,17 @@ import Foundation
 /// They share disk extents until a writer changes content; no model weight is read into memory.
 struct OllamaModelRecovery {
     let context: ScanContext
+    let planDirectory: URL
 
     func prepare(_ candidate: CleanupCandidate, destination: URL) async throws {
         guard let proof = candidate.ollamaModelProof else { return }
+        try validateArchiveURL(destination, candidateID: candidate.id, original: candidate.url)
+        guard try await validatedArchiveIdentity(planDirectory).kind == .directory else {
+            throw FileSystemError.invalidAttributes(planDirectory)
+        }
         let directory = destination.appendingPathExtension("ollama-files")
         try await context.fileSystem.createDirectory(directory)
-        guard try await LocalAIModelScanner().validatedIdentity(directory, context: context).kind == .directory else {
+        guard try await validatedArchiveIdentity(directory).kind == .directory else {
             throw FileSystemError.invalidAttributes(directory)
         }
         for blob in proof.blobs {
@@ -18,7 +23,7 @@ struct OllamaModelRecovery {
             if !(await context.fileSystem.fileExists(snapshot)) {
                 try await context.fileSystem.cloneFile(blob.url, to: snapshot)
             }
-            let identity = try await LocalAIModelScanner().validatedIdentity(snapshot, context: context)
+            let identity = try await validatedArchiveIdentity(snapshot)
             guard identity.kind == .file, identity.size == blob.identity.size else {
                 throw FileSystemError.invalidAttributes(snapshot)
             }
@@ -34,7 +39,7 @@ struct OllamaModelRecovery {
             try await ensureDirectory(result.originalURL.deletingLastPathComponent())
             return
         }
-        guard let source = result.destinationURL, directory(for: result) != nil else { return }
+        guard let source = result.destinationURL, try directory(for: result) != nil else { return }
         try await ensureDirectory(result.originalURL.deletingLastPathComponent())
         let document = try JSONDecoder().decode(OllamaManifestDocument.self,
             from: await context.fileSystem.readData(at: source, maximumBytes: 1_048_576))
@@ -49,12 +54,13 @@ struct OllamaModelRecovery {
             }
             if let own = ownFiles[original], let archived = own.destinationURL,
                await context.fileSystem.fileExists(archived) {
-                let identity = try await scanner.validatedIdentity(archived, context: context)
+                try validateArchiveURL(archived, candidateID: own.candidateID, original: own.originalURL)
+                let identity = try await validatedArchiveIdentity(archived)
                 guard identity.kind == .file, identity.size == layer.size else { throw FileSystemError.invalidAttributes(archived) }
                 continue
             }
             let snapshot = source.appendingPathExtension("ollama-files").appendingPathComponent(original.lastPathComponent)
-            let identity = try await scanner.validatedIdentity(snapshot, context: context)
+            let identity = try await validatedArchiveIdentity(snapshot)
             guard identity.kind == .file, identity.size == layer.size else { throw FileSystemError.invalidAttributes(snapshot) }
             try await ensureDirectory(original.deletingLastPathComponent())
             try await context.fileSystem.cloneFile(snapshot, to: original)
@@ -82,10 +88,45 @@ struct OllamaModelRecovery {
         }
     }
 
-    func directory(for result: OperationResult) -> URL? {
+    func directory(for result: OperationResult) throws -> URL? {
         let prefix = context.homeDirectory.appendingPathComponent(".ollama/models/manifests").path + "/"
         guard result.originalURL.path.hasPrefix(prefix),
               result.originalURL.path.dropFirst(prefix.count).split(separator: "/").count == 4 else { return nil }
-        return result.destinationURL?.appendingPathExtension("ollama-files")
+        guard let destination = result.destinationURL else { return nil }
+        try validateArchiveURL(destination, candidateID: result.candidateID, original: result.originalURL)
+        return destination.appendingPathExtension("ollama-files")
+    }
+
+    private func validateArchiveURL(_ url: URL, candidateID: UUID, original: URL) throws {
+        let expected = planDirectory.appendingPathComponent(candidateID.uuidString + "-" + original.lastPathComponent)
+        guard url.isFileURL, !url.pathComponents.contains(".."), url.standardizedFileURL == expected.standardizedFileURL else {
+            throw PathPolicyError.invalidSyntax
+        }
+    }
+
+    /// Internal recovery content is protected from normal cleanup. Validate its
+    /// exact transaction boundary and every ancestor instead of weakening that policy.
+    func validatedArchiveIdentity(_ url: URL) async throws -> FileIdentity {
+        try Task.checkCancellation()
+        let root = planDirectory.standardizedFileURL
+        let clean = url.standardizedFileURL
+        guard url.isFileURL, !url.pathComponents.contains(".."),
+              (clean == root || clean.path.hasPrefix(root.path + "/")),
+              root.path.hasPrefix(context.homeDirectory.path + "/"),
+              UUID(uuidString: root.lastPathComponent) != nil,
+              !url.path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            throw PathPolicyError.invalidSyntax
+        }
+        var ancestor = clean.deletingLastPathComponent()
+        while true {
+            guard try await context.fileSystem.identity(at: ancestor).kind == .directory else {
+                throw PathPolicyError.invalidSyntax
+            }
+            if ancestor.path == "/" { break }
+            ancestor = ancestor.deletingLastPathComponent()
+        }
+        let identity = try await context.fileSystem.identity(at: clean)
+        guard identity.kind == .file || identity.kind == .directory else { throw PathPolicyError.invalidSyntax }
+        return identity
     }
 }

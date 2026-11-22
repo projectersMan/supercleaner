@@ -5,6 +5,7 @@ import SwiftUI
 struct DiskSpaceView: View {
     @ObservedObject var model: AppModel
     @State private var searchText = ""
+    @State private var collapsedDirectoryIDs = Set<String>()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +34,9 @@ struct DiskSpaceView: View {
                         .font(.caption).foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 18).padding(.vertical, 8)
                 }
-                if model.showsDuplicateLargeFilesOnly {
+                if model.largeFileSortOrder == .directory {
+                    directoryList(tree)
+                } else if model.showsDuplicateLargeFilesOnly {
                     duplicateList
                 } else if tree.roots.isEmpty {
                     EmptyState(title: L10n.text("未发现符合条件的大文件"), message: L10n.text("本次扫描未发现达到当前大小标准的文件。"), icon: "doc.text.magnifyingglass")
@@ -91,6 +94,79 @@ struct DiskSpaceView: View {
             }
     }
 
+    @ViewBuilder private func directoryList(_ tree: DiskUsageTree) -> some View {
+        let sections = model.largeFileDirectorySections(in: tree)
+        if sections.isEmpty {
+            EmptyState(title: L10n.text("未发现符合条件的大文件"),
+                message: model.showsDuplicateLargeFilesOnly ? L10n.text("可切换到全部大文件查看扫描清单。") : L10n.text("本次扫描未发现达到当前大小标准的文件。"),
+                icon: "doc.text.magnifyingglass")
+        } else {
+            if !model.showsDuplicateLargeFilesOnly { diskSummary(tree) }
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(sections) { section in
+                        Section {
+                            if !collapsedDirectoryIDs.contains(section.id) {
+                                ForEach(section.files) { node in
+                                    DiskUsageTreeRow(model: model, node: node, depth: 1)
+                                }
+                            }
+                        } header: {
+                            directoryHeader(section, tree: tree)
+                        }
+                    }
+                }
+                .padding(.horizontal, 18).padding(.vertical, 8)
+            }
+        }
+    }
+
+    private func directoryHeader(_ section: LargeFileDirectorySection, tree: DiskUsageTree) -> some View {
+        let candidates = model.selectableLargeFileCandidates(in: section)
+        let expanded = !collapsedDirectoryIDs.contains(section.id)
+        return HStack(spacing: 10) {
+            ResourceSelectionCheckbox(state: model.cleanupSelectionState(for: candidates, includesManualOnly: true),
+                isEnabled: !candidates.isEmpty && !model.isDeletionInProgress && !model.updateInProgress && !model.isCurrentModuleScanning,
+                title: "", label: section.title) {
+                    model.toggleLargeFileDirectorySection(section)
+                }
+                .frame(width: 18, height: 18)
+                .help(L10n.text("全选当前筛选中可清理的项目"))
+            Button {
+                if expanded { collapsedDirectoryIDs.insert(section.id) }
+                else { collapsedDirectoryIDs.remove(section.id) }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold)).frame(width: 16)
+                    Image(systemName: section.directory == nil ? "checkmark.circle" : "folder")
+                        .foregroundColor(.accentColor)
+                    Text(section.title).font(.headline).multilineTextAlignment(.leading)
+                    Spacer()
+                    Text(L10n.text("{0} 个文件", String(section.files.count)))
+                        .font(.caption).foregroundColor(.secondary).fixedSize()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(expanded ? L10n.text("折叠 {0}", section.title) : L10n.text("展开 {0}", section.title))
+        }
+        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.06))
+        .contextMenu {
+            Button(L10n.text("全部展开")) {
+                collapsedDirectoryIDs = LargeFileDirectorySection.collapsedIDs(
+                    for: model.largeFileDirectorySections(in: tree), expanded: true
+                )
+            }
+            Button(L10n.text("全部折叠")) {
+                collapsedDirectoryIDs = LargeFileDirectorySection.collapsedIDs(
+                    for: model.largeFileDirectorySections(in: tree), expanded: false
+                )
+            }
+        }
+    }
+
     @ViewBuilder private var duplicateList: some View {
         let candidates = visibleDuplicates
         if candidates.isEmpty {
@@ -144,11 +220,11 @@ private struct LargeFileFilterBar: View {
                 scope
                 sort
                 Spacer(minLength: 0)
-                count
+                selectionSummary
             }
             .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) { search; Spacer(minLength: 0); count }
+                HStack(spacing: 12) { search; Spacer(minLength: 0); selectionSummary }
                 HStack(spacing: 12) { scope; sort; Spacer(minLength: 0) }
             }
             .frame(maxWidth: .infinity)
@@ -174,9 +250,9 @@ private struct LargeFileFilterBar: View {
     }
 
     private var scope: some View {
-        ScopePicker(labels: [L10n.text("重复大文件"), L10n.text("全部大文件")], selection: Binding(
-            get: { model.showsDuplicateLargeFilesOnly ? 0 : 1 },
-            set: { model.showsDuplicateLargeFilesOnly = $0 == 0 }
+        ScopePicker(labels: [L10n.text("全部大文件"), L10n.text("重复大文件")], selection: Binding(
+            get: { model.showsDuplicateLargeFilesOnly ? 1 : 0 },
+            set: { model.showsDuplicateLargeFilesOnly = $0 == 1 }
         ))
         .frame(width: 420).fixedSize(horizontal: false, vertical: true)
     }
@@ -191,11 +267,22 @@ private struct LargeFileFilterBar: View {
         .frame(width: 140).fixedSize(horizontal: false, vertical: true)
     }
 
-    private var count: some View {
-        let count = model.showsDuplicateLargeFilesOnly ? model.duplicateLargeFiles.count : tree.largeFiles.count
-        return Text(L10n.text("{0} 个文件", String(count)))
-            .monospacedDigit().foregroundColor(.secondary)
-            .frame(width: 140, alignment: .trailing).lineLimit(1)
+    private var selectionSummary: some View {
+        let selectableCount = model.visibleLargeFileCandidates(in: tree).count
+        let totalCount = model.showsDuplicateLargeFilesOnly ? model.duplicateLargeFiles.count : tree.largeFiles.count
+        return HStack(spacing: 8) {
+            ResourceSelectionCheckbox(state: model.largeFileSelectionState(in: tree),
+                isEnabled: selectableCount > 0 && !model.isDeletionInProgress && !model.updateInProgress && !model.isCurrentModuleScanning,
+                title: L10n.text("全选"), label: L10n.text("全选当前筛选中可清理的大文件")) {
+                    model.toggleVisibleLargeFiles(in: tree)
+                }
+                .frame(width: 92, height: 18)
+                .help(L10n.text("全选当前筛选中可清理的大文件"))
+            Spacer(minLength: 0)
+            Text(L10n.text("{0} / {1} 项", String(selectableCount), String(totalCount)))
+                .monospacedDigit().foregroundColor(.secondary).lineLimit(1).fixedSize()
+        }
+        .frame(minWidth: 210).fixedSize(horizontal: true, vertical: false)
     }
 }
 

@@ -136,7 +136,7 @@ public actor CleanupExecutionCoordinator {
             try await journalStore.upsert(entry)
         }
         if let dockPreparationWarning { receipt = receipt.addingIntegrationWarning(dockPreparationWarning) }
-        receipt = try await finalize(receipt: receipt, entry: entry)
+        receipt = try await finalize(receipt: receipt, entry: entry, progress: progress)
         if !receiptURLs.isEmpty {
             let filesCompleted = receipt.results.count
             let service = packageReceipts ?? PackageReceiptCleanupService(forget: { _, _ in throw HelperClientError.unavailable })
@@ -311,15 +311,22 @@ public actor CleanupExecutionCoordinator {
     @discardableResult
     private func finalize(
         receipt: OperationReceipt,
-        entry: ExecutionJournalEntry
+        entry: ExecutionJournalEntry,
+        progress: CleanupExecutor.ProgressHandler = { _ in }
     ) async throws -> OperationReceipt {
         var receipt = receipt
         try await historyStore.upsert(receipt)
+        if dockService != nil {
+            progress(.init(completed: receipt.results.count, total: entry.plan.selectedDisplayItemCount,
+                currentURL: nil, phase: .updatingDock))
+        }
         do { try await dockService?.synchronize(receipt: receipt) }
         catch {
             receipt = receipt.addingIntegrationWarning(L10n.text("应用文件已处理，但 Dock 图标未能同步；可手动移除，或重启 SuperCleaner 后重试。"))
             try await historyStore.upsert(receipt)
         }
+        progress(.init(completed: receipt.results.count, total: entry.plan.selectedDisplayItemCount,
+            currentURL: nil, phase: .savingResults))
         let existingSchedule = try await scheduleStore.schedule(receiptID: receipt.id)
         let awaitsVerification = receipt.results.contains { $0.verificationNotBefore != nil }
         // Reconciliation can run long after a user rescheduled this receipt.
