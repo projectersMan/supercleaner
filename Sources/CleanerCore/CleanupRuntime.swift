@@ -236,10 +236,29 @@ public struct CleanupRuntime: Sendable {
                   metadata.bundleIdentifier == owner.bundleIdentifier else {
                 throw RuleScanError.executionRefused(candidate.ruleID ?? "system-cleanup")
             }
-            let app = InstalledApplication(bundleURL: url, bundleIdentifier: metadata.bundleIdentifier, name: metadata.name,
-                version: metadata.version, isRunning: configuration.context.runningBundleIdentifiers.contains(metadata.bundleIdentifier),
-                isSystem: false, applicationGroups: metadata.applicationGroups, associatedBundleIdentifiers: metadata.associatedBundleIdentifiers)
-            try await ApplicationCleanupScanner().validateForExecution(candidate, context: configuration.context, applications: [app])
+            func application(from metadata: ApplicationBundleMetadata) -> InstalledApplication {
+                InstalledApplication(bundleURL: url, bundleIdentifier: metadata.bundleIdentifier, name: metadata.name,
+                    version: metadata.version, isRunning: configuration.context.runningBundleIdentifiers.contains(metadata.bundleIdentifier),
+                    isSystem: false, teamIdentifier: metadata.teamIdentifier, applicationGroups: metadata.applicationGroups,
+                    associatedBundleIdentifiers: metadata.associatedBundleIdentifiers,
+                    applicationGroupsComplete: metadata.applicationGroupsComplete)
+            }
+            let scanner = ApplicationCleanupScanner()
+            var discovery = await scanner.discover(applications: [application(from: metadata)], context: configuration.context)
+            if !discovery.targets.contains(where: { $0.ruleID == candidate.ruleID }) {
+                // Scan-time ownership includes deeply embedded components. Read the
+                // same declarations when shallow metadata cannot resolve this target,
+                // without walking the entire app for every ordinary cache/log item.
+                try Task.checkCancellation()
+                guard let complete = BundleApplicationMetadataProvider(includeSharedDeclarations: true).metadata(for: url),
+                      complete.bundleIdentifier == owner.bundleIdentifier,
+                      complete.applicationGroupsComplete == true else {
+                    throw RuleScanError.executionRefused(candidate.ruleID ?? "system-cleanup")
+                }
+                try Task.checkCancellation()
+                discovery = await scanner.discover(applications: [application(from: complete)], context: configuration.context)
+            }
+            try await scanner.validateForExecution(candidate, context: configuration.context, discovery: discovery)
         } else {
             try await CleanupRuleEngine(pack: configuration.pack).validateForExecution(candidate, context: configuration.context)
         }

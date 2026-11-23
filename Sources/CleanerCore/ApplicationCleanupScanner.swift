@@ -276,6 +276,11 @@ public struct ApplicationCleanupScanner: Sendable {
     public func validateForExecution(_ candidate: CleanupCandidate, context: ScanContext,
                                      applications: [InstalledApplication]) async throws {
         let discovery = await discover(applications: applications, context: context)
+        try await validateForExecution(candidate, context: context, discovery: discovery)
+    }
+
+    func validateForExecution(_ candidate: CleanupCandidate, context: ScanContext,
+                              discovery: ApplicationCleanupDiscovery) async throws {
         guard let target = discovery.targets.first(where: { $0.ruleID == candidate.ruleID }),
               (target.logExtensions == nil ? candidate.url == target.url : candidate.url.path.hasPrefix(target.url.path + "/")),
               target.logExtensions.map({ $0.contains(candidate.url.pathExtension.lowercased()) }) ?? true,
