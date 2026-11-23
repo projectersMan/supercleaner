@@ -1,8 +1,0 @@
-Final diff and local-link audit
-PASS: 487 local Markdown links checked
-Preserved pre-existing missing historical artifact: ['doc/agent-only-scope.md → ../build/SuperCleaner-0.2.25-58.dmg']
-Reviewed task changes by file: AppModel, PermissionsView, ResourceCleanupView, ContentView, CleanerApp, bilingual strings, Version.json, README, architecture/development/checklist, plan/release and QA records. Earlier uncommitted work preserved.
-PASS: native multi-add 11 to 13, discard 13 to 11, remove 11 to 10 and discard, panel cancel, 3-row inner scrolling, narrow-window controls; restored window and idle Cleanup Center.
-PASS: real project-scan-roots.json remains absent; own test directories and previous install backup cleaned; no cleanup, Trash emptying, Helper registration, commit or push.
-PASS: final 489 local Markdown links; only pre-existing missing historical DMG preserved.
-PASS: final Release305/localization1273/package verification logs and installed0.4.10(124) cross-checked. No Swift changes after build.

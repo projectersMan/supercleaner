@@ -27,7 +27,7 @@ final class DashboardModuleSummaryTests: XCTestCase {
         XCTAssertEqual(model.cleanupCenterSelectionSummary(for: .largeFiles)?.kind, .manual)
         XCTAssertEqual(model.cleanupCenterSelectionSummary(for: .largeFiles)?.metrics, .init(itemCount: 1, bytes: 200))
         model.showsDuplicateLargeFilesOnly = true
-        XCTAssertNil(model.cleanupCenterSelectionSummary(for: .largeFiles))
+        XCTAssertEqual(model.cleanupCenterSelectionSummary(for: .largeFiles)?.metrics, .init(itemCount: 1, bytes: 200))
         model.showsDuplicateLargeFilesOnly = false
         XCTAssertEqual(model.cleanupCenterSelectionSummary(for: .largeFiles)?.metrics.itemCount, 1)
     }

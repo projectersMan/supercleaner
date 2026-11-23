@@ -4,9 +4,18 @@ set -euo pipefail
 # Prints only the selected identity to stdout so the build can consume it.
 # This reads the keychain; it never creates certificates or changes trust settings.
 SIGN_IDENTITY=${SUPERCLEANER_SIGN_IDENTITY:-}
-REQUIRE_STABLE=${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-1}
+REQUIRE_STABLE=${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0}
 IDENTITY_FILE=${SUPERCLEANER_SIGN_IDENTITY_FILE:-${HOME}/Library/Application Support/SuperCleaner/Signing/identity.sha1}
-IDENTITIES=$(/usr/bin/security find-identity -v -p codesigning)
+[[ ${REQUIRE_STABLE} == 0 || ${REQUIRE_STABLE} == 1 ]] || { print -u2 "Invalid SUPERCLEANER_REQUIRE_STABLE_SIGNING"; exit 1; }
+# Local builds deliberately use ad-hoc signing, even if this Mac has a pinned certificate.
+# Certificates are selected only by an explicit identity/file or strict signing mode.
+if [[ -z ${SIGN_IDENTITY} && ${REQUIRE_STABLE} == 0 && -z ${SUPERCLEANER_SIGN_IDENTITY_FILE:-} ]]; then
+  SIGN_IDENTITY=-
+fi
+IDENTITIES=
+if [[ ${SIGN_IDENTITY} != - ]]; then
+  IDENTITIES=$(/usr/bin/security find-identity -v -p codesigning)
+fi
 
 if [[ -z ${SIGN_IDENTITY} && -f ${IDENTITY_FILE} ]]; then
   [[ ! -L ${IDENTITY_FILE} ]] || { print -u2 "Signing identity file must be a regular file."; exit 1; }

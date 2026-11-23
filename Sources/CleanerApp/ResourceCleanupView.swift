@@ -46,7 +46,9 @@ struct ResourceCleanupView: View {
                         .font(.caption).foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 18).padding(.vertical, 8)
-                        .help(status.limitations.map(\.title).joined(separator: "\n"))
+                        .help(status.limitations.map { limitation in
+                            [limitation.title, limitation.path?.path].compactMap { $0 }.joined(separator: " · ")
+                        }.joined(separator: "\n"))
                 }
                 resourceContent
             }
@@ -74,65 +76,43 @@ struct ResourceCleanupView: View {
     }
 
     private var filterBar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                searchField
-                scopePicker
-                sortPicker
-                Spacer(minLength: 0)
-                selectionSummary
-            }
-            .frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) { searchField; Spacer(minLength: 0); selectionSummary }
-                HStack(spacing: 12) { scopePicker; sortPicker; Spacer(minLength: 0) }
-            }
-            .frame(maxWidth: .infinity)
+        ReviewToolbar(query: reviewFilter.query, prompt: L10n.text("搜索名称或路径")) { metrics in
+            selectAll(metrics)
+            scopePicker(metrics)
+            sortPicker(metrics)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.caption)
-        .padding(.leading, 18).padding(.trailing, 20).padding(.vertical, 10)
-        .background(.bar)
     }
 
-    private var searchField: some View {
-        TextField(L10n.text("搜索名称、路径或证据"), text: reviewFilter.query)
-            .textFieldStyle(.roundedBorder).frame(width: 260)
-    }
-
-    private var scopePicker: some View {
+    private func scopePicker(_ metrics: ReviewToolbarMetrics) -> some View {
         let scopes = ResourceCleanupListScope.scopes(for: destination)
         return ScopePicker(labels: scopes.map(\.displayTitle), selection: Binding(
             get: { scopes.firstIndex(of: reviewFilter.wrappedValue.scope)! },
             set: { model.selectResourceReviewScope(scopes[$0], for: destination) }
         ))
-        .frame(width: CGFloat(scopes.count * 105)).fixedSize(horizontal: false, vertical: true)
+        .frame(width: metrics.scopeWidth(count: scopes.count)).fixedSize(horizontal: false, vertical: true)
     }
 
-    private var sortPicker: some View {
-        Picker(L10n.text("排序"), selection: reviewFilter.sortOrder) {
-            ForEach(LargeFileSortOrder.allCases, id: \.self) { order in
-                Text(order.displayTitle).tag(order)
-            }
-        }
-        .pickerStyle(.menu).frame(width: 140).fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var selectionSummary: some View {
-        HStack(spacing: 8) {
-            ResourceSelectionCheckbox(state: model.cleanupSelectionState(for: selectableItems, includesManualOnly: true),
-                isEnabled: !selectableItems.isEmpty && !selectionIsDisabled,
-                title: L10n.text("全选"),
-                label: L10n.text("全选当前筛选中可清理的项目")) {
-                    model.toggleCleanupCategory(selectableItems, includesManualOnly: true)
+    private func sortPicker(_ metrics: ReviewToolbarMetrics) -> some View {
+        HStack(spacing: metrics.labelSpacing) {
+            if !metrics.isCompact { Text(L10n.text("排序")).foregroundColor(.secondary) }
+            Picker(L10n.text("排序"), selection: reviewFilter.sortOrder) {
+                ForEach(LargeFileSortOrder.allCases, id: \.self) { order in
+                    Text(order.displayTitle).tag(order)
                 }
-                .frame(width: 92, height: 18)
-                .help(L10n.text("全选当前筛选中可清理的项目"))
-            Spacer(minLength: 0)
-            Text(L10n.text("{0} / {1} 项", String(visibleItems.count), String(allItems.count)))
-                .monospacedDigit().foregroundColor(.secondary).lineLimit(1).fixedSize()
-        }
-        .frame(minWidth: 200).fixedSize(horizontal: true, vertical: false)
+            }
+            .pickerStyle(.menu).labelsHidden().frame(width: metrics.dropdownWidth)
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func selectAll(_ metrics: ReviewToolbarMetrics) -> some View {
+        ResourceSelectionCheckbox(state: model.cleanupSelectionState(for: selectableItems, includesManualOnly: true),
+            isEnabled: !selectableItems.isEmpty && !selectionIsDisabled,
+            title: L10n.text("全选"),
+            label: L10n.text("全选当前筛选中可清理的项目")) {
+                model.toggleCleanupCategory(selectableItems, includesManualOnly: true)
+            }
+            .frame(width: metrics.selectAllWidth, height: 18)
+            .help(L10n.text("全选当前筛选中可清理的项目"))
     }
 
     @ViewBuilder private var resourceContent: some View {
@@ -264,6 +244,17 @@ private struct ResourceCleanupGroupRow: View {
                 .accessibilityLabel(isExpanded ? L10n.text("折叠 {0}", group.title) : L10n.text("展开 {0}", group.title))
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
+            .contentShape(Rectangle())
+            .contextMenu {
+                if destination == .projects, group.detail.hasPrefix("/") {
+                    let projectURL = URL(fileURLWithPath: group.detail)
+                    Button(L10n.text("在 Finder 中打开")) {
+                        NSWorkspace.shared.activateFileViewerSelecting([projectURL])
+                    }
+                    Button(L10n.text("永久保护此路径")) { model.protect(projectURL) }
+                        .disabled(selectionIsDisabled)
+                }
+            }
             if let notice = group.notice {
                 Text(notice).font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -333,6 +324,7 @@ private struct ResourceCleanupCandidateRow: View {
         }
         .padding(.leading, 44).padding(.trailing, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .background(model.selectedIDs.contains(candidate.id) ? Color.accentColor.opacity(0.06) : Color.clear)
         .overlay(Rectangle().frame(height: 1).foregroundColor(Color.secondary.opacity(0.10)), alignment: .bottom)
         .contextMenu {

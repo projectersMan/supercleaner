@@ -19,8 +19,8 @@ func runPermissionContracts() async {
         "app management must deep-link to the App Management pane"
     )
     require(
-        PermissionScanStartPolicy.shouldStartFullScan(fullDiskAccess: .actionRequired),
-        "limited full disk access must start scanning so macOS can request native authorization"
+        !PermissionScanStartPolicy.shouldStartFullScan(fullDiskAccess: .actionRequired),
+        "an explicit disk access denial must require renewed authorization before scanning"
     )
 
     let grantedSnapshot = await PermissionStatusService(

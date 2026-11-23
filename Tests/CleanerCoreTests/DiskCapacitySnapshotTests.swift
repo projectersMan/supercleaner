@@ -89,7 +89,7 @@ final class DiskCapacitySnapshotTests: XCTestCase {
         let directory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures", isDirectory: true)
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         fixtureDirectory = directory
@@ -114,7 +114,7 @@ final class DiskCapacitySnapshotTests: XCTestCase {
         let missing = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures", isDirectory: true)
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
         guard case let .unavailable(error) = DiskCapacityReader.read(at: missing) else {

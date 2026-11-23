@@ -190,7 +190,7 @@ import XCTest
 
     private static func home() -> URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("cleanup-center-resource-sync/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/cleanup-center-resource-sync/fixtures/\(UUID())")
     }
 
     private static func write(_ path: String, home: URL, byte: UInt8) throws -> URL {

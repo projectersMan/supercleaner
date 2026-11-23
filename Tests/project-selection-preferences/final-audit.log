@@ -1,7 +1,0 @@
-PASS: version remains 0.4.24 (138) after verification, DMG packaging and installation
-PASS: build/installed/mounted metadata, signatures, entitlements and executable hashes match (artifact-check.json)
-PASS: final functional sources match build-source-hashes.json; documentation-only updates after build
-PASS: HEAD remains 1062a42d4aeeb94f9734e6acea794747cc89cbbf; staged diff empty; no commit or push
-PASS: prior changes retained; no new dependency, no AGENTS.md or .trae/rules/project_rules.md exists
-PASS: this batch installation backup removed after package/native acceptance; delivered DMGs retained
-PASS: current README, architecture/development, checklist, plan, release and QA document links resolve

@@ -143,7 +143,7 @@ final class LocalAIModelScannerTests: XCTestCase {
 
     func testRealFileSystemFixtureLeavesConfigOutsideModelScopeAndSkipsSnapshotLinks() async throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures/" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures/" + UUID().uuidString, isDirectory: true)
         let home = root.appendingPathComponent("home", isDirectory: true)
         let model = home.appendingPathComponent(".cache/huggingface/hub/models--org--chat", isDirectory: true)
         let blob = model.appendingPathComponent("blobs/weights")

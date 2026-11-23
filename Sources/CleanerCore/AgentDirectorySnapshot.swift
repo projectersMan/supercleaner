@@ -1,6 +1,7 @@
 import Foundation
 
-/// Caches directory membership, never file identities, content, or deletion eligibility.
+/// Caches directory membership and parsed capabilities, never deletion eligibility.
+/// Capability reuse checks current file versions and literal ancestor identities.
 /// Every nested directory is independently checked, so a deep mutation cannot hide
 /// behind an unchanged ancestor. Failed reads and unstable generations aren't cached.
 public actor AgentDirectorySnapshot {
@@ -14,6 +15,10 @@ public actor AgentDirectorySnapshot {
         let stamps: [String: String]
         let value: CapabilityDirectory
     }
+    private struct ParsedSkill { let stamps: [String: String]; let value: SkillCatalogEntry }
+    private struct ParsedMCP { let stamp: String; let value: MCPConfigurationRecord }
+    private var parsedSkills = [String: ParsedSkill]()
+    private var parsedConfigurations = [String: ParsedMCP]()
     public static let shared = AgentDirectorySnapshot()
     private struct Entry { let generation: String; let children: [URL] }
     private var entries: [String: Entry] = [:]
@@ -59,14 +64,12 @@ public actor AgentDirectorySnapshot {
                 else { canCache = false }
             }
             if (manifest && !isSkillRoot || fileSkillRoot && !manifest),
-               let entry = await SkillCatalogSupport.makeEntry(provider: root.provider, scope: resolver.matchingRule(for: child)?.scope ?? root.scope, discoveredURL: child, fileSystem: fs) {
+               let entry = await skill(provider: root.provider, scope: resolver.matchingRule(for: child)?.scope ?? root.scope, url: child, context: context) {
                 skills.append(entry)
             }
-            if mcp, let entry = await MCPConfigurationCatalogSupport.makeRecord(provider: root.provider, scope: resolver.matchingRule(for: child)?.scope ?? root.scope,
-                url: child, homeDirectory: context.homeDirectory, fileSystem: fs) { configurations.append(entry) }
+            if mcp, let entry = await configuration(provider: root.provider, scope: resolver.matchingRule(for: child)?.scope ?? root.scope, url: child, context: context) { configurations.append(entry) }
         }
-        if isSkillRoot, let skill = await SkillCatalogSupport.makeEntry(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope,
-            discoveredURL: url, fileSystem: fs) { skills.append(skill) }
+        if isSkillRoot, let skill = await skill(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope, url: url, context: context) { skills.append(skill) }
         let value = CapabilityDirectory(directories: directories, skills: skills, configurations: configurations)
         if canCache, let generation, generation == (try await fs.directoryGeneration(at: url)) {
             // Don't commit a parsed snapshot if a capability file changed during parsing.
@@ -78,6 +81,50 @@ public actor AgentDirectorySnapshot {
                 if catalogs.count >= 100_000 { catalogs.removeAll(keepingCapacity: true) }
                 catalogs[key] = CatalogEntry(generation: generation, stamps: stamps, value: value)
             }
+        }
+        return value
+    }
+
+    /// Share parsed capabilities between discovery and asset classification. Identities,
+    /// ancestor links, permissions and deletion eligibility are never reused here.
+    func skill(provider: AgentProvider, scope: AgentScope, url: URL, context: ScanContext) async -> SkillCatalogEntry? {
+        let fs = context.fileSystem
+        guard !Task.isCancelled, await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: fs),
+              let location = await SkillCatalogSupport.canonicalLocation(for: url, fileSystem: fs) else { return nil }
+        let watched = [location.rootURL] + (location.manifestURL.map { [$0] } ?? [])
+        for path in watched where !(await AgentCatalogPathPolicy.isDirectPath(path, fileSystem: fs)) { return nil }
+        let key = provider.rawValue + "|" + scope.rawValue + "|" + location.rootURL.path + "|" + (location.manifestURL?.path ?? "")
+        var stamps = [String: String]()
+        for path in watched {
+            if let stamp = try? await fs.itemGeneration(at: path) { stamps[path.path] = stamp }
+        }
+        let cacheable = stamps.count == watched.count
+        if cacheable, let cached = parsedSkills[key], cached.stamps == stamps {
+            return SkillCatalogSupport.rediscovered(cached.value, at: url)
+        }
+        parsedSkills.removeValue(forKey: key)
+        guard let value = await SkillCatalogSupport.makeEntry(provider: provider, scope: scope, discoveredURL: url, fileSystem: fs) else { return nil }
+        var stable = cacheable && (location.manifestURL == nil || value.parseStatus != .pathFallback) && !Task.isCancelled
+        for path in watched {
+            if (try? await fs.itemGeneration(at: path)) != stamps[path.path] { stable = false }
+        }
+        if stable { parsedSkills[key] = ParsedSkill(stamps: stamps, value: value) }
+        return value
+    }
+
+    func configuration(provider: AgentProvider, scope: AgentScope, url: URL, context: ScanContext) async -> MCPConfigurationRecord? {
+        let fs = context.fileSystem
+        guard !Task.isCancelled, MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url),
+              await AgentCatalogPathPolicy.isDirectPath(url, fileSystem: fs) else { return nil }
+        let key = context.homeDirectory.path + "|" + provider.rawValue + "|" + scope.rawValue + "|" + url.path
+        let stamp = try? await fs.itemGeneration(at: url)
+        if let stamp, let cached = parsedConfigurations[key], cached.stamp == stamp { return cached.value }
+        parsedConfigurations.removeValue(forKey: key)
+        guard let value = await MCPConfigurationCatalogSupport.makeRecord(provider: provider, scope: scope, url: url,
+            homeDirectory: context.homeDirectory, fileSystem: fs) else { return nil }
+        if let stamp, value.parseStatus != .unreadable, !Task.isCancelled,
+           (try? await fs.itemGeneration(at: url)) == stamp {
+            parsedConfigurations[key] = ParsedMCP(stamp: stamp, value: value)
         }
         return value
     }

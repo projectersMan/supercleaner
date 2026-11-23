@@ -4,7 +4,7 @@ import Foundation
 func runCoreReadOnlyContracts() async throws {
     let manager = FileManager.default
     let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Tests/local-ai-projects-disk/cli", isDirectory: true)
+        .deletingLastPathComponent().appendingPathComponent("Tests/temporary/local-ai-projects-disk/cli", isDirectory: true)
     let home = fixtures.appendingPathComponent("core-readonly-" + UUID().uuidString, isDirectory: true)
     let cache = home.appendingPathComponent("Library/Caches/unknown")
     try manager.createDirectory(at: cache, withIntermediateDirectories: true)

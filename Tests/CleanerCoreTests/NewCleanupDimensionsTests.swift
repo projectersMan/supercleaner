@@ -5,7 +5,7 @@ import XCTest
 final class NewCleanupDimensionsTests: XCTestCase {
     func testModelExecutionUsesModelScopeValidationInsteadOfBundledRuleLookup() async throws {
         let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures/model-validation-\(UUID())")
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures/model-validation-\(UUID())")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         addTeardownBlock { try FileManager.default.removeItem(at: home) }
         let candidate = CleanupCandidate(url: home.appendingPathComponent("not-a-model"), displayName: "Invalid model",
@@ -34,7 +34,7 @@ final class NewCleanupDimensionsTests: XCTestCase {
 
     func testModelAndProjectScansStayIndependentAndReconcileConfirmedCleanup() async throws {
         let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures/new-dimensions-\(UUID())")
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures/new-dimensions-\(UUID())")
         addTeardownBlock { try FileManager.default.removeItem(at: home) }
         let blob = home.appendingPathComponent(".cache/huggingface/hub/models--org--fixture/blobs/weights.bin")
         let manifest = home.appendingPathComponent("code/Example/Package.swift")

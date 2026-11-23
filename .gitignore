@@ -7,9 +7,15 @@ dist/
 build/
 *.xcarchive
 *.dSYM/
+__pycache__/
+*.py[cod]
+*.p12
+*.pfx
+*.key
 
 # Local validation and compiler outputs
 Tests/temporary/
+Tests/.review-coverage-*/
 Tests/**/*.log
 Tests/**/*.sample
 Tests/**/*.sample.gz

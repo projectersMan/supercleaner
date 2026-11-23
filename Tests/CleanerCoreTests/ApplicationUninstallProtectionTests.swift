@@ -99,7 +99,7 @@ private struct ProtectionFixture: Sendable {
     var context: ScanContext { .init(homeDirectory: home, enforcesEntryBudgets: false) }
     init() throws {
         home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("application-uninstall-eligibility/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/application-uninstall-eligibility/fixtures/\(UUID())")
         for name in ["Normal", "Admin", "RunningAdmin"] {
             let app = home.appendingPathComponent("Applications/\(name).app")
             try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)

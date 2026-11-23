@@ -78,7 +78,7 @@ private struct AgentSymlinkFixture {
     init() throws {
         let manager = FileManager.default
         root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("agent-symlink-exclusion/fixtures/" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("temporary/agent-symlink-exclusion/fixtures/" + UUID().uuidString, isDirectory: true)
         home = root.appendingPathComponent("home", isDirectory: true)
         let external = root.appendingPathComponent("external", isDirectory: true)
         for directory in [".codex/skills", ".claude", ".agents/skills/real/references", ".agents/skills/manifest-link", ".agents/skills/broken-manifest"] {

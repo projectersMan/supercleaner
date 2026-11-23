@@ -123,7 +123,7 @@ import XCTest
 
     func testMixedPlanPreservesCopyProofBeforeAliasAndParentConsolidation() async throws {
         let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("dashboard-all-default/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/dashboard-all-default/fixtures/\(UUID())")
         let downloads = home.appendingPathComponent("Downloads")
         try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
         addTeardownBlock { try FileManager.default.removeItem(at: home) }

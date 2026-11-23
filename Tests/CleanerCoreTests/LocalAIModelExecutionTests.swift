@@ -96,7 +96,7 @@ private struct ModelExecutionFixture {
 
     init(kind: Kind, change: ModelExecutionChange) throws {
         root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("local-ai-projects-disk/fixtures/" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("temporary/local-ai-projects-disk/fixtures/" + UUID().uuidString, isDirectory: true)
         home = root.appendingPathComponent("home", isDirectory: true)
         let relativePath: String
         let processName: String

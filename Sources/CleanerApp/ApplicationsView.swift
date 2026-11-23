@@ -8,7 +8,7 @@ struct ApplicationsView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(L10n.text("应用卸载")).font(.largeTitle.bold())
-                Text(L10n.text("基础扫描识别应用归属；运行观察补充关联线索。展开核对后选择卸载内容，用户数据需手动确认。"))
+                Text(L10n.text("勾选应用后，将卸载应用本体及全部可卸载的关联项目。"))
                     .foregroundColor(.secondary)
             }
             .padding(24)
@@ -53,44 +53,14 @@ struct ApplicationsView: View {
     }
 
     private var applicationToolbar: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                applicationSearch
-                ApplicationScopePicker(selection: $model.applicationScope)
-                    .frame(width: 420).fixedSize(horizontal: false, vertical: true)
-                applicationSort
-                Spacer(minLength: 0)
-                applicationCount
-                if model.applicationScope == .running || model.applicationScope == .all {
-                    quitApplicationButton
-                }
+        ReviewToolbar(query: $model.applicationQuery, prompt: L10n.text("搜索名称、Bundle ID 或路径")) { metrics in
+            ApplicationScopePicker(selection: $model.applicationScope)
+                .frame(width: metrics.applicationScopeWidth).fixedSize(horizontal: false, vertical: true)
+            applicationSort(metrics)
+            if model.applicationScope == .running || model.applicationScope == .all {
+                quitApplicationButton.frame(width: metrics.isCompact ? 80 : nil)
             }
-            .frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    applicationSearch
-                    Spacer(minLength: 0)
-                    applicationCount
-                }
-                HStack(spacing: 12) {
-                    ApplicationScopePicker(selection: $model.applicationScope)
-                        .frame(width: 420).fixedSize(horizontal: false, vertical: true)
-                    applicationSort
-                    Spacer(minLength: 0)
-                    if model.applicationScope == .running || model.applicationScope == .all {
-                        quitApplicationButton
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.caption)
-        .padding(.leading, 18)
-        // Match SelectionActionBar's trailing inset.
-        .padding(.trailing, 20)
-        .padding(.vertical, 10)
-        .background(.bar)
     }
 
     private var quitApplicationButton: some View {
@@ -107,30 +77,20 @@ struct ApplicationsView: View {
         .accessibilityLabel(title)
     }
 
-    private var applicationSearch: some View {
-        TextField(L10n.text("搜索名称、Bundle ID 或路径"), text: $model.applicationQuery)
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 260)
-    }
-
-    private var applicationSort: some View {
-        Picker(L10n.text("排序"), selection: $model.applicationSortOrder) {
-            ForEach(ApplicationSortOrder.allCases, id: \.self) { order in
-                Text(order.displayTitle).tag(order)
+    private func applicationSort(_ metrics: ReviewToolbarMetrics) -> some View {
+        HStack(spacing: metrics.labelSpacing) {
+            if !metrics.isCompact { Text(L10n.text("排序")).foregroundColor(.secondary) }
+            Picker(L10n.text("排序"), selection: $model.applicationSortOrder) {
+                ForEach(ApplicationSortOrder.allCases, id: \.self) { order in
+                    Text(order.displayTitle).tag(order)
+                }
             }
+            .pickerStyle(.menu).labelsHidden().frame(width: metrics.dropdownWidth)
         }
-        .pickerStyle(.menu)
-        .frame(width: 140)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var applicationCount: some View {
-        let summary = model.applicationFilterSummary
-        return Text(L10n.text("{0} / {1} 个应用", String(describing: summary.visibleCount), String(describing: summary.totalCount)))
-            .monospacedDigit().foregroundColor(.secondary)
-            .frame(width: 140, alignment: .trailing)
-            .lineLimit(1)
-    }
+
 }
 
 private struct ApplicationUninstallRow: View {
@@ -143,7 +103,7 @@ private struct ApplicationUninstallRow: View {
     @State private var isHovered = false
 
     private var plan: UninstallPlan? { analysis?.plan }
-    /// Keep the summary count and size aligned with rows that show an enabled checkbox.
+    /// Count all eligible associated items controlled by the application checkbox.
     private var selectableItems: [UninstallItem] {
         guard let plan else { return [] }
         return plan.items.filter(Self.isSelectable)
@@ -293,7 +253,7 @@ private struct ApplicationUninstallRow: View {
     private func observationLabel(for directory: URL) -> String {
         if let item = analysis?.plan?.items.first(where: { $0.candidate.url.standardizedFileURL.path == directory.standardizedFileURL.path }) {
             return ApplicationUninstallRow.isSelectable(item)
-                ? L10n.text("已列入上方卸载清单，可勾选删除")
+                ? L10n.text("已列入上方卸载清单，将随应用一并处理")
                 : L10n.text("已列入上方清单，请查看该项的保护原因")
         }
         return L10n.text("观察到访问 · 可删除性以卸载清单的归属校验为准")
@@ -378,14 +338,14 @@ private struct ApplicationUninstallRow: View {
     private func expandedContent(plan: UninstallPlan) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(selectableItems) { item in
-                UninstallItemRow(model: model, item: item).padding(.leading, 52)
-                if item.id != selectableItems.last?.id || !receiptItems.isEmpty { Divider().padding(.leading, 92) }
+                UninstallItemRow(item: item).padding(.leading, 52)
+                if item.id != selectableItems.last?.id || !receiptItems.isEmpty { Divider().padding(.leading, 66) }
             }
             ForEach(receiptItems, id: \.self) { receipt in
-                if let packageID = PackageReceiptCleanupSelection.packageID(for: receipt) {
-                    UninstallReceiptRow(model: model, receipt: receipt, packageID: packageID)
+                if PackageReceiptCleanupSelection.packageID(for: receipt) != nil {
+                    UninstallReceiptRow(receipt: receipt)
                         .padding(.leading, 52)
-                    if receipt != receiptItems.last { Divider().padding(.leading, 92) }
+                    if receipt != receiptItems.last { Divider().padding(.leading, 66) }
                 }
             }
         }
@@ -418,10 +378,8 @@ private struct ApplicationUninstallRow: View {
     }
 }
 
-private struct UninstallItemRow: View {
-    @ObservedObject var model: AppModel
+struct UninstallItemRow: View {
     let item: UninstallItem
-    private var isSelectable: Bool { ApplicationUninstallRow.isSelectable(item) }
     private var sizeDescription: String {
         if item.candidate.evidence.contains(where: { $0.code == "size-not-measured" }) { return "—" }
         return ByteCountFormatter.cleanerString(bytes: item.candidate.bytes)
@@ -429,12 +387,6 @@ private struct UninstallItemRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { model.toggleUninstall(item) } label: {
-                Image(systemName: model.isUninstallItemSelected(item) ? "checkmark.square.fill" : "square")
-                    .font(.body).foregroundColor(model.isUninstallItemSelected(item) ? .accentColor : .secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(!isSelectable || model.isDeletionInProgress)
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.candidate.category == .application
                     ? L10n.text("{0} · 应用本体", String(describing: item.candidate.displayName))
@@ -445,7 +397,7 @@ private struct UninstallItemRow: View {
                     Text(diagnostic.summary).font(.caption2).foregroundColor(.secondary)
                 }
                 if let declaration = item.candidate.evidence.first(where: { $0.code == "data-declaration-source" }) {
-                    Text(L10n.text("应用包声明的数据目录 · 用户数据需手动确认"))
+                    Text(L10n.text("应用包声明的数据目录"))
                         .font(.caption2).foregroundColor(.secondary).help(declaration.summary)
                 }
             }
@@ -459,22 +411,11 @@ private struct UninstallItemRow: View {
     }
 }
 
-private struct UninstallReceiptRow: View {
-    @ObservedObject var model: AppModel
+struct UninstallReceiptRow: View {
     let receipt: URL
-    let packageID: String
-
-    private var isSelected: Bool { model.packageReceiptSelection.isSelected(packageID) }
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { model.setPackageReceiptSelected(!isSelected, packageID: packageID) } label: {
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .font(.body).foregroundColor(isSelected ? .accentColor : .secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(model.isDeletionInProgress)
-            .accessibilityLabel(receipt.lastPathComponent)
             VStack(alignment: .leading, spacing: 3) {
                 Text(receipt.lastPathComponent).font(.callout.weight(.medium)).lineLimit(1)
                 Text(receipt.path).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)

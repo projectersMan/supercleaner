@@ -26,6 +26,12 @@ public struct ProgressiveScanReportAccumulator: Sendable {
             coverage: CoverageSummary(),
             scannedAt: startedAt
         )
+        let metadata = ScanGenerationMetadata(generationID: generationID, startedAt: startedAt,
+            completedAt: startedAt, rulesetVersion: rulesetVersion)
+        if let baseline {
+            report = SystemScanReport(snapshot: baseline, metadata: metadata, modules: initialStatuses)
+            return
+        }
         report = SystemScanReport(
             metadata: ScanGenerationMetadata(
                 generationID: generationID,
@@ -167,6 +173,7 @@ public struct SystemScanReport: Sendable {
     /// of unrelated modules belongs in cleanup completion or status updates.
     init(
         snapshot: SystemScanReport,
+        metadata: ScanGenerationMetadata? = nil,
         modules: [ScanModuleID: ScanModuleStatus]? = nil,
         generalCandidates: [CleanupCandidate]? = nil,
         applicationInventory: ApplicationInventory? = nil,
@@ -180,7 +187,7 @@ public struct SystemScanReport: Sendable {
         candidates: [CleanupCandidate]? = nil,
         coverage: CoverageSummary? = nil
     ) {
-        metadata = snapshot.metadata
+        self.metadata = metadata ?? snapshot.metadata
         self.modules = modules ?? snapshot.modules
         self.generalCandidates = generalCandidates ?? snapshot.generalCandidates
         self.applicationInventory = applicationInventory ?? snapshot.applicationInventory

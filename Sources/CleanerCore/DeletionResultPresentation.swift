@@ -4,6 +4,7 @@ import Foundation
 public struct DeletionResultPresentation: Sendable {
     public enum Outcome: Equatable, Sendable { case deleted, skipped, failed }
 
+    public let orderedResults: [OperationResult]
     public let deletedCount: Int
     public let skippedCount: Int
     public let failedCount: Int
@@ -16,14 +17,24 @@ public struct DeletionResultPresentation: Sendable {
     }
 
     public init(results: [OperationResult], recoveryResults: [OperationResult]? = nil) {
+        var successful: [OperationResult] = []
+        var incomplete: [OperationResult] = []
         var deleted = 0, skipped = 0, failed = 0
         for result in results {
             switch Self.outcome(for: result) {
-            case .deleted: deleted += 1
-            case .skipped: skipped += 1
-            case .failed: failed += 1
+            case .deleted:
+                deleted += 1
+                successful.append(result)
+            case .skipped:
+                skipped += 1
+                incomplete.append(result)
+            case .failed:
+                failed += 1
+                incomplete.append(result)
             }
         }
+        // Stable display-only grouping; keep the persisted execution order intact.
+        orderedResults = incomplete + successful
         deletedCount = deleted
         skippedCount = skipped
         failedCount = failed

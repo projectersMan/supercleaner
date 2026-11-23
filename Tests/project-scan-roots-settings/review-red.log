@@ -1,9 +1,0 @@
-Building for debugging...
-[Using on-disk description]
-[1 / 1]
-[2 / 5] CleanerApp-product
-[5 / 8] CleanerApp-product
-[6 / 8] CleanerApp-product
-[8 / 10] CleanerApp-product
-Build complete! (4.71秒)
-FAIL: root operations must block new scans, permission continuations, cancelled-scan resumes and Trash entry points

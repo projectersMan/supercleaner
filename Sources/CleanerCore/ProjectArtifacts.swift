@@ -56,24 +56,17 @@ public actor ProjectScanRootsStore {
 
 public struct ProjectArtifactScanner: Sendable {
     public let roots: [URL]
-    /// Legacy compatibility only; directory traversal has no depth cutoff.
-    public let maximumDepth: Int
-    public let maximumEntries: Int
-    public let timeLimit: TimeInterval
     private static let artifactNames: Set<String> = ["node_modules", "target", ".build", "build", "dist"]
-    private static let manifestNames: Set<String> = ["package.json", "Cargo.toml", "Package.swift", "pyproject.toml", "go.mod", "build.gradle", "build.gradle.kts", "CMakeLists.txt", "pom.xml"]
+    private static let pythonEnvironmentNames: Set<String> = [".venv", "venv", "env"]
+    private static let manifestNames: Set<String> = ["package.json", "Cargo.toml", "Package.swift", "pyproject.toml", "go.mod", "build.gradle", "build.gradle.kts", "CMakeLists.txt", "pom.xml", "requirements.txt", "setup.py", "setup.cfg", "Pipfile"]
 
+    /// Legacy limit arguments are accepted for source compatibility and have no effect.
     public init(roots: [URL], maximumDepth: Int = 8, maximumEntries: Int = 100_000, timeLimit: TimeInterval = 30) {
         self.roots = roots
-        self.maximumDepth = max(1, maximumDepth)
-        self.maximumEntries = max(1, maximumEntries)
-        self.timeLimit = max(0.01, timeLimit)
     }
 
     public func scan(context: ScanContext) async throws -> ProjectScanReport {
         let startedAt = Date()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(timeLimit))
-        var remaining = maximumEntries
         var seen = Set<String>()
         var artifacts: [ProjectArtifact] = []
         var limitations: [ScanLimitation] = []
@@ -81,49 +74,46 @@ public struct ProjectArtifactScanner: Sendable {
             try Task.checkCancellation()
             guard await context.fileSystem.fileExists(configured) else { continue }
             let root = configured.resolvingSymlinksInPath().standardizedFileURL
-            var queue: [(url: URL, depth: Int, project: URL?)] = [(root, 0, nil)]
+            var queue: [(url: URL, project: URL?)] = [(root, nil)]
             while let entry = queue.popLast() {
                 try Task.checkCancellation()
-                guard remaining > 0, ContinuousClock.now < deadline else {
-                    limitations.append(limitation(entry.url, L10n.text("达到项目扫描预算"))); break
-                }
                 guard seen.insert(entry.url.path).inserted else { continue }
-                remaining -= 1
                 let children: [URL]
                 do { children = try await context.fileSystem.children(of: entry.url) }
+                catch is CancellationError { throw CancellationError() }
                 catch { limitations.append(limitation(entry.url, L10n.text("目录无法读取"))); continue }
                 let isProject = children.contains { Self.manifestNames.contains($0.lastPathComponent) }
                 let project = isProject ? entry.url : entry.project
                 for child in children {
                     try Task.checkCancellation()
-                    guard remaining > 0, ContinuousClock.now < deadline else {
-                        limitations.append(limitation(child, L10n.text("达到项目扫描预算"))); break
-                    }
-                    remaining -= 1
-                    guard let identity = try? await context.fileSystem.identity(at: child) else { continue }
+                    let identity: FileIdentity
+                    do { identity = try await context.fileSystem.identity(at: child) }
+                    catch is CancellationError { throw CancellationError() }
+                    catch { limitations.append(limitation(child, L10n.text("目录无法读取"))); continue }
                     if identity.kind == .file, child.pathExtension.lowercased() == "dmg", let project {
                         artifacts.append(ProjectArtifact(projectURL: project,
                             candidate: try await inspectInstaller(child, project: project, context: context)))
                     }
                     guard identity.kind == .directory else { continue }
-                    if Self.artifactNames.contains(child.lastPathComponent), let project {
-                        let inspection = try await inspect(child, project: project, context: context, remaining: &remaining, deadline: deadline)
+                    if let project, await recognizesArtifactDirectory(child, context: context) {
+                        let inspection = try await inspect(child, project: project, context: context)
                         let candidate = inspection.candidate
                         artifacts.append(ProjectArtifact(projectURL: project, candidate: candidate))
                         artifacts.append(contentsOf: inspection.installers.map { ProjectArtifact(projectURL: project, candidate: $0) })
-                        if candidate.evidence.contains(where: { ["inspection-budget", "inspection-failed"].contains($0.code) }) {
+                        if candidate.evidence.contains(where: { $0.code == "inspection-failed" }) {
                             limitations.append(limitation(child, L10n.text("产物内容未完整验证")))
                         }
                     } else if !child.lastPathComponent.hasPrefix("."), child.pathExtension.lowercased() != "app" {
-                        queue.append((child, entry.depth + 1, project))
+                        queue.append((child, project))
                     }
                 }
             }
         }
         let sorted = artifacts.sorted { $0.candidate.url.path < $1.candidate.url.path }
         let installers = sorted.map(\.candidate).filter { $0.identity.kind == .file && $0.url.pathExtension.lowercased() == "dmg" }
-        let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: 1, preselectInstallers: true)
+        let analysis = LargeFileContentAnalyzer(context: context, minimumBytes: 1, preselectInstallers: true, enforcesWorkBudgets: false)
             .analyze(installers)
+        try Task.checkCancellation()
         let reviewed = SystemScanReport.preservingProjectInstallerProofs(sorted.map(\.candidate), largeFiles: analysis.candidates)
         if analysis.limited { limitations.append(limitation(context.homeDirectory, L10n.text("重复大文件核验受限"))) }
         let result = zip(sorted, reviewed).map { ProjectArtifact(projectURL: $0.0.projectURL, candidate: $0.1) }
@@ -149,6 +139,7 @@ public struct ProjectArtifactScanner: Sendable {
     }
 
     public func validateForExecution(_ candidate: CleanupCandidate, context: ScanContext) async throws {
+        try Task.checkCancellation()
         guard candidate.source == .projectArtifacts else { return }
         guard let projectPath = candidate.evidence.first(where: { $0.code == "project-root" })?.details else {
             throw RuleScanError.executionRefused("missing-project-owner")
@@ -157,7 +148,8 @@ public struct ProjectArtifactScanner: Sendable {
         let artifactPath = normalizedPath(candidate.url)
         let ownerPath = normalizedPath(project)
         let installer = candidate.identity.kind == .file && candidate.url.pathExtension.lowercased() == "dmg"
-        guard (installer || Self.artifactNames.contains(candidate.url.lastPathComponent)), artifactPath.hasPrefix(ownerPath + "/"),
+        let recognizedDirectory = installer ? false : await recognizesArtifactDirectory(candidate.url, context: context)
+        guard (installer || recognizedDirectory), artifactPath.hasPrefix(ownerPath + "/"),
               roots.contains(where: { root in
                   let path = normalizedPath(root)
                   return ownerPath == path || ownerPath.hasPrefix(path + "/")
@@ -168,37 +160,42 @@ public struct ProjectArtifactScanner: Sendable {
         guard manifests.contains(where: { Self.manifestNames.contains($0.lastPathComponent) }) else { throw RuleScanError.executionRefused("project-manifest-missing") }
         if installer {
             let current = try await inspectInstaller(candidate.url, project: project, context: context)
+            try Task.checkCancellation()
             guard current.risk != .blocked else { throw RuleScanError.executionRefused("project-installer-changed") }
             return
         }
-        var remaining = maximumEntries
-        let current = try await inspect(candidate.url, project: project, context: context, remaining: &remaining,
-                                        deadline: ContinuousClock.now.advanced(by: .seconds(timeLimit))).candidate
+        let current = try await inspect(candidate.url, project: project, context: context).candidate
+        try Task.checkCancellation()
         guard current.risk != .blocked else { throw RuleScanError.executionRefused("project-changed") }
     }
 
+    private func recognizesArtifactDirectory(_ url: URL, context: ScanContext) async -> Bool {
+        if Self.artifactNames.contains(url.lastPathComponent) { return true }
+        guard Self.pythonEnvironmentNames.contains(url.lastPathComponent) else { return false }
+        return (try? await context.fileSystem.identity(at: url.appendingPathComponent("pyvenv.cfg")))?.kind == .file
+    }
+
     private func inspect(
-        _ url: URL, project: URL, context: ScanContext, remaining: inout Int, deadline: ContinuousClock.Instant
+        _ url: URL, project: URL, context: ScanContext
     ) async throws -> (candidate: CleanupCandidate, installers: [CleanupCandidate]) {
         let identity = try await context.fileSystem.identity(at: url)
         var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", String(describing: project.lastPathComponent)), details: project.path),
                         Evidence(code: "rebuildable-artifact", summary: L10n.text("项目工具生成的 {0} 目录，恢复前可能需要重新安装依赖或构建", String(describing: url.lastPathComponent)))]
+        if Self.pythonEnvironmentNames.contains(url.lastPathComponent) {
+            evidence.append(Evidence(code: "python-environment", summary: L10n.text("Python 虚拟环境，清理后需重新安装依赖")))
+        }
         var blocked = identity.kind != .directory
         var newest = identity.modificationTime
         var bytes: UInt64 = 0
-        var pending = [(url, 0)]
-        var budgetLimited = false
+        var pending = [url]
         var installers: [CleanupCandidate] = []
-        while let (directory, depth) = pending.popLast() {
+        while let directory = pending.popLast() {
             try Task.checkCancellation()
-            guard remaining > 0, ContinuousClock.now < deadline else { blocked = true; budgetLimited = true; break }
             do {
                 try context.protectionPolicy.validate(directory)
                 _ = try context.pathPolicy.validateCandidate(directory)
                 for child in try await context.fileSystem.children(of: directory) {
                     try Task.checkCancellation()
-                    guard remaining > 0, ContinuousClock.now < deadline else { blocked = true; budgetLimited = true; break }
-                    remaining -= 1
                     let childIdentity = try await context.fileSystem.identity(at: child)
                     newest = max(newest, childIdentity.modificationTime)
                     if child.lastPathComponent == ".git",
@@ -208,7 +205,7 @@ public struct ProjectArtifactScanner: Sendable {
                     if try await sensitive(child, identity: childIdentity, context: context) {
                         blocked = true; evidence.append(Evidence(code: "deployment-key", summary: L10n.text("含部署密钥或环境凭证，保持保护")))
                     }
-                    if childIdentity.kind == .directory { pending.append((child, depth + 1)) }
+                    if childIdentity.kind == .directory { pending.append(child) }
                     else if childIdentity.kind == .file {
                         let (sum, overflow) = bytes.addingReportingOverflow(childIdentity.size)
                         bytes = overflow ? .max : sum
@@ -221,7 +218,6 @@ public struct ProjectArtifactScanner: Sendable {
             } catch is CancellationError { throw CancellationError() }
             catch { blocked = true; evidence.append(Evidence(code: "inspection-failed", summary: L10n.text("内容未完整验证，保持保护"))) }
         }
-        if budgetLimited { evidence.append(Evidence(code: "inspection-budget", summary: L10n.text("达到产物检查预算，保持保护"))) }
         let git = await trackedFiles(in: url, project: project, context: context)
         if git == .unknown { blocked = true }
         evidence.append(Evidence(code: "git-status", summary: git == .untracked ? L10n.text("未包含 Git 跟踪文件") : git == .tracked ? L10n.text("包含 Git 跟踪文件，默认勾选由设置决定") : L10n.text("无法验证 Git 状态，保持保护")))
@@ -274,7 +270,7 @@ public struct ProjectArtifactScanner: Sendable {
         environment["GIT_TERMINAL_PROMPT"] = "0"
         do {
             let path = String(artifact.path.dropFirst(project.path.count + 1))
-            let output = try await BoundedProcess.run("/usr/bin/git", arguments: ["--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-C", project.path, "ls-files", "-z", "--", path], timeout: 3, environment: environment)
+            let output = try await BoundedProcess.run("/usr/bin/git", arguments: ["--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-C", project.path, "ls-files", "-z", "--", path], timeout: nil, maximumOutputBytes: nil, environment: environment)
             guard output.status == 0 else { return .unknown }
             return output.stdout.isEmpty ? .untracked : .tracked
         } catch { return .unknown }

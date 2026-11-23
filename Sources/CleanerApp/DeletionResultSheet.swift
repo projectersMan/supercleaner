@@ -18,7 +18,7 @@ struct DeletionResultSheet: View {
                 Text(message).foregroundColor(.secondary)
             }
             Divider()
-            List(receipt.displayResults) { result in
+            List(presentation.orderedResults) { result in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(result.originalURL.lastPathComponent).fontWeight(.medium)

@@ -2,6 +2,50 @@ import XCTest
 @testable import CleanerCore
 
 final class AgentScanAccelerationTests: XCTestCase {
+    func testSkillSourcesAreAccumulatedWithoutLosingDescendants() async throws {
+        let home = fixture("agent-skill-sources")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let skill = home.appendingPathComponent(".codex/skills/demo")
+        let nested = skill.appendingPathComponent("resources/nested")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let files = [skill.appendingPathComponent("SKILL.md"), nested.appendingPathComponent("first.txt"), nested.appendingPathComponent("second.txt")]
+        for file in files { try Data("# Demo\nSearch source files.".utf8).write(to: file) }
+        let result = try await AgentWorkspaceScanner(adapters: [CodexProviderAdapter()], directorySnapshot: .init())
+            .scanAssetInventory(context: .init(homeDirectory: home)) { _ in }
+        let entry = try XCTUnwrap(result.skills.first)
+        XCTAssertEqual(result.skills.count, 1)
+        let sources = Set(entry.sourceAssetURLs.map(\.path))
+        XCTAssertEqual(sources, Set(([skill, skill.appendingPathComponent("resources"), nested] + files).map(\.path)))
+        XCTAssertEqual(result.skillDuplicatesCollapsedCount, sources.count - 1)
+    }
+
+    func testFullInventoryReusesCapabilityParsingAndValidatesChanges() async throws {
+        let home = fixture("agent-shared-parsing")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let skill = home.appendingPathComponent(".codex/skills/demo")
+        try FileManager.default.createDirectory(at: skill, withIntermediateDirectories: true)
+        let manifest = skill.appendingPathComponent("SKILL.md")
+        try Data("# Demo\nSearch source files.".utf8).write(to: manifest)
+        let mcp = home.appendingPathComponent(".codex/config.toml")
+        try Data("[mcp_servers.search]\ncommand = \"search\"\n".utf8).write(to: mcp)
+        let fs = MeasuredAgentFileSystem()
+        let scanner = AgentWorkspaceScanner(adapters: [CodexProviderAdapter()], directorySnapshot: .init())
+        let first = try await scanner.scanAssetInventory(context: .init(homeDirectory: home, fileSystem: fs)) { _ in }
+        let reads = await fs.textReads
+        XCTAssertEqual(reads, 2, "Each Skill manifest and MCP configuration must be parsed once across both phases")
+        let second = try await scanner.scanAssetInventory(context: .init(homeDirectory: home, fileSystem: fs)) { _ in }
+        let repeatedReads = await fs.textReads
+        XCTAssertEqual(repeatedReads, reads, "Unchanged full scans must reuse parsed capabilities")
+        XCTAssertEqual(first.skills, second.skills)
+        XCTAssertEqual(first.mcpConfigurations, second.mcpConfigurations)
+        let updated = try await scanner.scanAssetInventory(context: .init(homeDirectory: home, fileSystem: fs)) { _ in
+            try! Data("# Demo\nCreate reports instead of searching.".utf8).write(to: manifest)
+            try! Data("[mcp_servers.reports]\ncommand = \"reports\"\n".utf8).write(to: mcp)
+        }
+        XCTAssertNotEqual(updated.skills.first?.functionalSections, first.skills.first?.functionalSections)
+        XCTAssertNotEqual(updated.mcpConfigurations.first?.contentFingerprint, first.mcpConfigurations.first?.contentFingerprint)
+    }
+
     func testProjectMCPInsideGlobalProviderHasSameResolvedScopeInBothPhases() async throws {
         let home = fixture("agent-project-mcp-scope")
         defer { try? FileManager.default.removeItem(at: home) }

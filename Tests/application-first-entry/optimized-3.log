@@ -1,4 +1,0 @@
-Cold application entry: 114 apps / 4,560 items; list 0.0006320476531982422s, summary 2.8967857360839844e-05s, first 20 rows + total 0.021880030632019043s
-PASS: slow workspace polling leaves navigation/search available, coalesces requests and installs the completed snapshot
-Stopped apps presentation: two exits, 114 apps / 4,560 items, switch and row lookups = 0.013366937637329102s
-PASS: prepared stopped-app plans, selection preservation, restarted-app protection and scan/policy invalidation

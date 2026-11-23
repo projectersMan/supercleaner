@@ -21,6 +21,12 @@ public struct ApplicationCleanupTarget: Sendable {
         return "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"
     }
 
+    func cacheOwner(home: URL) -> InstalledApplication? {
+        guard !userFiles, logExtensions == nil,
+              url.deletingLastPathComponent().standardizedFileURL.path == home.appendingPathComponent("Library/Caches").standardizedFileURL.path else { return nil }
+        return application
+    }
+
     var ruleID: String {
         "system-cleanup.v1." + SHA256.hash(data: Data((application.bundleIdentifier + "|" + url.path).utf8))
             .map { String(format: "%02x", $0) }.joined()
@@ -232,7 +238,8 @@ public struct ApplicationCleanupScanner: Sendable {
             let rule = target.rule(home: context.homeDirectory, maximumEntries: maximumEntries)
             let result = try await CleanupRuleEngine(pack: RulePack(version: "system-cleanup-v1", issuedAt: .distantPast,
                 rules: [rule], revokedRuleIDs: []),
-                allowOfflineContentRoots: target.allowOfflineContent ? [target.url] : []).scanResult(context: context)
+                allowOfflineContentRoots: target.allowOfflineContent ? [target.url] : [],
+                applicationCacheOwner: target.cacheOwner(home: context.homeDirectory)).scanResult(context: context)
             output.failures += result.failures
             output.candidates += result.candidates.compactMap { candidate -> CleanupCandidate? in
                 if candidate.bytes == 0 && candidate.risk != .blocked { return nil }
@@ -273,7 +280,7 @@ public struct ApplicationCleanupScanner: Sendable {
               (target.logExtensions == nil ? candidate.url == target.url : candidate.url.path.hasPrefix(target.url.path + "/")),
               target.logExtensions.map({ $0.contains(candidate.url.pathExtension.lowercased()) }) ?? true,
               (!target.manualOnly || candidate.requiresExplicitSelection == true),
-              target.logExtensions != nil || !context.isActive(candidate.url) else {
+              target.allowRuntimeCleanup || target.logExtensions != nil || !context.isActive(candidate.url) else {
             throw RuleScanError.executionRefused(candidate.ruleID ?? "system-cleanup")
         }
         let applicationIsRunning = target.application.isRunning
@@ -286,6 +293,7 @@ public struct ApplicationCleanupScanner: Sendable {
         let rule = target.rule(home: context.homeDirectory, maximumEntries: maximumEntries)
         try await CleanupRuleEngine(pack: RulePack(version: "system-cleanup-v1", issuedAt: .distantPast,
             rules: [rule], revokedRuleIDs: []),
-            allowOfflineContentRoots: target.allowOfflineContent ? [target.url] : []).validateForExecution(candidate, context: context)
+            allowOfflineContentRoots: target.allowOfflineContent ? [target.url] : [],
+                applicationCacheOwner: target.cacheOwner(home: context.homeDirectory)).validateForExecution(candidate, context: context)
     }
 }

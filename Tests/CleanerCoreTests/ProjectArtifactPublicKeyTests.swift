@@ -94,7 +94,7 @@ import XCTest
 
     private func fixture() throws -> URL {
         let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("project-artifact-public-keys/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/project-artifact-public-keys/fixtures/\(UUID())")
         try write("// fixture", to: home.appendingPathComponent("code/Example/Package.swift"))
         try write("output", to: home.appendingPathComponent("code/Example/.build/output"))
         return home

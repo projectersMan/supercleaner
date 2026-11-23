@@ -268,7 +268,7 @@ public enum SkillCatalogSupport {
         }
     }
 
-    private static func canonicalLocation(
+    static func canonicalLocation(
         for discoveredURL: URL,
         fileSystem: any FileSystemAccess
     ) async -> SkillCatalogLocation? {
@@ -628,7 +628,7 @@ public enum SkillCatalogSupport {
     }
 }
 
-private struct SkillCatalogLocation {
+struct SkillCatalogLocation {
     let rootURL: URL
     let manifestURL: URL?
 }

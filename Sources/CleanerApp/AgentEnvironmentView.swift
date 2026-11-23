@@ -48,23 +48,27 @@ struct AgentEnvironmentView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Text(L10n.text("类型")).foregroundColor(.secondary)
-                Picker(L10n.text("类型"), selection: $model.agentEnvironmentSection) {
-                    ForEach(AgentEnvironmentSection.allCases, id: \.self) { section in
-                        Text(section.displayTitle).tag(section)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 190)
+        ReviewToolbar(query: $model.agentQuery, prompt: L10n.text("搜索名称或路径")) { metrics in
+            Toggle(L10n.text("全选"), isOn: Binding(
+                get: { model.areAllVisibleAgentItemsSelected },
+                set: { model.setAllVisibleAgentItemsSelected($0) }
+            ))
+            .toggleStyle(.checkbox)
+            .frame(width: metrics.selectAllWidth, alignment: .leading)
+            .disabled(!model.canSelectAllVisibleAgentItems)
+            .help(L10n.text("仅影响当前类型、平台和显示筛选下的可选项目。"))
+            HStack(spacing: metrics.labelSpacing) {
+                if !metrics.isCompact { Text(L10n.text("类型")).foregroundColor(.secondary) }
+                ScopePicker(labels: AgentEnvironmentSection.allCases.map(\.displayTitle), selection: Binding(
+                    get: { AgentEnvironmentSection.allCases.firstIndex(of: model.agentEnvironmentSection) ?? 0 },
+                    set: { model.agentEnvironmentSection = AgentEnvironmentSection.allCases[$0] }
+                ), accessibilityLabel: L10n.text("类型"))
+                .frame(width: metrics.agentTypeWidth)
             }
 
-            Divider().frame(height: 18)
 
-            HStack(spacing: 8) {
-                Text(L10n.text("平台")).foregroundColor(.secondary)
+            HStack(spacing: metrics.labelSpacing) {
+                if !metrics.isCompact { Text(L10n.text("平台")).foregroundColor(.secondary) }
                 Picker(L10n.text("平台"), selection: Binding(
                     get: { model.agentProviderFilter },
                     set: { model.selectAgentProvider($0) }
@@ -76,13 +80,12 @@ struct AgentEnvironmentView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 170)
+                .frame(width: metrics.dropdownWidth)
             }
 
-            Divider().frame(height: 18)
 
-            HStack(spacing: 8) {
-                Text(L10n.text("显示")).foregroundColor(.secondary)
+            HStack(spacing: metrics.labelSpacing) {
+                if !metrics.isCompact { Text(L10n.text("显示")).foregroundColor(.secondary) }
                 Picker(L10n.text("显示范围"), selection: $model.agentItemsSelectionFilter) {
                     ForEach(AgentItemsSelectionFilter.allCases, id: \.self) { filter in
                         Text(filter.displayTitle).tag(filter)
@@ -90,26 +93,9 @@ struct AgentEnvironmentView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 120)
+                .frame(width: metrics.dropdownWidth)
             }
-            Spacer()
-            Toggle(L10n.text("全选"), isOn: Binding(
-                get: { model.areAllVisibleAgentItemsSelected },
-                set: { model.setAllVisibleAgentItemsSelected($0) }
-            ))
-            .toggleStyle(.checkbox)
-            .fixedSize()
-            .disabled(!model.canSelectAllVisibleAgentItems)
-            .help(L10n.text("仅影响当前类型、平台和显示筛选下的可选项目。"))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.caption)
-        .controlSize(.regular)
-        .frame(height: 24)
-        .padding(.leading, 18)
-        .padding(.trailing, 20)
-        .padding(.vertical, 10)
-        .background(.bar)
     }
 
     @ViewBuilder private var mcpContent: some View {

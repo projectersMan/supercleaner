@@ -11,7 +11,7 @@ struct ScanPermissionPreparationView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.text("允许扫描访问"))
+                Text(model.canScanWithCurrentPermissions ? L10n.text("允许扫描访问") : L10n.text("重新授权磁盘访问"))
                     .font(.title2.bold())
                 Text(L10n.text("建议一起准备扫描和卸载所需的两项权限。完全磁盘访问用于扫描；App 管理用于之后卸载其他应用。"))
                     .foregroundColor(.secondary)
@@ -48,14 +48,16 @@ struct ScanPermissionPreparationView: View {
             .padding(.horizontal, 16)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
 
-            Text(L10n.text("不开启完全磁盘访问也可以扫描；受保护的位置会安全跳过。扫描不会删除任何内容。"))
+            Text(model.canScanWithCurrentPermissions
+                ? L10n.text("不开启完全磁盘访问也可以扫描；受保护的位置会安全跳过。扫描不会删除任何内容。")
+                : L10n.text("磁盘访问检查失败。请重新授权并重新打开应用，再重新扫描以获取完整结果。"))
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             HStack {
                 Button(L10n.text("取消")) { model.dismissScanPermissionPreparation() }
                 Spacer()
-                if !fullDiskAccessGranted {
+                if !fullDiskAccessGranted && model.canScanWithCurrentPermissions {
                     Button(L10n.text("按当前权限开始扫描")) { model.continueScanWithCurrentPermissions() }
                 }
                 Button(fullDiskAccessGranted ? L10n.text("开始扫描") : L10n.text("打开完全磁盘访问")) {

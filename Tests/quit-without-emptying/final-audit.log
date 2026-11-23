@@ -1,6 +1,0 @@
-PASS: diff whitespace, unchanged HEAD, empty index; no commit or push
-PASS: production sources, resources and build scripts match the pre-build snapshot
-PASS: 191 local documentation links in 11 current documents
-PASS: version, DMG checksum, installed/built executable hashes and strict signatures match
-PASS: test apps, generated extraction sources, install backup and DMG mount removed
-PASS: installed app opened through native automation; no scan, cleanup, Finder emptying or permission change performed

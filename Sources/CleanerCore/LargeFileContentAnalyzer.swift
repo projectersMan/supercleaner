@@ -9,12 +9,14 @@ struct LargeFileContentAnalysis {
 
 struct LargeFileContentBudget {
     private let clock = ContinuousClock()
+    private let enforced: Bool
     private let deadline: ContinuousClock.Instant
     private var bytes: UInt64
     private var entries: Int
     private(set) var limited = false
 
-    init(bytes: UInt64, entries: Int, time: Duration) {
+    init(bytes: UInt64, entries: Int, time: Duration, enforced: Bool = true) {
+        self.enforced = enforced
         self.bytes = bytes
         self.entries = entries
         deadline = clock.now.advanced(by: time)
@@ -22,6 +24,7 @@ struct LargeFileContentBudget {
 
     mutating func take(bytes: UInt64, entries: Int) -> Bool {
         guard !Task.isCancelled else { return false }
+        guard enforced else { return true }
         guard !limited, clock.now < deadline, bytes <= self.bytes, entries <= self.entries else {
             limited = true
             return false
@@ -36,6 +39,7 @@ struct LargeFileContentAnalyzer {
     let context: ScanContext
     let minimumBytes: UInt64
     let preselectInstallers: Bool
+    var enforcesWorkBudgets: Bool = true
 
     func analyze(_ candidates: [CleanupCandidate]) -> LargeFileContentAnalysis {
         LargeFileContentIO.withLocalAccess { analyzeLocal(candidates) }
@@ -44,7 +48,7 @@ struct LargeFileContentAnalyzer {
 
     private func analyzeLocal(_ candidates: [CleanupCandidate]) -> LargeFileContentAnalysis {
         // Separate limits keep either stage from exhausting the other's allowance.
-        var copyBudget = LargeFileContentBudget(bytes: 64 << 30, entries: 50_000, time: .seconds(20))
+        var copyBudget = LargeFileContentBudget(bytes: 64 << 30, entries: 50_000, time: .seconds(20), enforced: enforcesWorkBudgets)
         let eligible = candidates.filter { $0.risk.isSelectable && !$0.isActive && $0.requiresExplicitSelection != true }
         let groups = identicalGroups(eligible, budget: &copyBudget)
         var groupByPath: [String: Int] = [:]
@@ -52,7 +56,7 @@ struct LargeFileContentAnalyzer {
             for item in group { groupByPath[item.url.path] = index }
         }
 
-        var zipBudget = LargeFileContentBudget(bytes: 64 << 30, entries: 50_000, time: .seconds(20))
+        var zipBudget = LargeFileContentBudget(bytes: 64 << 30, entries: 50_000, time: .seconds(20), enforced: enforcesWorkBudgets)
         var skippedZIPBudget = false
         var recommendations: [String: LargeFileCleanupProof] = [:]
         var targets = Set<String>()

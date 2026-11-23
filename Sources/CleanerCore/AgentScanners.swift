@@ -423,6 +423,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         var assets: [AgentAssetRecord] = []
         var skillsByRootPath: [String: SkillCatalogEntry] = [:]
         var skillSamples: [String: [String: SkillCatalogEntry]] = [:]
+        var skillSources: [String: [URL]] = [:]
         var mcpConfigurationsByPath: [String: MCPConfigurationRecord] = [:]
         var skillDuplicatesCollapsedCount = 0
         var globallyOwnedPaths = Set<String>()
@@ -469,14 +470,14 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                     if prefetched[path] == nil {
                         var batch = [entry]
                         var queued = Set([path])
-                        for traversal in traversals {
-                            for pending in traversal.queue.dropFirst(traversal.cursor) {
-                                if batch.count >= maximumConcurrentReads { break }
-                                if queued.insert(pending.url.path).inserted, prefetched[pending.url.path] == nil {
-                                    batch.append(pending)
-                                }
-                            }
+                        // Only inspect the current traversal's pending range. Rescanning
+                        // other providers' overlapping queues can grow quadratically.
+                        for pending in traversals[index].queue.dropFirst(traversals[index].cursor) {
                             if batch.count >= maximumConcurrentReads { break }
+                            let key = pending.url.path
+                            if !globallyOwnedPaths.contains(key), prefetched[key] == nil, queued.insert(key).inserted {
+                                batch.append(pending)
+                            }
                         }
                         let values = await withTaskGroup(of: (String, PrefetchedEntry).self) { group in
                             for item in batch {
@@ -560,38 +561,23 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         cleanupEligibility: eligibility,
                         cleanupUnitURL: url
                     ))
-                    if let configuration = await MCPConfigurationCatalogSupport.makeRecord(
-                        provider: entry.root.provider,
-                        scope: resourceScope,
-                        url: url,
-                        homeDirectory: context.homeDirectory,
-                        fileSystem: context.fileSystem
-                    ) {
+                    if MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url),
+                       let configuration = await directorySnapshot.configuration(provider: entry.root.provider,
+                        scope: resourceScope, url: url, context: context) {
                         mcpConfigurationsByPath[configuration.fileURL.path] = configuration
                     }
-                    let cachedSkill = SkillCatalogSupport.rootPath(for: url).flatMap { skillsByRootPath[$0] }
-                    let skillEntry: SkillCatalogEntry?
-                    if classification.kind == .skill, let cachedSkill,
-                       url.lastPathComponent.lowercased() != "skill.md" || cachedSkill.manifestURL == url {
-                        skillEntry = SkillCatalogSupport.rediscovered(cachedSkill, at: url)
-                    } else if classification.kind == .skill {
-                        skillEntry = await SkillCatalogSupport.makeEntry(
-                           provider: entry.root.provider,
-                           scope: resourceScope,
-                           discoveredURL: url,
-                           fileSystem: context.fileSystem
-                       )
-                        if let skillEntry {
-                            skillSamples[skillEntry.id, default: [:]][skillEntry.manifestURL?.path ?? skillEntry.id] = skillEntry
-                        }
-                    } else { skillEntry = nil }
-                    if let skillEntry {
-                        let rootPath = skillEntry.skillRootURL.path
-                        if let existing = skillsByRootPath[rootPath] {
-                            skillsByRootPath[rootPath] = existing.merged(with: skillEntry)
+                    if classification.kind == .skill {
+                        let rootPath = SkillCatalogSupport.rootPath(for: url)
+                        let known = rootPath.flatMap { skillsByRootPath[$0] }
+                        if let known, url.lastPathComponent.lowercased() != "skill.md" || known.manifestURL == url {
+                            skillSources[known.id, default: []].append(url)
                             skillDuplicatesCollapsedCount += 1
-                        } else {
-                            skillsByRootPath[rootPath] = skillEntry
+                        } else if let skill = await directorySnapshot.skill(provider: entry.root.provider,
+                            scope: resourceScope, url: url, context: context) {
+                            if skillsByRootPath[skill.id] != nil { skillDuplicatesCollapsedCount += 1 }
+                            else { skillsByRootPath[skill.id] = skill }
+                            skillSamples[skill.id, default: [:]][skill.manifestURL?.path ?? skill.id] = skill
+                            skillSources[skill.id, default: []].append(url)
                         }
                     }
                     traversals[index].scannedAssetCount += 1
@@ -652,8 +638,8 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
             limitations.append(Self.limitation(traversal.queue[traversal.cursor].url, L10n.text("达到 Agent 条目预算")))
         }
         let sortedAssets = assets.sorted { $0.candidate.url.path.localizedStandardCompare($1.candidate.url.path) == .orderedAscending }
-        let canonicalSkills = skillsByRootPath.map { id, value in
-            SkillCatalogSupport.canonicalMerge(Array(skillSamples[id, default: [:]].values), sourceURLs: value.sourceAssetURLs)
+        let canonicalSkills = skillsByRootPath.keys.map { id in
+            SkillCatalogSupport.canonicalMerge(Array(skillSamples[id, default: [:]].values), sourceURLs: skillSources[id, default: []])
         }
         let sortedSkills = canonicalSkills.sorted {
             let lhsProvider = $0.provider.rawValue
@@ -738,14 +724,12 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                 let isSkillRoot = identity.kind == .directory && SkillCatalogSupport.rootPath(for: url) == url.path
                 if (isSkillRoot || url.lastPathComponent.lowercased() == "skill.md"),
                    skills[SkillCatalogSupport.rootPath(for: url) ?? ""] == nil,
-                   let skill = await SkillCatalogSupport.makeEntry(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope,
-                        discoveredURL: url, fileSystem: context.fileSystem) {
+                   let skill = await directorySnapshot.skill(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope, url: url, context: context) {
                     skills[skill.id] = skills[skill.id].map { $0.merged(with: skill) } ?? skill
                     samples[skill.id, default: [:]][skill.manifestURL?.path ?? skill.id] = skill
                 }
                 if MCPConfigurationCatalogSupport.isSupportedConfiguration(url: url),
-                   let configuration = await MCPConfigurationCatalogSupport.makeRecord(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope,
-                        url: url, homeDirectory: context.homeDirectory, fileSystem: context.fileSystem) {
+                   let configuration = await directorySnapshot.configuration(provider: root.provider, scope: resolver.matchingRule(for: url)?.scope ?? root.scope, url: url, context: context) {
                     configurations[configuration.id] = configuration
                 }
             }

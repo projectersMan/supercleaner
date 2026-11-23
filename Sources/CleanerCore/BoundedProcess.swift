@@ -10,12 +10,13 @@ public struct ProcessOutput: Sendable {
 public enum ProcessFailure: Error, Sendable { case timedOut, outputLimit, cancelled }
 
 /// Fixed executable paths and argument arrays avoid shell interpretation. Each
-/// pipe is drained independently, bounded in memory, and cancellation kills the
+/// pipe is drained independently, bounded in memory by default. Nil limits opt out;
+/// cancellation kills the
 /// launched process before completing the caller.
 public enum BoundedProcess {
     public static func run(
         _ executable: String, arguments: [String], directory: URL? = nil,
-        timeout: TimeInterval = 5, maximumOutputBytes: Int = 1_048_576,
+        timeout: TimeInterval? = 5, maximumOutputBytes: Int? = 1_048_576,
         environment: [String: String]? = nil
     ) async throws -> ProcessOutput {
         let invocation = ProcessInvocation()
@@ -36,10 +37,13 @@ public enum BoundedProcess {
                                 }
                             }
                         }
-                        let timer = DispatchWorkItem { invocation.stop(.timedOut) }
-                        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + max(0.05, timeout), execute: timer)
+                        let timer = timeout.map { interval in
+                            let work = DispatchWorkItem { invocation.stop(.timedOut) }
+                            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + max(0.05, interval), execute: work)
+                            return work
+                        }
                         invocation.process.waitUntilExit()
-                        timer.cancel()
+                        timer?.cancel()
                         if readers.wait(timeout: .now() + 1) == .timedOut {
                             throw invocation.failure ?? ProcessFailure.timedOut
                         }
@@ -86,12 +90,13 @@ private final class ProcessInvocation: @unchecked Sendable {
 
 private final class ProcessCapture: @unchecked Sendable {
     private let lock = NSLock()
-    private let limit: Int
+    private let limit: Int?
     private var buffer = Data()
-    init(limit: Int) { self.limit = max(1, limit) }
+    init(limit: Int?) { self.limit = limit.map { max(1, $0) } }
     var data: Data { lock.withLock { buffer } }
     func append(_ data: Data) -> Bool {
         lock.withLock {
+            guard let limit else { buffer.append(data); return true }
             let room = max(0, limit - buffer.count)
             buffer.append(data.prefix(room))
             return data.count <= room

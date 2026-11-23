@@ -1,1 +1,0 @@
-PASS: navigation 20 cached reads, 20,000 Agent assets / 5,000 cleanup items: 9.799003601074219e-05s; selection, cleanup and scan-state invalidation

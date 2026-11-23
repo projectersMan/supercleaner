@@ -14,7 +14,7 @@ public struct AgentOverlapPolicy: Codable, Sendable {
     }
 
     public static func load() throws -> Self {
-        guard let url = Bundle.module.url(forResource: "agent-overlap-policy", withExtension: "json") else {
+        guard let url = CleanerCoreResources.bundle.url(forResource: "agent-overlap-policy", withExtension: "json") else {
             throw AgentOverlapError.missingAnalysisPolicy
         }
         let policy = try JSONDecoder().decode(Self.self, from: Data(contentsOf: url))

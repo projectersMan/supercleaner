@@ -68,9 +68,12 @@ struct ResourceReviewFilter: Equatable {
     @Published private(set) var preselectProjectArtifacts: Bool
     private var autoSelectedProjectCandidateIDs = Set<UUID>()
     private var manuallyDeselectedProjectCandidateIDs = Set<UUID>()
+    private let readPermissionSnapshot: (@Sendable () async -> PermissionSnapshot)?
     @Published private(set) var permissionSnapshot: PermissionSnapshot?
     @Published var showsScanPermissionPreparation = false
-    @Published private(set) var packageReceiptSelection = PackageReceiptCleanupSelection()
+    @Published private(set) var packageReceiptSelection = PackageReceiptCleanupSelection() {
+        didSet { cachedCleanupCenterSelection = nil }
+    }
     @Published private(set) var checkingScanPermissions = false
     @Published private(set) var preparingScanPermissions = false
     @Published private(set) var scanDeniedPaths: [ScanModuleID: Set<URL>] = [:]
@@ -142,6 +145,9 @@ struct ResourceReviewFilter: Equatable {
         didSet { cachedHiddenSelectedCounts.removeValue(forKey: .agentEnvironment) }
     }
     var agentCleanupGenerationID: UUID?
+    @Published var agentQuery = "" {
+        didSet { invalidateAgentVisibleLists() }
+    }
     @Published var agentProviderFilter: AgentProvider? {
         didSet { invalidateAgentVisibleLists() }
     }
@@ -173,7 +179,9 @@ struct ResourceReviewFilter: Equatable {
     @Published var agentEnvironmentSection: AgentEnvironmentSection = .skills {
         didSet { invalidateAgentVisibleLists() }
     }
-    @Published var uninstallSelectedIDs = Set<UUID>()
+    @Published var uninstallSelectedIDs = Set<UUID>() {
+        didSet { cachedCleanupCenterSelection = nil }
+    }
     @Published var statusMessage: String?
     @Published private(set) var recoveryActionReceiptID: UUID?
     @Published private(set) var recoveryActionKind: RecoveryActionKind?
@@ -223,6 +231,8 @@ struct ResourceReviewFilter: Equatable {
     private var agentPreselectedObjectIDs = Set<String>()
     private var agentPreselectionCalculationTask: Task<Set<String>?, Never>?
     private var agentPreselectionToken: UUID?
+    private var agentContainmentRecalculationTask: Task<Void, Never>?
+    @Published private(set) var agentContainmentRecalculationQueued = false
     private var agentOverlapFullRecalculationRequested = false
     private var autoSelectedAgentCandidateIDs = Set<UUID>() {
         didSet { cachedDefaultCleanupSelection = nil }
@@ -265,6 +275,7 @@ struct ResourceReviewFilter: Equatable {
         canStart: { [weak self] in self?.canStartUpdate ?? false }, activityChanged: { [weak self] in self?.updateInProgress = $0 },
         activated: { [weak self] pack in self?.rulesDidChange(pack) })
     private var scanTask: Task<Void, Never>?
+    private let scanReportPublications = ScanReportPublicationQueue()
     private var moduleScanTasks: [ScanModuleID: Task<Void, Never>] = [:]
     private var moduleScanTokens: [ScanModuleID: UUID] = [:]
     private var moduleScanSession: ModuleScanSession?
@@ -290,13 +301,17 @@ struct ResourceReviewFilter: Equatable {
             }
         }
     }
+    private var cachedLargeFileReviewTree: DiskUsageTree?
     private var cachedAllCandidates: [CleanupCandidate]?
     private var cachedCandidatesByDestination: [SidebarDestination: [CleanupCandidate]] = [:]
     private var cachedAgentAssets: [AgentAssetRecord]?
     private var cachedSelectedCandidates: [SidebarDestination: [CleanupCandidate]] = [:]
     private var cachedExecutionCandidates: [SidebarDestination: [CleanupCandidate]] = [:]
     private var cachedHiddenSelectedCounts: [SidebarDestination: Int] = [:]
-    private var cachedDefaultCleanupSelection: DefaultCleanupSelection?
+    private var cachedDefaultCleanupSelection: DefaultCleanupSelection? {
+        didSet { cachedCleanupCenterSelection = nil }
+    }
+    private var cachedCleanupCenterSelection: DefaultCleanupSelection?
     private var cachedRecommendationBreakdowns: [SidebarDestination: CleanupRecommendationBreakdown] = [:]
     private var cachedApplicationUninstallPlans: [UninstallPlan]?
     private var cachedApplicationAnalysesByPath: [String: ApplicationUninstallAnalysis]?
@@ -312,10 +327,12 @@ struct ResourceReviewFilter: Equatable {
 
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser, preferences: UserDefaults = .standard,
          readRunningApplicationIDs: @escaping @Sendable () async -> Set<String> = { await RunningApplicationSnapshot.identifiers() },
+         readPermissionSnapshot: (@Sendable () async -> PermissionSnapshot)? = nil,
          readDiskCapacity: @escaping @Sendable (URL) async -> DiskCapacityReadResult = { directory in
              await Task.detached(priority: .utility) { DiskCapacityReader.read(at: directory) }.value
          }) {
         self.home = home
+        self.readPermissionSnapshot = readPermissionSnapshot
         diskCapacityMonitor = DiskCapacityMonitor(directory: home, refreshInterval: 60, read: readDiskCapacity)
         self.readRunningApplicationIDs = readRunningApplicationIDs
         self.preferences = preferences
@@ -328,9 +345,13 @@ struct ResourceReviewFilter: Equatable {
         ) as? NSNumber)?.uint64Value
         largeFileThreshold = LargeFileThreshold(storedBytes: storedLargeFileBytes)
         preselectLargeFileInstallers = preferences.object(forKey: Self.largeFileInstallerPreselectionDefaultsKey) as? Bool ?? true
-        preselectProjectArtifacts = preferences.bool(forKey: Self.projectArtifactPreselectionDefaultsKey)
-        let storedOverlapThreshold = UserDefaults.standard.object(forKey: Self.agentOverlapThresholdDefaultsKey) as? NSNumber
-        agentOverlapThreshold = min(1, max(0.5, storedOverlapThreshold?.doubleValue ?? 0.85))
+        preselectProjectArtifacts = preferences.object(forKey: Self.projectArtifactPreselectionDefaultsKey) as? Bool ?? true
+        let storedOverlapThreshold = preferences.object(forKey: Self.agentOverlapThresholdDefaultsKey) as? NSNumber
+        let normalizedOverlapThreshold = AgentOverlapThresholdOption.nearest(to: storedOverlapThreshold?.doubleValue ?? 0.85).fraction
+        agentOverlapThreshold = normalizedOverlapThreshold
+        if let storedOverlapThreshold, storedOverlapThreshold.doubleValue != normalizedOverlapThreshold {
+            preferences.set(normalizedOverlapThreshold, forKey: Self.agentOverlapThresholdDefaultsKey)
+        }
         let infrastructure = AppInfrastructure.live(home: home)
         fileSystem = infrastructure.fileSystem
         helper = infrastructure.helper
@@ -360,7 +381,7 @@ struct ResourceReviewFilter: Equatable {
 
     static func makeTrashEmptyingCheckModel(fixture: TrashEmptyingFixture) -> AppModel {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let home = root.appendingPathComponent("Tests/dashboard-compact-trash/home")
+        let home = root.appendingPathComponent("Tests/temporary/dashboard-compact-trash/home")
         let model = AppModel(home: home, readRunningApplicationIDs: { [] }, readDiskCapacity: { await fixture.readCapacity(at: $0) })
         model.bootstrapInProgress = false
         let report = TrashEmptyingFixture.report(home: home)
@@ -494,8 +515,8 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func updateAgentOverlapThreshold(_ value: Double) {
-        agentOverlapThreshold = min(1, max(0.5, value))
-        UserDefaults.standard.set(agentOverlapThreshold, forKey: Self.agentOverlapThresholdDefaultsKey)
+        agentOverlapThreshold = AgentOverlapThresholdOption.nearest(to: value).fraction
+        preferences.set(agentOverlapThreshold, forKey: Self.agentOverlapThresholdDefaultsKey)
         refreshAgentOverlapPresentation()
         applyAgentAutoPreselection(from: agentOverlapMatches)
         if !isScanRunning, !agentOverlapAnalysisIsRunning, phase != .executing {
@@ -611,16 +632,45 @@ struct ResourceReviewFilter: Equatable {
     }
 
     var canRecalculateAgentContainment: Bool {
-        hasScanResult(for: .agentEnvironment) && agentOverlapModelInstalled && !isScanRunning
-            && !agentOverlapAnalysisIsRunning && phase != .executing && !oneClickCleanupIsRunning
-            && !updateInProgress && deepScanningApplicationID == nil
+        agentOverlapSupportedPlatform && agentOverlapModelInstalled
+    }
+
+    private var canStartAgentContainmentRecalculation: Bool {
+        !isScanRunning && !agentOverlapAnalysisIsRunning && !preparingAgentSkillPresentation
+            && agentPreselectionCalculationTask == nil
+            && phase != .executing && !oneClickCleanupIsRunning && !updateInProgress
+            && !bootstrapInProgress && !trashEmptyingInProgress && !projectRootsOperationInProgress
+            && deepScanningApplicationID == nil && recoveryActionReceiptID == nil
+            && !checkingScanPermissions && !preparingScanPermissions && !showsScanPermissionPreparation
     }
 
     func recalculateAllAgentContainment() {
-        guard canRecalculateAgentContainment else { return }
+        guard canRecalculateAgentContainment, agentContainmentRecalculationTask == nil else { return }
+        if canStartAgentContainmentRecalculation {
+            startAgentContainmentRecalculation()
+            return
+        }
+        agentContainmentRecalculationQueued = true
+        agentContainmentRecalculationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                if canStartAgentContainmentRecalculation {
+                    agentContainmentRecalculationQueued = false
+                    agentContainmentRecalculationTask = nil
+                    if canRecalculateAgentContainment { startAgentContainmentRecalculation() }
+                    return
+                }
+                do { try await Task.sleep(nanoseconds: 200_000_000) }
+                catch { return }
+            }
+        }
+    }
+
+    private func startAgentContainmentRecalculation() {
         agentOverlapFullRecalculationRequested = true
         agentOverlapNeedsScanAnalysis = true
-        refreshModule(.agentEnvironment)
+        if systemReport != nil { refreshModule(.agentEnvironment) }
+        else { startFullScan() }
     }
 
     func analyzeAgentOverlaps() async throws {
@@ -891,10 +941,16 @@ struct ResourceReviewFilter: Equatable {
         guard let runningApplicationIDs else { return scanned }
         return scanned.map { $0.withRunningState(runningApplicationIDs.contains($0.bundleIdentifier)) }
     }
-    var diskUsageTree: DiskUsageTree? { systemReport?.largeFileReviewTree }
+    var diskUsageTree: DiskUsageTree? {
+        if let cachedLargeFileReviewTree { return cachedLargeFileReviewTree }
+        guard let report = systemReport else { return nil }
+        let tree = report.largeFileReviewTree
+        cachedLargeFileReviewTree = tree
+        return tree
+    }
     var largeFileThresholdNeedsRefresh: Bool {
-        guard let diskUsageTree else { return false }
-        return diskUsageTree.minimumFileBytes != largeFileThreshold.bytes
+        guard let tree = systemReport?.diskUsageTree else { return false }
+        return tree.minimumFileBytes != largeFileThreshold.bytes
     }
     var agentAssets: [AgentAssetRecord] {
         if let cachedAgentAssets { return cachedAgentAssets }
@@ -946,7 +1002,7 @@ struct ResourceReviewFilter: Equatable {
         if let cachedVisibleAgentSkills { return cachedVisibleAgentSkills }
         let selectionFilter = agentItemsSelectionFilter
         let sections = agentSkillCatalogPresentation.filteredSections(
-            query: "",
+            query: agentQuery,
             scope: nil,
             provider: agentProviderFilter,
             deletableOnly: false
@@ -966,7 +1022,11 @@ struct ResourceReviewFilter: Equatable {
     var visibleAgentMCPConfigurations: [MCPConfigurationRecord] {
         if let cachedVisibleAgentMCPs { return cachedVisibleAgentMCPs }
         let selectionFilter = agentItemsSelectionFilter
+        let query = agentQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let configurations = agentMCPConfigurations.filter { configuration in
+            let searchText = [configuration.fileURL.path, configuration.sourceLabel, configuration.provider.rawValue]
+                + configuration.servers.map(\.name)
+            guard query.isEmpty || searchText.contains(where: { $0.localizedCaseInsensitiveContains(query) }) else { return false }
             let providerMatches = agentProviderFilter == nil || configuration.provider == agentProviderFilter
             guard providerMatches else { return false }
             guard selectionFilter == .selected else { return true }
@@ -1163,8 +1223,38 @@ struct ResourceReviewFilter: Equatable {
             projects: hasScanResult(for: .projects) && !projectScanRootsNeedRefresh ? defaults.projects : []
         )
     }
+    var cleanupCenterSelection: DefaultCleanupSelection? {
+        guard systemReport != nil else { return nil }
+        let selected: DefaultCleanupSelection
+        if let cachedCleanupCenterSelection {
+            selected = cachedCleanupCenterSelection
+        } else {
+            let excluded = oneClickCleanedCandidateIDs.union(cleanupFailures.map(\.candidate.id))
+            func items(_ destination: SidebarDestination) -> [CleanupCandidate] {
+                candidates(for: destination).filter {
+                    selectedIDs.contains($0.id) && !excluded.contains($0.id)
+                        && ResourceCleanupListPolicy.isSelectable($0)
+                }
+            }
+            selected = DefaultCleanupSelection(systemCleanup: items(.systemCleanup),
+                applicationUninstall: selectedUninstallCandidates().filter { !excluded.contains($0.id) },
+                largeFiles: items(.largeFiles), agentEnvironment: items(.agentEnvironment),
+                localAIModels: items(.localAIModels), projects: items(.projects))
+            cachedCleanupCenterSelection = selected
+        }
+        return DefaultCleanupSelection(
+            systemCleanup: hasScanResult(for: .general) ? selected.systemCleanup : [],
+            applicationUninstall: hasScanResult(for: .applications) ? selected.applicationUninstall : [],
+            largeFiles: hasScanResult(for: .largeFiles) && !largeFileThresholdNeedsRefresh ? selected.largeFiles : [],
+            agentEnvironment: hasScanResult(for: .agentEnvironment)
+                && agentPreselectionCalculationTask == nil && !preparingAgentSkillPresentation
+                ? selected.agentEnvironment : [],
+            localAIModels: hasScanResult(for: .localAIModels) ? selected.localAIModels : [],
+            projects: hasScanResult(for: .projects) && !projectScanRootsNeedRefresh ? selected.projects : [])
+    }
+
     var canRunOneClickCleanup: Bool {
-        guard let candidates = defaultCleanupSelection?.candidates, !candidates.isEmpty else { return false }
+        guard let candidates = cleanupCenterSelection?.candidates, !candidates.isEmpty else { return false }
         let modules = Set(candidates.compactMap { oneClickModule(for: $0) })
         return !modules.isEmpty && modules.allSatisfy { canExecuteCleanup(in: $0, hasSelection: true) }
     }
@@ -1177,7 +1267,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func oneClickStatus(for module: ScanModuleID) -> String? {
-        if oneClickActiveModules.contains(module) { return L10n.text("正在执行全部推荐清理") }
+        if oneClickActiveModules.contains(module) { return L10n.text("正在清理已选项目") }
         if let result = oneClickCompletedByModule[module] {
             return result.itemCount > 0
                 ? L10n.text("已清理 {0} 项 · {1}", String(describing: result.itemCount), String(describing: ByteCountFormatter.cleanerString(bytes: result.bytes)))
@@ -1457,13 +1547,6 @@ struct ResourceReviewFilter: Equatable {
         trashEmptyingInProgress = false
     }
 
-    var canConfigureProjectScanRoots: Bool {
-        !projectRootsOperationInProgress && !bootstrapInProgress && !trashEmptyingInProgress
-            && !isScanRunning && !isDeletionInProgress && !updateInProgress
-            && deepScanningApplicationID == nil && recoveryActionReceiptID == nil
-            && !checkingScanPermissions && !preparingScanPermissions && !showsScanPermissionPreparation
-    }
-
     var projectScanRootsNeedRefresh: Bool {
         guard let report = systemReport?.projectScanReport else { return false }
         guard projectScanRootsLoaded else { return projectScanRootsError != nil }
@@ -1488,7 +1571,6 @@ struct ResourceReviewFilter: Equatable {
 
     @discardableResult
     func saveProjectScanRoots(_ roots: [URL], startInitialScan: Bool) async -> Bool {
-        guard canConfigureProjectScanRoots else { return false }
         projectRootsOperationInProgress = true
         defer { projectRootsOperationInProgress = false }
         let result = await Task { try await runtime.projectRoots.save(roots) }.result
@@ -1498,8 +1580,10 @@ struct ResourceReviewFilter: Equatable {
             projectScanRootsLoaded = true
             projectScanRootsError = nil
             projectRootsOperationInProgress = false
-            if systemReport != nil { refreshModule(.projects) }
-            else if startInitialScan { startFullScan() }
+            if !isScanRunning, !agentOverlapAnalysisIsRunning, !preparingAgentSkillPresentation {
+                if systemReport != nil { refreshModule(.projects) }
+                else if startInitialScan { startFullScan() }
+            }
             return true
         case let .failure(error):
             projectScanRootsError = L10n.text("无法保存项目扫描目录：{0}", error.localizedDescription)
@@ -1509,7 +1593,6 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func selectProjectRootFolders() -> [URL]? {
-        guard canConfigureProjectScanRoots else { return nil }
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -1528,6 +1611,7 @@ struct ResourceReviewFilter: Equatable {
             guard let self else { return }
             await bootstrapPersistentState()
             bootstrapInProgress = false
+            await loadPermissions()
             await resumePendingPermissionScanIfPossible()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
@@ -1578,13 +1662,19 @@ struct ResourceReviewFilter: Equatable {
         }
     }
 
-    func protect(_ candidate: CleanupCandidate) {
+    @discardableResult
+    func protect(_ candidate: CleanupCandidate) -> Task<Void, Never> {
+        protect(candidate.url, displayName: candidate.displayName)
+    }
+
+    @discardableResult
+    func protect(_ url: URL, displayName: String? = nil) -> Task<Void, Never> {
         Task { [weak self] in
             guard let self else { return }
             do {
-                protectionPolicy = try await runtime.protections.protect(candidate.url)
+                protectionPolicy = try await runtime.protections.protect(url)
                 reconcileProtectedSelections()
-                configurationMessage = L10n.text("已保护 {0}", String(describing: candidate.displayName))
+                configurationMessage = L10n.text("已保护 {0}", displayName ?? url.lastPathComponent)
             } catch { configurationMessage = L10n.text("无法保存保护清单：{0}", String(describing: error.localizedDescription)) }
         }
     }
@@ -1622,7 +1712,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func updateProjectArtifactPreselection(_ enabled: Bool) {
-        guard enabled != preselectProjectArtifacts, canConfigureProjectScanRoots else { return }
+        guard enabled != preselectProjectArtifacts else { return }
         preselectProjectArtifacts = enabled
         preferences.set(enabled, forKey: Self.projectArtifactPreselectionDefaultsKey)
         cachedDefaultCleanupSelection = nil
@@ -1636,7 +1726,7 @@ struct ResourceReviewFilter: Equatable {
             autoSelectedProjectCandidateIDs.removeAll()
         }
         if !resourceScopesChosenByUser.contains(.projects) {
-            resourceReviewFilters[.projects]!.scope = selectedIDs.isDisjoint(with: items.map(\.id)) ? .all : .selected
+            resourceReviewFilters[.projects]!.scope = .all
         }
         reconcileFocus(for: .projects)
     }
@@ -1696,7 +1786,7 @@ struct ResourceReviewFilter: Equatable {
             defer { preparingScanPermissions = false }
             await loadPermissions()
             if permissionSnapshot?.fullDiskAccess.status != .granted {
-                UserDefaults.standard.set(true, forKey: Self.pendingPermissionScanDefaultsKey)
+                preferences.set(true, forKey: Self.pendingPermissionScanDefaultsKey)
                 openFullDiskAccessSettings()
                 return
             }
@@ -1705,26 +1795,30 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func continueScanWithCurrentPermissions() {
-        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        guard canScanWithCurrentPermissions else {
+            requireDiskAccessRenewal()
+            return
+        }
+        preferences.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
         showsScanPermissionPreparation = false
         guard !trashEmptyingInProgress, !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
         beginFullScan()
     }
 
     func dismissScanPermissionPreparation() {
-        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        preferences.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
         showsScanPermissionPreparation = false
     }
 
     private func resumePendingPermissionScanIfPossible() async {
-        guard UserDefaults.standard.bool(forKey: Self.pendingPermissionScanDefaultsKey),
+        guard preferences.bool(forKey: Self.pendingPermissionScanDefaultsKey),
               !trashEmptyingInProgress, !bootstrapInProgress, !isScanRunning, phase != .executing else { return }
         await loadPermissions()
         guard permissionSnapshot?.fullDiskAccess.status == .granted else {
             showsScanPermissionPreparation = true
             return
         }
-        UserDefaults.standard.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
+        preferences.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
         showsScanPermissionPreparation = false
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: \.canBecomeMain)?.makeKeyAndOrderFront(nil)
@@ -1732,6 +1826,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     private func beginFullScan() {
+        guard canScanWithCurrentPermissions else { requireDiskAccessRenewal(); return }
         guard !trashEmptyingInProgress, !projectRootsOperationInProgress, !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
         guard deepScanningApplicationID == nil, !isLoadingApplications else { return }
         refreshDiskCapacity()
@@ -1772,9 +1867,9 @@ struct ResourceReviewFilter: Equatable {
         if selection == .applications { refreshRunningApplications() }
         Task { [weak self] in
             guard let self else { return }
-            if UserDefaults.standard.bool(forKey: Self.pendingPermissionScanDefaultsKey) {
+            if preferences.bool(forKey: Self.pendingPermissionScanDefaultsKey) {
                 await resumePendingPermissionScanIfPossible()
-            } else if selection == .settings || showsScanPermissionPreparation {
+            } else {
                 await loadPermissions()
             }
             // The existing maintenance timer handles due work. Focusing a window
@@ -2122,10 +2217,12 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func runOneClickCleanup() {
-        guard canRunOneClickCleanup, let defaults = defaultCleanupSelection else { return }
+        guard canRunOneClickCleanup, let selected = cleanupCenterSelection else { return }
         do {
-            let plan = try defaults.buildPlan(using: planBuilder)
+            let plan = try selected.buildPlan(using: planBuilder)
             let candidates = plan.selectedItems.map(\.candidate)
+            let uninstallItems = selected.applicationUninstall.isEmpty ? []
+                : uninstallSelectionState.selectedItems(in: applicationUninstallPlans)
             let checkedModules = Set(candidates.compactMap { oneClickModule(for: $0) })
             deletionResult = nil
             deletionResultWarning = nil
@@ -2133,7 +2230,7 @@ struct ResourceReviewFilter: Equatable {
             if case .failed = phase { phase = isScanRunning ? .scanning : .completed }
             oneClickActiveModules = checkedModules
             oneClickCleanupIsRunning = true
-            statusMessage = L10n.text("正在执行全部推荐清理")
+            statusMessage = L10n.text("正在清理已选项目")
             let progress = executionProgressHandler(total: plan.selectedItems.count)
             oneClickExecutionTask = Task { [weak self] in
                 guard let self else { return }
@@ -2145,6 +2242,7 @@ struct ResourceReviewFilter: Equatable {
                         permissionRecovery: uninstallPermissionRecoveryHandler()
                     )
                     finishExecutionProgress(receipt)
+                    recordAppManagementObservation(from: receipt, selectedItems: uninstallItems)
                     let outcome = recordCompletedCleanup(receipt, attemptedCandidates: candidates)
                     recordDefaultCleanupProgress(
                         outcome: outcome,
@@ -2153,7 +2251,7 @@ struct ResourceReviewFilter: Equatable {
                     )
                     await reloadHistory()
                     await reloadQuarantineSchedules()
-                    statusMessage = L10n.text("推荐清理完成")
+                    statusMessage = L10n.text("已选项目清理完成")
                     deletionResult = receipt
                 } catch {
                     finishCleanupSilently(error)
@@ -2165,7 +2263,7 @@ struct ResourceReviewFilter: Equatable {
         } catch {
             oneClickActiveModules.removeAll()
             oneClickCleanupIsRunning = false
-            statusMessage = L10n.text("无法开始推荐清理：{0}", String(describing: error.localizedDescription))
+            statusMessage = L10n.text("无法清理已选项目：{0}", String(describing: error.localizedDescription))
             phase = .failed(statusMessage ?? L10n.text("无法删除"))
         }
     }
@@ -2750,6 +2848,18 @@ struct ResourceReviewFilter: Equatable {
         packageReceiptSelection.setSelected(selected, packageID: packageID)
     }
 
+    private func selectedUninstallCandidates() -> [CleanupCandidate] {
+        guard !uninstallSelectedIDs.isEmpty else { return [] }
+        let plans = applicationUninstallPlans
+        let receiptsByCandidate = plans.reduce(into: [UUID: [URL]]()) { mapping, plan in
+            let receipts = uninstallReceiptItems(for: plan.application)
+            for item in plan.items { mapping[item.id] = receipts }
+        }
+        return uninstallSelectionState.selectedItems(in: plans).map {
+            packageReceiptSelection.applying(to: $0.candidate, receiptURLs: receiptsByCandidate[$0.id] ?? [])
+        }
+    }
+
     func executeUninstallBatch() {
         // The executor rechecks live running state before moving each item.
         // Do not block the button handler on another Launch Services round trip.
@@ -2758,18 +2868,12 @@ struct ResourceReviewFilter: Equatable {
         let selectedItems = selection.selectedItems(in: applicationUninstallPlans)
         let summary = selection.summary(plans: applicationUninstallPlans)
         guard !selectedItems.isEmpty else {
-            statusMessage = L10n.text("请先勾选要卸载的应用或具体项目")
+            statusMessage = L10n.text("请先勾选要卸载的应用")
             return
         }
         do {
-            let receiptsByCandidate = applicationUninstallPlans.reduce(into: [UUID: [URL]]()) { mapping, plan in
-                let receipts = uninstallReceiptItems(for: plan.application)
-                for item in plan.items { mapping[item.id] = receipts }
-            }
             let plan = try planBuilder.build(
-                candidates: selectedItems.map {
-                    packageReceiptSelection.applying(to: $0.candidate, receiptURLs: receiptsByCandidate[$0.id] ?? [])
-                },
+                candidates: selectedUninstallCandidates(),
                 selectedIDs: selection.selectedItemIDs
             )
             let progress = prepareDeletion(plan: plan, modules: [.applications])
@@ -2879,6 +2983,7 @@ struct ResourceReviewFilter: Equatable {
     private func runScan(token: UUID) async {
         guard !Task.isCancelled, activeScanToken == token else { return }
         await loadPermissions()
+        guard !Task.isCancelled, activeScanToken == token, canScanWithCurrentPermissions else { return }
         // Check on every scan; a previous attempt is not proof of current access.
         if permissionSnapshot?.fullDiskAccess.status != .granted {
             await ScanPermissionPreflight(fileSystem: fileSystem).requestScanAccess(
@@ -2942,6 +3047,9 @@ struct ResourceReviewFilter: Equatable {
         moduleScanTokens[module] = token
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .scanning, startedAt: Date())
         moduleScanTasks[module] = Task { [weak self] in
+            guard let self, !Task.isCancelled, moduleScanTokens[module] == token else { return }
+            await loadPermissions()
+            guard !Task.isCancelled, moduleScanTokens[module] == token, canScanWithCurrentPermissions else { return }
             let report = await session.coordinator.scan(
                 context: context, generationID: session.generationID, modules: [module],
                 runningBundleIdentifiers: session.runningBundleIdentifiers,
@@ -2954,7 +3062,7 @@ struct ResourceReviewFilter: Equatable {
                     await self?.receiveModuleScanProgress(event, token: token)
                 }
             )
-            guard let self, !Task.isCancelled, moduleScanTokens[module] == token else { return }
+            guard !Task.isCancelled, moduleScanTokens[module] == token else { return }
             if module == .agentEnvironment, readyScanModules.contains(module) {
                 await analyzeAgentOverlapsDuringScan()
             }
@@ -2983,28 +3091,50 @@ struct ResourceReviewFilter: Equatable {
         )
     }
 
-    private func receiveModuleScanResult(_ result: SystemScanModuleResult, token: UUID, session: ModuleScanSession, deniedPaths: Set<URL>) {
-        guard moduleScanTokens[result.module] == token, activeScanGenerationID == result.generationID,
-              let scanToken = activeScanToken, [.completed, .limited].contains(result.status.state) else { return }
-        scanDeniedPaths[result.module] = deniedPaths
-        let presentation = ScanAccessPresentation(deniedPaths: deniedPaths)
-        let presentedResult = SystemScanModuleResult(generationID: result.generationID,
-            status: presentation.status(for: result), payload: result.payload)
-        scanPresentedStatuses[result.module] = presentedResult.status
-        var accumulator = ProgressiveScanReportAccumulator(
-            generationID: session.generationID, startedAt: session.startedAt, rulesetVersion: rulesetVersion,
-            baseline: systemReport, initialStatuses: scanProgressByModule
-        )
-        guard accumulator.apply(presentedResult) else { return }
-        if case let .projects(report) = result.payload {
-            projectScanRoots = report.roots
-            projectScanRootsLoaded = true
-            projectScanRootsError = nil
+    private func receiveModuleScanResult(_ result: SystemScanModuleResult, token: UUID, session: ModuleScanSession, deniedPaths: Set<URL>) async {
+        guard moduleScanTokens[result.module] == token, activeScanGenerationID == result.generationID else { return }
+        if !deniedPaths.isEmpty {
+            // Independent app-folder restrictions do not imply lost Full Disk Access.
+            // Recheck the protected probes before publishing a smaller inventory.
+            await loadPermissions()
+            guard canScanWithCurrentPermissions else { return }
         }
-        readyScanModules.insert(result.module)
-        installProgressive(accumulator.report, completedModule: result.module, token: scanToken)
-        if case let .agentEnvironment(inventory) = result.payload, inventory.capabilitiesOnly {
-            scheduleAgentOverlapAnalysis()
+        await scanReportPublications.perform { [weak self] in
+            guard let self, moduleScanTokens[result.module] == token,
+                  activeScanGenerationID == result.generationID, let scanToken = activeScanToken,
+                  [.completed, .limited].contains(result.status.state) else { return }
+            let baseline = systemReport
+            let statuses = scanProgressByModule
+            let version = rulesetVersion
+            let prepared = await Task.detached(priority: .utility) {
+                let presentation = ScanAccessPresentation(deniedPaths: deniedPaths)
+                let presented = SystemScanModuleResult(generationID: result.generationID,
+                    status: presentation.status(for: result), payload: result.payload)
+                var accumulator = ProgressiveScanReportAccumulator(generationID: session.generationID,
+                    startedAt: session.startedAt, rulesetVersion: version,
+                    baseline: baseline, initialStatuses: statuses)
+                guard accumulator.apply(presented) else { return Optional<(SystemScanReport, ScanModuleStatus)>.none }
+                return (accumulator.report, presented.status)
+            }.value
+            guard let (report, status) = prepared, moduleScanTokens[result.module] == token,
+                  activeScanToken == scanToken, activeScanGenerationID == result.generationID else { return }
+            scanDeniedPaths[result.module] = deniedPaths
+            scanPresentedStatuses[result.module] = status
+            if case let .projects(projects) = result.payload, !projectScanRootsLoaded, projectScanRootsError == nil {
+                projectScanRoots = projects.roots
+                projectScanRootsLoaded = true
+                projectScanRootsError = nil
+            }
+            var currentStatuses = scanProgressByModule
+            for module in readyScanModules where currentStatuses[module]?.state.isTerminal != true {
+                currentStatuses[module] = systemReport?.modules[module]
+            }
+            currentStatuses[result.module] = status
+            readyScanModules.insert(result.module)
+            installProgressive(report.updatingModuleStatuses(currentStatuses), completedModule: result.module, token: scanToken)
+            if case let .agentEnvironment(inventory) = result.payload, inventory.capabilitiesOnly {
+                scheduleAgentOverlapAnalysis()
+            }
         }
     }
 
@@ -3155,7 +3285,7 @@ struct ResourceReviewFilter: Equatable {
         }
         if module == .projects {
             autoSelectedProjectCandidateIDs.formIntersection(selectedIDs)
-            resourceReviewFilters[destination]!.scope = selectedIDs.isDisjoint(with: selectable.map(\.id)) ? .all : .selected
+            resourceReviewFilters[destination]!.scope = .all
         } else {
             resourceReviewFilters[destination]!.scope = selectable.isEmpty ? .all : .cleanable
         }
@@ -3319,6 +3449,8 @@ struct ResourceReviewFilter: Equatable {
         scanProgressByModule[module] = ScanModuleStatus(module: module, state: .waiting)
         scanTask = Task { [weak self] in
             guard let self, let current = systemReport else { return }
+            await loadPermissions()
+            guard !Task.isCancelled, activeScanToken == token, canScanWithCurrentPermissions else { return }
             let configurationTask = Task {
                 try await runtime.configuration(includeProcessActivity: module != .localAIModels && module != .projects)
             }
@@ -3455,15 +3587,44 @@ struct ResourceReviewFilter: Equatable {
             $0.risk.isSelectable && allowed.contains(recommendationPolicy.disposition(for: $0))
         }.map(\.id))
     }
+    var canScanWithCurrentPermissions: Bool {
+        PermissionScanStartPolicy.shouldStartFullScan(fullDiskAccess: permissionSnapshot?.fullDiskAccess.status ?? .unverified)
+    }
+
+    private func requireDiskAccessRenewal() {
+        let interrupted = scanProgressByModule.values.filter { !$0.state.isTerminal }.map(\.module)
+        if isScanRunning {
+            cancelScan()
+            let message = L10n.text("磁盘访问权限失效，扫描已暂停。请重新授权后扫描。")
+            for module in interrupted {
+                let previous = scanProgressByModule[module]
+                scanProgressByModule[module] = .init(module: module, state: .cancelled,
+                    startedAt: previous?.startedAt, completedAt: Date(), message: message,
+                    limitations: previous?.limitations ?? [])
+            }
+            if let current = systemReport { systemReport = current.updatingModuleStatuses(scanProgressByModule) }
+            statusMessage = message
+        }
+        showsScanPermissionPreparation = true
+    }
+
     func loadPermissions() async {
+        let previousAccess = permissionSnapshot?.fullDiskAccess.status
         let storedObservation = UserDefaults.standard.string(
             forKey: Self.appManagementObservationDefaultsKey
         ).flatMap(PermissionCapabilityStatus.init(rawValue:)) ?? .unverified
-        permissionSnapshot = await PermissionStatusService(
-            fileSystem: fileSystem,
-            homeDirectory: home,
-            appManagementObservation: storedObservation == .actionRequired ? .actionRequired : .unverified
-        ).snapshot()
+        permissionSnapshot = if let readPermissionSnapshot {
+            await readPermissionSnapshot()
+        } else {
+            await PermissionStatusService(
+                fileSystem: fileSystem,
+                homeDirectory: home,
+                appManagementObservation: storedObservation == .actionRequired ? .actionRequired : .unverified
+            ).snapshot()
+        }
+        if !canScanWithCurrentPermissions, previousAccess != .actionRequired || isScanRunning {
+            requireDiskAccessRenewal()
+        }
     }
 
     private func recordAppManagementObservation(
@@ -3547,6 +3708,7 @@ struct ResourceReviewFilter: Equatable {
 
     private func invalidateCandidatePresentationCaches(includingAgent: Bool = true) {
         cachedAllCandidates = nil
+        cachedLargeFileReviewTree = nil
         if includingAgent { cachedAgentAssets = nil }
         cachedSelectedCandidates.removeAll()
         cachedExecutionCandidates.removeAll()
@@ -3797,6 +3959,48 @@ extension AppModel {
         return model
     }
 
+    static func checkAgentSearchFiltering() throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let retainedPreference = UserDefaults.standard.object(forKey: Self.agentOverlapRetainedDefaultsKey)
+        defer { UserDefaults.standard.set(retainedPreference, forKey: Self.agentOverlapRetainedDefaultsKey) }
+        let model = makeAgentSelectionFixture()
+        model.agentItemsSelectionFilter = .all
+        let originalSkills = model.visibleAgentSkillBindings
+        model.agentQuery = "  cOdEx sKiLl  "
+        guard model.visibleAgentSkillBindings.map(\.skill.displayName) == ["Codex Skill"] else {
+            throw Failure(description: "Skill search must filter by case-insensitive names and invalidate the visible cache")
+        }
+        model.setAllVisibleAgentItemsSelected(true)
+        let selected = model.selectedIDs
+        model.agentQuery = "no matching resource"
+        guard model.visibleAgentSkillBindings.isEmpty, model.selectedIDs == selected,
+              model.hiddenSelectedCount > 0 else {
+            throw Failure(description: "search must preserve selected items hidden by the query")
+        }
+        model.agentQuery = ""
+        guard model.visibleAgentSkillBindings.count == originalSkills.count else {
+            throw Failure(description: "clearing Skill search must restore the full catalog")
+        }
+        model.agentEnvironmentSection = .mcp
+        model.agentItemsSelectionFilter = .all
+        model.agentQuery = "config-2.json"
+        guard model.visibleAgentMCPConfigurations.map(\.sourceLabel) == ["Claude MCP"] else {
+            throw Failure(description: "MCP search must match paths")
+        }
+        model.agentQuery = "codex mcp"
+        guard model.visibleAgentMCPConfigurations.map(\.sourceLabel) == ["Codex MCP"] else {
+            throw Failure(description: "MCP search must match names and invalidate the visible cache")
+        }
+        model.agentProviderFilter = .claude
+        guard model.visibleAgentMCPConfigurations.isEmpty else {
+            throw Failure(description: "platform and query filters must compose")
+        }
+        model.agentQuery = "fixture"
+        guard model.visibleAgentMCPConfigurations.count == 1 else {
+            throw Failure(description: "MCP search must also match server names")
+        }
+    }
+
     private static func checkAgentDefaultScopeFallback() throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         let model = makeAgentSelectionFixture()
@@ -4004,8 +4208,8 @@ extension AppModel {
         model.agentPreselectionCalculationTask?.cancel()
         model.agentPreselectionCalculationTask = nil
         model.autoSelectedAgentCandidateIDs.removeAll()
-        guard model.defaultCleanupSelection?.candidates.isEmpty == true, !model.canRunOneClickCleanup else {
-            throw Failure(description: "automatic Agent selection changes must invalidate default totals")
+        guard model.defaultCleanupSelection?.candidates.isEmpty == true, model.canRunOneClickCleanup else {
+            throw Failure(description: "manual Agent selections must remain actionable after automatic recommendations change")
         }
         model.autoSelectedAgentCandidateIDs = [automatic.id]
         model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .scanning)
@@ -4019,13 +4223,100 @@ extension AppModel {
         guard model.defaultCleanupSelection?.candidates.isEmpty == true else {
             throw Failure(description: "new protections must remove default Agent items")
         }
-        print("PASS: all-default mixed-plan totals, manual exclusions, deselection, Agent-only cleanup, auto-selection cache invalidation and scan/protection gates; no execution")
+        print("PASS: recommendation classification, combined manual/automatic queue, deselection, Agent-only cleanup, cache invalidation and scan/protection gates; no execution")
+    }
+
+    static func checkProjectConfigurationDuringAgentScan() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ProjectSettings-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let suite = "SuperCleaner.ProjectSettingsScanCheck.\(UUID())"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer {
+            preferences.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let model = AppModel(home: root, preferences: preferences, readRunningApplicationIDs: { [] })
+        model.bootstrapInProgress = false
+        let report = try ResourceCleanupPresentationFixture.report()
+        model.install(report)
+        model.projectScanRoots = report.projectScanReport!.roots
+        model.projectScanRootsLoaded = true
+        model.isScanRunning = true
+        model.scanProgressByModule[.agentEnvironment] = .init(module: .agentEnvironment, state: .scanning)
+        let token = UUID()
+        model.moduleScanTokens[.agentEnvironment] = token
+        let previous = model.scanProgressByModule
+        let changed = root.appendingPathComponent("NewProjects")
+        let saved = await model.saveProjectScanRoots([changed], startInitialScan: false)
+        guard saved, try await model.runtime.projectRoots.roots() == [changed],
+              model.scanProgressByModule == previous, model.isScanRunning,
+              model.moduleScanTokens[.agentEnvironment] == token, model.scanTask == nil,
+              model.projectScanRootsNeedRefresh, model.defaultCleanupSelection?.projects.isEmpty == true else {
+            throw Failure(description: "saving project roots must preserve the active Agent scan and exclude stale project results")
+        }
+        model.updateProjectArtifactPreselection(false)
+        guard !model.preselectProjectArtifacts else {
+            throw Failure(description: "project preselection must remain configurable during an unrelated scan")
+        }
+        model.scanProgressByModule[.projects] = .init(module: .projects, state: .scanning)
+        model.updateProjectArtifactPreselection(true)
+        guard model.preselectProjectArtifacts else {
+            throw Failure(description: "project preferences must remain editable during project scanning")
+        }
+        let projectToken = UUID()
+        model.moduleScanTokens[.projects] = projectToken
+        model.activeScanGenerationID = report.generationID
+        model.activeScanToken = UUID()
+        let session = ModuleScanSession(coordinator: SystemScanCoordinator(),
+            context: ScanContext(homeDirectory: root, fileSystem: model.fileSystem),
+            runningBundleIdentifiers: [], generationID: report.generationID, startedAt: report.startedAt)
+        await model.receiveModuleScanResult(.init(generationID: report.generationID,
+            status: .init(module: .projects, state: .completed), payload: .projects(report.projectScanReport!)),
+            token: projectToken, session: session, deniedPaths: [])
+        guard model.projectScanRoots == [changed], model.projectScanRootsNeedRefresh else {
+            throw Failure(description: "an old scan result must not overwrite settings saved during scanning")
+        }
+        model.phase = .executing
+        model.updateProjectArtifactPreselection(false)
+        guard !model.preselectProjectArtifacts else {
+            throw Failure(description: "saving a preference must not be blocked by cleanup execution")
+        }
+    }
+
+    static func checkAgentContainmentRecalculationQueue() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let suite = "SuperCleaner.RecalculationQueue.\(UUID())"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = AppModel(preferences: preferences, readRunningApplicationIDs: { [] })
+        model.bootstrapInProgress = false
+        model.agentOverlapModelInstalled = true
+        model.isScanRunning = true
+        defer { model.agentContainmentRecalculationTask?.cancel() }
+        model.recalculateAllAgentContainment()
+        model.recalculateAllAgentContainment()
+        guard model.agentContainmentRecalculationQueued, model.agentContainmentRecalculationTask != nil,
+              model.scanTask == nil, !model.agentOverlapFullRecalculationRequested else {
+            throw Failure(description: "recalculation requests during scans must coalesce without interrupting the scan")
+        }
+        // Removing the model before dispatch must drain the queue without starting work.
+        model.agentOverlapModelInstalled = false
+        model.isScanRunning = false
+        for _ in 0..<50 {
+            if !model.agentContainmentRecalculationQueued { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        guard !model.agentContainmentRecalculationQueued, model.agentContainmentRecalculationTask == nil,
+              model.scanTask == nil else {
+            throw Failure(description: "queued requests must recheck model availability before dispatch")
+        }
     }
 
     static func checkProjectScanRootsSettings() async throws {
         struct Failure: Error, CustomStringConvertible { let description: String }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Tests/project-scan-roots-settings/home-\(UUID())")
+            .deletingLastPathComponent().appendingPathComponent("Tests/temporary/project-scan-roots-settings/home-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let first = root.appendingPathComponent("First")
         let second = root.appendingPathComponent("Second")
@@ -4062,10 +4353,13 @@ extension AppModel {
             throw Failure(description: "root operations must block new scans, permission continuations, cancelled-scan resumes and Trash entry points")
         }
         model.oneClickCleanupIsRunning = true
-        let blocked = await model.saveProjectScanRoots([], startInitialScan: false)
+        let savedDuringCleanup = await model.saveProjectScanRoots([second], startInitialScan: false)
         model.oneClickCleanupIsRunning = false
-        guard !blocked, try await model.runtime.projectRoots.roots() == stored else {
-            throw Failure(description: "cleanup must block root mutation")
+        guard savedDuringCleanup, try await model.runtime.projectRoots.roots() == [second] else {
+            throw Failure(description: "cleanup must allow saving the next scan configuration")
+        }
+        guard await model.saveProjectScanRoots(stored, startInitialScan: false) else {
+            throw Failure(description: "saved roots must remain editable after cleanup")
         }
         let rejected = await model.saveProjectScanRoots([URL(fileURLWithPath: "/")], startInitialScan: false)
         guard !rejected, model.projectScanRootsError != nil,
@@ -4087,6 +4381,9 @@ extension AppModel {
         model.scanProgressByModule = report.modules
         model.selection = .projects
         model.selectedIDs = [report.projectScanReport!.artifacts[0].id]
+        await model.agentSkillPresentationTask?.value
+        if let analysis = model.overlapAnalysisTask { _ = await analysis.result }
+        while model.agentOverlapAnalysisIsRunning { await Task.yield() }
         let refreshed = await model.saveProjectScanRoots([first], startInitialScan: false)
         guard refreshed, model.isScanRunning, model.scanProgressByModule[.projects]?.state == .waiting,
               model.scanProgressByModule[.general] == report.modules[.general] else {
@@ -4110,7 +4407,7 @@ extension AppModel {
             throw Failure(description: "corrupt configuration must not silently load defaults")
         }
         try FileManager.default.removeItem(at: root)
-        print("PASS: project root settings full-list load, persistence/reopen, deduplication, empty list, errors, cleanup gate, project-only refresh and stale-scope gate; fixture only")
+        print("PASS: project root settings full-list load, persistence/reopen, deduplication, empty list, errors, editing during cleanup, project-only refresh and stale-scope gate; fixture only")
     }
 
     static func checkScanPermissionPresentation() throws {
@@ -4253,6 +4550,7 @@ extension AppModel {
         let suite = "SuperCleaner.ProjectPreferenceCheck.\(UUID())"
         let preferences = UserDefaults(suiteName: suite)!
         defer { preferences.removePersistentDomain(forName: suite) }
+        preferences.set(false, forKey: projectArtifactPreselectionDefaultsKey)
         let model = AppModel(home: ResourceCleanupPresentationFixture.home, preferences: preferences,
             readRunningApplicationIDs: { [] })
         let report = try ResourceCleanupPresentationFixture.report()
@@ -4263,7 +4561,7 @@ extension AppModel {
         guard !model.preselectProjectArtifacts, model.selectedIDs.isEmpty,
               model.defaultCleanupSummary(for: .projects) == nil,
               model.resourceReviewFilters[.projects]!.scope == .all else {
-            throw Failure(description: "project preselection must default off with All and no dashboard queue")
+            throw Failure(description: "an explicit project opt-out must retain All and no recommended queue")
         }
         model.selection = .projects
         model.toggle(projects[0])
@@ -4275,7 +4573,7 @@ extension AppModel {
         model.updateProjectArtifactPreselection(true)
         let reopened = AppModel(home: ResourceCleanupPresentationFixture.home, preferences: UserDefaults(suiteName: suite)!,
             readRunningApplicationIDs: { [] })
-        guard model.selectedIDs == ids, model.resourceReviewFilters[.projects]!.scope == .selected,
+        guard model.selectedIDs == ids, model.resourceReviewFilters[.projects]!.scope == .all,
               model.defaultCleanupSummary(for: .projects) == .init(itemCount: 2, bytes: 700),
               reopened.preselectProjectArtifacts else {
             throw Failure(description: "project opt-in must persist and immediately update selection and cached dashboard totals")
@@ -4313,10 +4611,10 @@ extension AppModel {
         model.updateProjectArtifactPreselection(false)
         model.isScanRunning = true
         model.updateProjectArtifactPreselection(true)
-        guard !model.preselectProjectArtifacts, !preferences.bool(forKey: projectArtifactPreselectionDefaultsKey) else {
-            throw Failure(description: "a running scan must reject preference changes")
+        guard model.preselectProjectArtifacts, preferences.bool(forKey: projectArtifactPreselectionDefaultsKey) else {
+            throw Failure(description: "a running scan must allow preference changes")
         }
-        print("PASS: project preference off/on persistence, tracked manual selection, retained manual decisions, instant dashboard cache invalidation and busy gate; no execution")
+        print("PASS: project preference off/on persistence, tracked manual selection, retained manual decisions, instant dashboard cache invalidation and editing during scans; no execution")
     }
 
     private static func checkResourceScanDefaults() throws {
@@ -4367,7 +4665,7 @@ extension AppModel {
         model.install(report)
         guard model.selectedIDs == projectIDs,
               model.resourceReviewFilters[.localAIModels]!.scope == .cleanable,
-              model.resourceReviewFilters[.projects]!.scope == .selected,
+              model.resourceReviewFilters[.projects]!.scope == .all,
               Set(model.defaultCleanupSelection?.candidates.map(\.id) ?? []) == projectIDs,
               model.defaultCleanupSummary(for: .localAIModels) == nil,
               model.defaultCleanupSummary(for: .projects) == .init(itemCount: 2, bytes: 700),
@@ -5233,4 +5531,84 @@ extension AppModel {
             "stopping a system app must preserve protection without rediscovery")
         print("PASS: only system apps are Protected; Running excludes system apps and third-party quit selection remains available")
     }
+}
+
+extension AppModel {
+    static func checkScanPublicationRemainsResponsive() async throws {
+        struct Failure: Error, CustomStringConvertible { let description: String }
+        let home = ResourceCleanupPresentationFixture.home
+        let baseline = try await Task.detached {
+            let base = try ResourceCleanupPresentationFixture.report()
+            let assets = (0..<40_000).map { index in
+                AgentAssetRecord(candidate: CleanupCandidate(url: home.appendingPathComponent(".codex/data/file-\(index)"),
+                    displayName: "file-\(index)", category: .agentUnknown, bytes: 1, risk: .blocked, evidence: [],
+                    identity: .init(device: 1, inode: UInt64(index + 1), size: 1, modificationTime: 1, kind: .file), source: .agentWorkspace, lastAccessDate: nil, isActive: false),
+                    provider: .codex, scope: .global, resourceKind: .unknown, activity: .unknown,
+                    cleanupEligibility: .protected, cleanupUnitURL: home.appendingPathComponent(".codex/data/file-\(index)"))
+            }
+            return base.replacing(moduleResult: .init(generationID: base.generationID,
+                status: .init(module: .agentEnvironment, state: .completed),
+                payload: .agentEnvironment(.init(assets: assets, skills: [], reachedBudget: false))))
+        }.value
+        let suite = "ScanPublicationResponsiveness.\(UUID())"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = AppModel(home: home, preferences: preferences, readRunningApplicationIDs: { [] }, readDiskCapacity: { _ in .unavailable(2) })
+        let token = UUID(), generation = UUID(), scanToken = UUID()
+        model.isScanRunning = true
+        model.activeScanToken = scanToken; model.activeScanGenerationID = generation
+        model.moduleScanTokens[.localAIModels] = token
+        model.systemReport = baseline
+        let session = ModuleScanSession(coordinator: .init(), context: .init(homeDirectory: home),
+            runningBundleIdentifiers: [], generationID: generation, startedAt: Date())
+        model.moduleScanSession = session
+        let resultModelInventory = try ResourceCleanupPresentationFixture.report().localAIModelInventory!
+        let result = SystemScanModuleResult(generationID: generation,
+            status: .init(module: .localAIModels, state: .completed), payload: .localAIModels(resultModelInventory))
+        var began = false
+        let started = ContinuousClock.now
+        let publication = Task { @MainActor in
+            began = true
+            await model.receiveModuleScanResult(result, token: token, session: session, deniedPaths: [])
+        }
+        while !began { await Task.yield() }
+        let mainThreadDelay = started.duration(to: .now)
+        await publication.value
+        guard mainThreadDelay < .milliseconds(100) else {
+            throw Failure(description: "Main actor blocked while publishing a retained 40,000-item report: \(mainThreadDelay)")
+        }
+        guard model.systemReport?.agentAssets.count == 40_000,
+              model.systemReport?.localAIModelInventory?.models.count == 2,
+              model.systemReport?.generationID == generation else {
+            throw Failure(description: "Background publication lost the baseline or current module result")
+        }
+        let singleModel = LocalAIModelInventory(models: Array(resultModelInventory.models.prefix(1)),
+            coverage: .init(), limitations: [], scannedAt: Date())
+        let modelResult = SystemScanModuleResult(generationID: generation,
+            status: .init(module: .localAIModels, state: .completed), payload: .localAIModels(singleModel))
+        let projectToken = UUID()
+        model.moduleScanTokens[.projects] = projectToken
+        let projectResult = SystemScanModuleResult(generationID: generation,
+            status: .init(module: .projects, state: .completed),
+            payload: .projects(.init(startedAt: Date(), completedAt: Date(), roots: [], artifacts: [], limitations: [])))
+        let modelUpdate = Task { @MainActor in await model.receiveModuleScanResult(modelResult, token: token, session: session, deniedPaths: []) }
+        let projectUpdate = Task { @MainActor in await model.receiveModuleScanResult(projectResult, token: projectToken, session: session, deniedPaths: []) }
+        await modelUpdate.value; await projectUpdate.value
+        guard model.systemReport?.localAIModelInventory?.models.count == 1,
+              model.systemReport?.projectScanReport?.artifacts.isEmpty == true,
+              model.systemReport?.agentAssets.count == 40_000,
+              model.systemReport?.modules[.localAIModels]?.state == .completed,
+              model.systemReport?.modules[.projects]?.state == .completed else {
+            throw Failure(description: "Concurrent module publications overwrote each other")
+        }
+        let stale = Task { @MainActor in await model.receiveModuleScanResult(result, token: token, session: session, deniedPaths: []) }
+        try await Task.sleep(nanoseconds: 10_000_000)
+        model.activeScanGenerationID = UUID()
+        await stale.value
+        guard model.systemReport?.localAIModelInventory?.models.count == 1 else {
+            throw Failure(description: "A superseded scan published stale prepared data")
+        }
+        print("PASS: retained 40,000-item publication delay \(mainThreadDelay); concurrent modules retained; superseded result discarded")
+    }
+
 }

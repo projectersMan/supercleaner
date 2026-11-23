@@ -14,26 +14,22 @@ struct PermissionsView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.text("设置")).font(.largeTitle.bold())
-                Text(L10n.text("管理扫描权限、项目目录、大文件标准和已删除项目保留时间。"))
-                    .foregroundColor(.secondary)
             }
             .padding(24)
             Divider()
             Form {
-                languageSection
-                versionSection
-                trashReminderSection
                 projectScanRootsSection
-                agentOverlapSection
-                PermissionAccessSection(model: model)
-                helperSection
-                    .disabled(model.updateInProgress)
-                UpdateSettingsSection(model: model.updates)
-                ApplicationUpdateSettingsSection(model: model.applicationUpdates)
-                protectionSection
-                    .disabled(model.updateInProgress)
                 largeFileSection
                 quarantineSection
+                protectionSection
+                    .disabled(model.updateInProgress)
+                PermissionAccessSection(model: model)
+                agentOverlapSection
+                ApplicationUpdateSettingsSection(model: model.applicationUpdates)
+                UpdateSettingsSection(model: model.updates)
+                helperSection
+                    .disabled(model.updateInProgress)
+                generalSection
             }
             .formStyle(.grouped)
             .task {
@@ -64,8 +60,8 @@ struct PermissionsView: View {
         )
     }
 
-    private var languageSection: some View {
-        Section(L10n.text("语言")) {
+    private var generalSection: some View {
+        Section(L10n.text("通用")) {
             Picker(L10n.text("界面语言"), selection: Binding(
                 get: { AppLanguage(rawValue: languagePreference) ?? .english },
                 set: { languagePreference = $0.rawValue }
@@ -74,29 +70,11 @@ struct PermissionsView: View {
                     Text(verbatim: language.nativeName).tag(language)
                 }
             }
-            Text(L10n.text("默认使用英语。语言更改将在下次启动时生效。"))
-                .font(.caption).foregroundColor(.secondary)
             if (AppLanguage(rawValue: languagePreference) ?? .english) != L10n.language {
-                Label(L10n.text("语言已保存；请在当前操作完成后退出并重新打开应用。"), systemImage: "arrow.clockwise")
+                Label(L10n.text("重启应用后生效。"), systemImage: "arrow.clockwise")
                     .font(.caption).foregroundColor(.orange)
             }
-        }
-    }
-
-    private var versionSection: some View {
-        Section(L10n.text("版本信息")) {
-            LabeledContent(L10n.text("应用版本"), value: AppVersion.current.version)
-            LabeledContent(L10n.text("构建号"), value: AppVersion.current.build)
-        }
-    }
-
-    private var trashReminderSection: some View {
-        Section(L10n.text("清理提醒")) {
-            Toggle(L10n.text("关闭窗口或退出时提醒清空废纸篓"), isOn: Binding(
-                get: { !suppressTrashReminder }, set: { suppressTrashReminder = !$0 }
-            ))
-            Text(L10n.text("仅控制自动提醒；手动点击清空废纸篓始终需要确认。"))
-                .font(.caption).foregroundColor(.secondary)
+            LabeledContent(L10n.text("应用版本"), value: "\(AppVersion.current.version) (\(AppVersion.current.build))")
         }
     }
 
@@ -106,17 +84,17 @@ struct PermissionsView: View {
 
     private var projectScanRootsSection: some View {
         Section(L10n.text("项目扫描目录")) {
-            Toggle(L10n.text("默认勾选项目编译产物（包括 Git 跟踪项）"), isOn: Binding(
+            Toggle(L10n.text("默认勾选项目产物"), isOn: Binding(
                 get: { model.preselectProjectArtifacts },
                 set: { model.updateProjectArtifactPreselection($0) }
             ))
-            .disabled(!model.canConfigureProjectScanRoots)
-            Text(L10n.text("关闭时请手动选择；开启后自动勾选通过安全检查的项目产物。正在使用或无法完整验证的项目仍保持保护。"))
-                .font(.caption).foregroundColor(.secondary)
-            Text(L10n.text("保存后仅刷新项目产物结果；尚未扫描时，在下次扫描使用。"))
-                .font(.caption).foregroundColor(.secondary)
-            Text(L10n.text("{0} 个扫描目录", String(projectRootsDraft.count)))
-                .font(.caption).foregroundColor(.secondary)
+            .help(L10n.text("含 Git 跟踪项，仅勾选通过安全检查的产物。"))
+            HStack {
+                Text(L10n.text("{0} 个扫描目录", String(projectRootsDraft.count)))
+                    .font(.caption).foregroundColor(.secondary)
+                Spacer()
+                Button(L10n.text("添加目录…")) { addProjectScanRoots() }
+            }
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 0) {
                     if projectRootsDraft.isEmpty {
@@ -140,25 +118,20 @@ struct PermissionsView: View {
                 }
             }
             .frame(height: 132)
-            .disabled(!model.canConfigureProjectScanRoots)
-            HStack {
-                Button(L10n.text("添加目录…")) { addProjectScanRoots() }
-                Button(L10n.text("保存扫描目录")) {
-                    let roots = projectRootsDraft
-                    Task { await model.saveProjectScanRoots(roots, startInitialScan: false) }
-                }
-                .disabled(!projectRootsHaveChanges)
-                Button(L10n.text("撤销更改")) { projectRootsDraft = model.projectScanRoots }
-                    .disabled(!projectRootsHaveChanges)
-                if projectRootsHaveChanges {
-                    Text(L10n.text("有未保存的更改")).font(.caption).foregroundColor(.secondary)
+            if projectRootsHaveChanges {
+                HStack {
+                    Button(L10n.text("保存扫描目录")) {
+                        let roots = projectRootsDraft
+                        Task { await model.saveProjectScanRoots(roots, startInitialScan: false) }
+                    }
+                    Button(L10n.text("撤销更改")) { projectRootsDraft = model.projectScanRoots }
+                    Text(L10n.text("忙碌时保存，下次扫描生效。"))
+                        .font(.caption).foregroundColor(.secondary)
                 }
             }
-            .disabled(!model.canConfigureProjectScanRoots)
             if let error = model.projectScanRootsError {
                 Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundColor(.red)
                 Button(L10n.text("重新读取目录配置")) { Task { await model.loadProjectScanRoots() } }
-                    .disabled(model.projectRootsOperationInProgress)
             }
         }
     }
@@ -176,16 +149,18 @@ struct PermissionsView: View {
                 Text(L10n.text("Agent 能力分析需要 macOS 14 或更高版本及 Apple Silicon；其他功能可正常使用。"))
                     .font(.caption).foregroundColor(.secondary)
             }
-            Text(L10n.text("使用 Google EmbeddingGemma 2 在本机分析 Skill 与 MCP 的功能覆盖。约 310 MB 模型已随 App 打包，首次使用无需下载；不连接 MCP 服务。"))
+            Text(L10n.text("内置模型，本地分析 Skill 与 MCP。"))
                 .font(.caption).foregroundColor(.secondary)
             HStack {
-                Stepper(value: Binding(
-                    get: { Int(model.agentOverlapThreshold * 100) },
-                    set: { model.updateAgentOverlapThreshold(Double($0) / 100) }
-                ), in: 50...100) {
-                    Text(L10n.text("覆盖阈值")) + Text(": \(Int(model.agentOverlapThreshold * 100))%")
+                Picker(L10n.text("覆盖阈值"), selection: Binding(
+                    get: { AgentOverlapThresholdOption.nearest(to: model.agentOverlapThreshold) },
+                    set: { model.updateAgentOverlapThreshold($0.fraction) }
+                )) {
+                    ForEach(AgentOverlapThresholdOption.allCases, id: \.self) { option in
+                        Text(verbatim: "\(option.rawValue)%").tag(option)
+                    }
                 }
-                .disabled(!model.agentOverlapSupportedPlatform)
+                .pickerStyle(.menu)
                 if model.agentOverlapModelCanRemove {
                     Button(L10n.text("移除本机下载副本")) {
                         let task = model.removeAgentOverlapModel()
@@ -210,7 +185,11 @@ struct PermissionsView: View {
             }
             Button(L10n.text("重新计算全部包含关系"), action: model.recalculateAllAgentContainment)
                 .disabled(!model.canRecalculateAgentContainment)
-            Text(L10n.text("Skill 与 MCP 使用同一阈值：能力被其他同类对象联合包含达到阈值时默认勾选。普通扫描复用已知关系，仅分析新增对象；此按钮重新扫描 Agent 资源并重建全部关系。最终清理仍需你确认。"))
+            if model.agentContainmentRecalculationQueued {
+                Text(L10n.text("已排队，当前任务完成后重新计算。"))
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            Text(L10n.text("阈值用于预选，无需重新分析。"))
                 .font(.caption).foregroundColor(.secondary)
         }
     }
@@ -225,7 +204,7 @@ private struct HelperSettingsSection: View {
     var body: some View {
         Section(L10n.text("受限 Helper")) {
             LabeledContent(L10n.text("系统状态"), value: helper.status.title)
-            Text(L10n.text("仅在需要权限的应用隔离、恢复和清除中使用。注册、连接验证与操作授权是三个独立步骤；不提供任意系统删除、服务终止或脚本执行。"))
+            Text(L10n.text("用于需要管理员权限的应用清理与恢复。"))
                 .font(.caption).foregroundColor(.secondary)
             HStack {
                 Button(L10n.text("安装…"), action: requestInstall)
@@ -245,7 +224,7 @@ private struct HelperSettingsSection: View {
             }
             if let message = helper.message { Text(message).font(.caption).textSelection(.enabled) }
             if helper.status == .unavailable || helper.status == .notFound {
-                Text(L10n.text("需要正式 Bundle ID、同团队证书签名和公证的完整应用包；当前开发构建不具备真实安装验收条件。"))
+                Text(L10n.text("当前构建无法启用 Helper。"))
                     .font(.caption).foregroundColor(.orange)
             }
         }
@@ -255,7 +234,7 @@ private struct HelperSettingsSection: View {
 extension PermissionsView {
     private var protectionSection: some View {
         Section(L10n.text("永久保护")) {
-            Text(L10n.text("受保护的文件、目录及其内容不会进入删除计划。凭证、系统关键目录和本应用恢复数据始终受到保护。"))
+            Text(L10n.text("保护所选路径及其全部内容。"))
                 .font(.caption).foregroundColor(.secondary)
             ForEach(model.protectionPolicy.entries) { entry in
                 HStack {
@@ -270,13 +249,11 @@ extension PermissionsView {
             if !model.protectionPolicy.isAvailable {
                 Label(L10n.text("保护清单无法读取，当前禁止删除"), systemImage: "lock.trianglebadge.exclamationmark").foregroundColor(.orange)
             }
-            Text(L10n.text("当前规则：{0}", String(describing: model.rulesetVersion.split(separator: ":").first.map(String.init) ?? model.rulesetVersion)))
-                .font(.caption).foregroundColor(.secondary)
         }
     }
 
     private var largeFileSection: some View {
-        Section(L10n.text("重复大文件")) {
+        Section(L10n.text("大文件")) {
             Picker(
                 L10n.text("文件体积标准"),
                 selection: Binding(
@@ -288,16 +265,12 @@ extension PermissionsView {
                     Text(threshold.displayTitle).tag(threshold)
                 }
             }
-            Text(L10n.text("扫描先按大小发现候选，再读取内容核验重复副本和已解压 ZIP。"))
-                .font(.caption)
-                .foregroundColor(.secondary)
             Toggle(L10n.text("默认勾选大文件中的安装包"), isOn: Binding(
                 get: { model.preselectLargeFileInstallers },
                 set: { model.updateLargeFileInstallerPreselection($0) }
             ))
             .toggleStyle(.switch)
-            Text(L10n.text("下次扫描或刷新大文件时生效。关闭后仍可手动勾选安装包。"))
-                .font(.caption).foregroundColor(.secondary)
+            .help(L10n.text("下次扫描生效。"))
             if model.largeFileThresholdNeedsRefresh {
                 HStack {
                     Label(L10n.text("当前结果仍使用上一次扫描的标准"), systemImage: "arrow.triangle.2.circlepath")
@@ -323,13 +296,18 @@ extension PermissionsView {
                     Text(policy.displayTitle).tag(policy)
                 }
             }
-            Text(L10n.text("默认立即删除：新清理项目会在安全校验与记录保存后移入 macOS 系统废纸篓。可选择保留时间；更改默认值不会影响已有恢复记录。"))
-                .font(.caption).foregroundColor(.secondary)
             if model.defaultQuarantineRetentionPolicy == .immediate {
                 Label(L10n.text("项目将移入系统废纸篓，可在清空废纸篓前恢复。"), systemImage: "trash")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            } else {
+                Text(L10n.text("仅影响新清理项目，已有恢复记录不变。"))
+                    .font(.caption).foregroundColor(.secondary)
             }
+            Toggle(L10n.text("关闭窗口或退出时提醒清空废纸篓"), isOn: Binding(
+                get: { !suppressTrashReminder }, set: { suppressTrashReminder = !$0 }
+            ))
+            .help(L10n.text("手动清空废纸篓始终需要确认。"))
         }
     }
 
@@ -340,13 +318,10 @@ struct PermissionAccessSection: View {
 
     var body: some View {
         Section(L10n.text("权限")) {
-            Text(L10n.text("完全磁盘访问需在系统设置中开启；返回 App 后会自动重新检查，未授权区域会安全跳过。"))
-                .font(.caption)
-                .foregroundColor(.secondary)
             PermissionRow(
                 icon: "folder.badge.questionmark",
                 title: L10n.text("完全磁盘访问"),
-                detail: model.permissionSnapshot?.fullDiskAccess.explanation ?? L10n.text("点击全扫描时检查权限"),
+                detail: L10n.text("扫描受限目录时需要。"),
                 state: model.permissionSnapshot?.fullDiskAccess.status == .actionRequired
                     ? L10n.text("访问检查未通过") : permissionStateTitle(model.permissionSnapshot?.fullDiskAccess.status),
                 stateColor: permissionStateColor(model.permissionSnapshot?.fullDiskAccess.status)
@@ -354,10 +329,11 @@ struct PermissionAccessSection: View {
                 Button(L10n.text("打开系统设置…")) { model.openFullDiskAccessSettings() }
                     .controlSize(.small)
             }
+            .help(model.permissionSnapshot?.fullDiskAccess.explanation ?? L10n.text("点击全扫描时检查权限"))
             PermissionRow(
                 icon: "app.badge.checkmark",
                 title: L10n.text("App 管理"),
-                detail: L10n.text("卸载遇到权限限制时，可打开系统设置授权后继续。"),
+                detail: L10n.text("卸载应用时按需授权。"),
                 state: nil,
                 stateColor: .secondary
             ) {

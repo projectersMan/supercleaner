@@ -56,6 +56,33 @@ final class UninstallParentSelectionTests: XCTestCase {
         XCTAssertEqual(files.selectionState(for: plan), .none)
     }
 
+    func testParentIncludesOwnedUserDataButExcludesSharedProtectedAndActiveItems() {
+        let baseline = plan("Fixture")
+        let data = UninstallItem(candidate: .init(
+            url: URL(fileURLWithPath: "/tmp/Library/Application Support/Fixture/User Data"),
+            displayName: "User Data", category: .application, bytes: 512, risk: .review, evidence: [],
+            identity: .init(device: 1, inode: 2, size: 512, modificationTime: 1, kind: .directory),
+            source: .application, lastAccessDate: nil, isActive: false,
+            requiresExplicitSelection: true), containsUserData: true, isShared: false)
+        let shared = UninstallItem(candidate: baseline.items[1].candidate,
+                                   containsUserData: true, isShared: true)
+        let protected = UninstallItem(candidate: baseline.items[1].candidate.replacing(risk: .blocked, evidence: []),
+                                      containsUserData: false, isShared: false)
+        let active = UninstallItem(candidate: .init(
+            url: URL(fileURLWithPath: "/tmp/Fixture/active"), displayName: "Active", category: .application,
+            bytes: 1, risk: .review, evidence: [], identity: data.candidate.identity,
+            source: .application, lastAccessDate: nil, isActive: true),
+            containsUserData: false, isShared: false)
+        let fullPlan = UninstallPlan(application: baseline.application,
+            items: [baseline.items[0], data, shared, protected, active])
+        var files = UninstallBatchSelectionState()
+        files.toggle(plan: fullPlan)
+        XCTAssertEqual(files.selectedItemIDs, [baseline.items[0].id, data.id])
+        XCTAssertEqual(files.summary(plans: [fullPlan]).bytes, 513)
+        files.toggle(plan: fullPlan)
+        XCTAssertTrue(files.selectedItemIDs.isEmpty)
+    }
+
     func testOnlySystemReceiptRowsForPackageInstallationsAreSelectable() {
         let valid = receipts("org.example.onenote")
         let invalid = URL(fileURLWithPath: "/tmp/org.example.onenote.plist")

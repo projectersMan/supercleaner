@@ -1,9 +1,0 @@
-Building for debugging...
-[Using on-disk description]
-[2 / 5] CleanerApp-product
-[7 / 10] CleanerApp-product
-[8 / 10] CleanerApp-product
-[10 / 12] CleanerApp-product
-Build complete! (4.59秒)
-PASS: project root settings full-list load, persistence/reopen, deduplication, empty list, errors, cleanup gate, project-only refresh and stale-scope gate; fixture only
-PASS: model cleanup gates, concurrent scans, parent/file/receipt selection, retained uninstall checkmarks, progress/result/error presentation, cancellation, and manual-only offline selection

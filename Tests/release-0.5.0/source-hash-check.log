@@ -1,2 +1,0 @@
-PASS: 246 build input hashes and packaged version remain unchanged
-Excluded Finder .DS_Store metadata (not build inputs): 3 files

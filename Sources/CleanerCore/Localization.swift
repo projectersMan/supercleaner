@@ -47,16 +47,7 @@ public enum L10n {
     }
 
     private static let placeholders = try! NSRegularExpression(pattern: #"\{([0-9]+)\}"#)
-    private static let resourceBundle: Bundle = {
-        // SwiftPM's generated accessor also contains an absolute build-directory fallback.
-        // Prefer the installed resources for the GUI, embedded CLI, and nested Helper.
-        if let app = ReleaseConfiguration.applicationBundle(),
-           let url = app.url(forResource: "SuperCleaner_CleanerCore", withExtension: "bundle"),
-           let bundle = Bundle(url: url) {
-            return bundle
-        }
-        return Bundle.module
-    }()
+    private static var resourceBundle: Bundle { CleanerCoreResources.bundle }
     private static let bundles: [AppLanguage: Bundle] = Dictionary(uniqueKeysWithValues:
         AppLanguage.allCases.compactMap { language in
             // SwiftPM normalizes localization directory names to lowercase.
@@ -68,4 +59,17 @@ public enum L10n {
             return (language, bundle)
         }
     )
+}
+
+enum CleanerCoreResources {
+    static let bundle: Bundle = {
+        // SwiftPM's generated accessor also contains an absolute build-directory fallback.
+        // Prefer the installed resources for the GUI, embedded CLI, and nested Helper.
+        if let app = ReleaseConfiguration.applicationBundle(),
+           let url = app.url(forResource: "SuperCleaner_CleanerCore", withExtension: "bundle"),
+           let bundle = Bundle(url: url) {
+            return bundle
+        }
+        return Bundle.module
+    }()
 }

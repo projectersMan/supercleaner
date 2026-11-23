@@ -130,6 +130,9 @@ done
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${HELPER_ID} ${APP}/Contents/Library/LaunchServices/${HELPER_ID}
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --identifier ${BUNDLE_ID}.agent-inference ${APP}/Contents/MacOS/AgentInference
 /usr/bin/codesign ${SIGN_OPTIONS[@]} --entitlements ${PROJECT_ROOT}/Resources/App.entitlements --identifier ${BUNDLE_ID} ${APP}
+if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0} == 1 ]]; then
+  /bin/zsh ${SCRIPT_DIR}/check-stable-signing.sh ${APP}
+fi
 ${BIN_PATH}/CoreContractChecks --check-packaged-rule-config ${APP}
 HELPER_EXPECTED_EXIT=0
 if [[ ${SIGN_MODE} != apple || ${BUNDLE_ID} == com.example.* ]]; then HELPER_EXPECTED_EXIT=78; fi

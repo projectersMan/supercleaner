@@ -58,14 +58,8 @@ LINKED_MINIMUM=$(print -r -- ${BUILD_COMMAND} | /usr/bin/awk '/cmd LC_BUILD_VERS
 [[ ${BUILD_SDK} == macosx${LINKED_SDK} && ${LINKED_MINIMUM} == ${MINIMUM} ]] || { print -u2 "FAIL: linked SDK/minimum do not match packaged build metadata"; exit 1; }
 print "PASS: linked SDK ${LINKED_SDK}, minimum macOS ${LINKED_MINIMUM}, and packaged metadata match"
 /usr/bin/codesign --verify --deep --strict --verbose=2 ${APP}
-if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-1} == 1 ]]; then
-  SIGNATURE=$(/usr/bin/codesign -dv ${APP} 2>&1)
-  if [[ ${SIGNATURE} == *"Signature=adhoc"* ]]; then
-    print -u2 "FAIL: a certificate-signed app is required for stable privacy authorization across builds"
-    exit 1
-  fi
-  REQUIREMENT=$(/usr/bin/codesign -d -r- ${APP} 2>&1)
-  [[ ( ${REQUIREMENT} == *"anchor "* || ${REQUIREMENT} == *'certificate leaf = H"'* ) && ${REQUIREMENT} != *"cdhash "* ]] || { print -u2 "FAIL: stable certificate-bound identity required"; exit 1; }
+if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0} == 1 ]]; then
+  /bin/zsh ${SCRIPT_DIR}/check-stable-signing.sh ${APP}
 fi
 ${APP}/Contents/MacOS/CleanerApp --smoke-test
 ${APP}/Contents/MacOS/CleanerApp --update-self-check

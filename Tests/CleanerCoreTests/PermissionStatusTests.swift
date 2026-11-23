@@ -12,8 +12,8 @@ final class PermissionStatusTests: XCTestCase {
         XCTAssertTrue(snapshot.appManagement.settingsURL.absoluteString.contains("Privacy_AppBundles"))
     }
 
-    func testLimitedPermissionStartsScanningInsteadOfOpeningACustomAssistant() {
-        XCTAssertTrue(
+    func testDeniedPermissionRequiresRenewedAuthorization() {
+        XCTAssertFalse(
             PermissionScanStartPolicy.shouldStartFullScan(fullDiskAccess: .actionRequired)
         )
     }

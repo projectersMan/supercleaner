@@ -157,7 +157,7 @@ struct ReviewScanFileSystem: FileSystemAccess {
 func runReviewCompletenessRegressionContracts() async throws {
     let manager = FileManager.default
     let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Tests/local-ai-projects-disk/cli", isDirectory: true)
+        .deletingLastPathComponent().appendingPathComponent("Tests/temporary/local-ai-projects-disk/cli", isDirectory: true)
     let home = fixtures.appendingPathComponent(".review-coverage-" + UUID().uuidString, isDirectory: true)
     let providerRoot = home.appendingPathComponent(".codex")
     let boundary = providerRoot.appendingPathComponent("a/b/c/d/e/f/g/h")

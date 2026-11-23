@@ -167,23 +167,18 @@ struct ReviewFilterBar: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            TextField(L10n.text("搜索名称、路径或证据"), text: $model.reviewQuery)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 220)
-            Picker(L10n.text("建议"), selection: $model.reviewDispositionFilter) {
-                ForEach(ReviewDispositionFilter.allCases) { Text($0.title).tag($0) }
+        ReviewToolbar(query: $model.reviewQuery, prompt: L10n.text("搜索名称或路径")) { metrics in
+            HStack(spacing: metrics.labelSpacing) {
+                if !metrics.isCompact { Text(L10n.text("建议")).foregroundColor(.secondary) }
+                Picker(L10n.text("建议"), selection: $model.reviewDispositionFilter) {
+                    ForEach(ReviewDispositionFilter.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.menu).labelsHidden().frame(width: metrics.dropdownWidth)
             }
-            .pickerStyle(.menu)
-            .frame(width: 150)
             Toggle(L10n.text("仅显示已选"), isOn: $model.showsSelectedOnly)
                 .toggleStyle(.switch)
                 .controlSize(.small)
-            Spacer()
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(.bar)
     }
 }
 

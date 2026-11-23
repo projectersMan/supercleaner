@@ -11,7 +11,15 @@ public actor AgentEmbeddingModelManager {
         return false
     }
     public static let modelSizeBytes = 309_855_456
-    public static let hasBundledModel = Bundle.module.url(forResource: "embeddinggemma-2-Q8_0", withExtension: "gguf", subdirectory: "Models") != nil
+    private static let resourceBundle: Bundle = {
+        if let app = ReleaseConfiguration.applicationBundle(),
+           let url = app.url(forResource: "SuperCleaner_AgentOverlapAI", withExtension: "bundle"),
+           let bundle = Bundle(url: url) {
+            return bundle
+        }
+        return Bundle.module
+    }()
+    public static let hasBundledModel = resourceBundle.url(forResource: "embeddinggemma-2-Q8_0", withExtension: "gguf", subdirectory: "Models") != nil
     private static let modelSHA256 = "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135"
     private static let modelURL = URL(string: "https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/main/embeddinggemma-2-Q8_0.gguf")!
     private let modelFileURL: URL
@@ -21,7 +29,7 @@ public actor AgentEmbeddingModelManager {
 
     public init(applicationSupportURL: URL) {
         let localModelURL = applicationSupportURL.appendingPathComponent("Models/embeddinggemma-2-Q8_0.gguf")
-        let bundledModelURL = Bundle.module.url(forResource: "embeddinggemma-2-Q8_0", withExtension: "gguf", subdirectory: "Models")
+        let bundledModelURL = Self.resourceBundle.url(forResource: "embeddinggemma-2-Q8_0", withExtension: "gguf", subdirectory: "Models")
         modelFileURL = localModelURL
         self.bundledModelURL = bundledModelURL
         currentState = !Self.isSupportedPlatform ? .unsupported

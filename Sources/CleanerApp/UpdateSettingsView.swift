@@ -86,7 +86,7 @@ struct UpdateSettingsSection: View {
     @ObservedObject var model: UpdateSettingsModel
     @State private var confirmsRollback = false
     var body: some View {
-        Section(L10n.text("签名更新")) {
+        Section(L10n.text("规则更新")) {
             LabeledContent(L10n.text("规则版本"), value: model.currentRuleVersion)
             if let host = model.configuration?.ruleUpdateURL?.host {
                 LabeledContent(L10n.text("规则来源"), value: host)
@@ -102,7 +102,7 @@ struct UpdateSettingsSection: View {
                 Text(L10n.text("已接收 {0}", ByteCountFormatter.cleanerString(bytes: UInt64(max(0, model.receivedBytes))))).font(.caption)
             }
             if let message = model.message { Text(message).font(.caption).textSelection(.enabled) }
-            Text(L10n.text("只信任发布配置中的 Ed25519 公钥；下载失败、验签失败或普通旧包重放不会替换当前包。回滚保留历史撤销，并使旧计划失效。"))
+            Text(L10n.text("仅使用已验证规则；回滚不会恢复已撤销规则。"))
                 .font(.caption).foregroundColor(.secondary)
         }
         .onAppear { model.refresh() }

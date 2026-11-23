@@ -34,15 +34,27 @@ extension SystemScanReport {
 extension DiskUsageTree {
     func excludingFiles(at paths: Set<String>) -> DiskUsageTree {
         guard !paths.isEmpty else { return self }
-        return DiskUsageTree(roots: roots.compactMap { excludingProjectInstallers($0, paths: paths) },
+        var ancestors = Set<String>()
+        for path in paths {
+            var parent = path
+            while let slash = parent.lastIndex(of: "/") {
+                parent = slash == parent.startIndex ? "/" : String(parent[..<slash])
+                ancestors.insert(parent)
+                if parent == "/" { break }
+            }
+        }
+        return DiskUsageTree(roots: roots.compactMap { excludingProjectInstallers($0, paths: paths, ancestors: ancestors) },
             largeFiles: largeFiles.filter { !paths.contains($0.url.standardizedFileURL.path) },
             minimumFileBytes: minimumFileBytes, coverage: coverage, scannedAt: scannedAt, analysisState: analysisState)
     }
 
-    private func excludingProjectInstallers(_ node: DiskUsageNode, paths: Set<String>) -> DiskUsageNode? {
-        guard !paths.contains(node.url.standardizedFileURL.path) else { return nil }
+    private func excludingProjectInstallers(_ node: DiskUsageNode, paths: Set<String>, ancestors: Set<String>) -> DiskUsageNode? {
+        let path = node.url.standardizedFileURL.path
+        guard !paths.contains(path) else { return nil }
+        // Reuse entire unaffected subtrees; no descendant inspection is needed.
+        guard ancestors.contains(path) else { return node }
         guard case let .loaded(children) = node.children else { return node }
-        let remaining = children.compactMap { excludingProjectInstallers($0, paths: paths) }
+        let remaining = children.compactMap { excludingProjectInstallers($0, paths: paths, ancestors: ancestors) }
         let previousBytes = children.reduce(UInt64(0)) { $0 + $1.recursiveBytes }
         let remainingBytes = remaining.reduce(UInt64(0)) { $0 + $1.recursiveBytes }
         return DiskUsageNode(url: node.url, kind: node.kind, ownBytes: node.ownBytes,

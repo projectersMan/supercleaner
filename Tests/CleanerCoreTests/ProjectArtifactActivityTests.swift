@@ -71,7 +71,7 @@ import XCTest
 
     private func fixture() throws -> URL {
         let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("project-artifact-activity/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/project-artifact-activity/fixtures/\(UUID())")
         let project = home.appendingPathComponent("code/Example")
         for name in [".build", "build", "dist"] {
             try FileManager.default.createDirectory(at: project.appendingPathComponent(name), withIntermediateDirectories: true)

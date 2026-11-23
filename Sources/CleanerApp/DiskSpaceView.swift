@@ -214,75 +214,50 @@ private struct LargeFileFilterBar: View {
     @Binding var searchText: String
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                search
-                scope
-                sort
-                Spacer(minLength: 0)
-                selectionSummary
-            }
-            .frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) { search; Spacer(minLength: 0); selectionSummary }
-                HStack(spacing: 12) { scope; sort; Spacer(minLength: 0) }
-            }
-            .frame(maxWidth: .infinity)
+        ReviewToolbar(query: $searchText, prompt: L10n.text("搜索文件名或完整路径")) { metrics in
+            selectAll(metrics)
+            scope(metrics)
+            sort(metrics)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.caption)
-        .padding(.leading, 18)
-        .padding(.trailing, 20)
-        .padding(.vertical, 10).background(.bar)
-    }
-
-    private var search: some View {
-        TextField(L10n.text("搜索文件名或完整路径"), text: $searchText)
-            .textFieldStyle(.roundedBorder).frame(width: 260)
-            .onAppear { searchText = model.reviewQuery }
-            .onChange(of: searchText) { value in
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(180))
-                    guard searchText == value else { return }
-                    model.reviewQuery = value
-                }
+        .onAppear { searchText = model.reviewQuery }
+        .onChange(of: searchText) { value in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                guard searchText == value else { return }
+                model.reviewQuery = value
             }
+        }
     }
 
-    private var scope: some View {
+    private func scope(_ metrics: ReviewToolbarMetrics) -> some View {
         ScopePicker(labels: [L10n.text("全部大文件"), L10n.text("重复大文件")], selection: Binding(
             get: { model.showsDuplicateLargeFilesOnly ? 1 : 0 },
             set: { model.showsDuplicateLargeFilesOnly = $0 == 1 }
         ))
-        .frame(width: 420).fixedSize(horizontal: false, vertical: true)
+        .frame(width: metrics.largeFileScopeWidth).fixedSize(horizontal: false, vertical: true)
     }
 
-    private var sort: some View {
-        Picker(L10n.text("排序"), selection: $model.largeFileSortOrder) {
-            ForEach(LargeFileSortOrder.allCases, id: \.self) { order in
-                Text(order.displayTitle).tag(order)
-            }
-        }
-        .pickerStyle(.menu)
-        .frame(width: 140).fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var selectionSummary: some View {
-        let selectableCount = model.visibleLargeFileCandidates(in: tree).count
-        let totalCount = model.showsDuplicateLargeFilesOnly ? model.duplicateLargeFiles.count : tree.largeFiles.count
-        return HStack(spacing: 8) {
-            ResourceSelectionCheckbox(state: model.largeFileSelectionState(in: tree),
-                isEnabled: selectableCount > 0 && !model.isDeletionInProgress && !model.updateInProgress && !model.isCurrentModuleScanning,
-                title: L10n.text("全选"), label: L10n.text("全选当前筛选中可清理的大文件")) {
-                    model.toggleVisibleLargeFiles(in: tree)
+    private func sort(_ metrics: ReviewToolbarMetrics) -> some View {
+        HStack(spacing: metrics.labelSpacing) {
+            if !metrics.isCompact { Text(L10n.text("排序")).foregroundColor(.secondary) }
+            Picker(L10n.text("排序"), selection: $model.largeFileSortOrder) {
+                ForEach(LargeFileSortOrder.allCases, id: \.self) { order in
+                    Text(order.displayTitle).tag(order)
                 }
-                .frame(width: 92, height: 18)
-                .help(L10n.text("全选当前筛选中可清理的大文件"))
-            Spacer(minLength: 0)
-            Text(L10n.text("{0} / {1} 项", String(selectableCount), String(totalCount)))
-                .monospacedDigit().foregroundColor(.secondary).lineLimit(1).fixedSize()
-        }
-        .frame(minWidth: 210).fixedSize(horizontal: true, vertical: false)
+            }
+            .pickerStyle(.menu).labelsHidden().frame(width: metrics.dropdownWidth)
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func selectAll(_ metrics: ReviewToolbarMetrics) -> some View {
+        ResourceSelectionCheckbox(state: model.largeFileSelectionState(in: tree),
+            isEnabled: !model.visibleLargeFileCandidates(in: tree).isEmpty && !model.isDeletionInProgress
+                && !model.updateInProgress && !model.isCurrentModuleScanning,
+            title: L10n.text("全选"), label: L10n.text("全选当前筛选中可清理的大文件")) {
+                model.toggleVisibleLargeFiles(in: tree)
+            }
+            .frame(width: metrics.selectAllWidth, height: 18)
+            .help(L10n.text("全选当前筛选中可清理的大文件"))
     }
 }
 

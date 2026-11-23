@@ -2,12 +2,7 @@ import Foundation
 
 public enum BundledCleanupRules {
     public static var url: URL {
-        if let resourcesURL = Bundle.main.resourceURL?.appendingPathComponent("SuperCleaner_CleanerCore.bundle", isDirectory: true),
-           let bundle = Bundle(url: resourcesURL),
-           let url = bundle.url(forResource: "base-rules", withExtension: "json") {
-            return url
-        }
-        return Bundle.module.url(forResource: "base-rules", withExtension: "json")!
+        CleanerCoreResources.bundle.url(forResource: "base-rules", withExtension: "json")!
     }
     public static func pack() throws -> RulePack {
         try JSONDecoder().decode(RulePack.self, from: Data(contentsOf: url))
@@ -21,9 +16,11 @@ public struct CleanupRuleEngine: Scanner {
     public let operatingSystemVersion: String
     public let excludedRoots: [URL]
     public let allowOfflineContentRoots: [URL]
+    private let applicationCacheOwner: InstalledApplication?
 
     public init(pack: RulePack, operatingSystemVersion: String? = nil, excludedRoots: [URL] = [],
-                allowOfflineContentRoots: [URL] = []) {
+                allowOfflineContentRoots: [URL] = [], applicationCacheOwner: InstalledApplication? = nil) {
+        self.applicationCacheOwner = applicationCacheOwner
         self.excludedRoots = excludedRoots.map(\.standardizedFileURL)
         self.allowOfflineContentRoots = allowOfflineContentRoots.map(\.standardizedFileURL)
         self.pack = pack
@@ -36,7 +33,7 @@ public struct CleanupRuleEngine: Scanner {
             CleanupRuleEngine(pack: RulePack(version: pack.version, issuedAt: pack.issuedAt,
                 rules: [rule], revokedRuleIDs: pack.revokedRuleIDs),
                 operatingSystemVersion: operatingSystemVersion, excludedRoots: excludedRoots,
-                allowOfflineContentRoots: allowOfflineContentRoots)
+                allowOfflineContentRoots: allowOfflineContentRoots, applicationCacheOwner: applicationCacheOwner)
         }
     }
 
@@ -141,7 +138,8 @@ public struct CleanupRuleEngine: Scanner {
         }
         let allowsOfflineContent = allowOfflineContentRoots.contains { $0.path == candidate.url.path }
         let currentIdentity = try await context.fileSystem.identity(at: candidate.url)
-        if candidate.hasVerifiedCleanupScope && candidate.source == .general && rule.defaultRisk != .blocked {
+        if candidate.hasVerifiedCleanupScope && candidate.source == .general && rule.defaultRisk != .blocked
+            && !(applicationCacheOwner != nil && candidate.requiresExplicitSelection == true) {
             do {
                 try Self.validateTraversal(candidate.url, context: context)
                 try context.protectionPolicy.validate(candidate.url)
@@ -193,6 +191,11 @@ public struct CleanupRuleEngine: Scanner {
             || !(rule.activeBundleIdentifiers ?? []).isDisjoint(with: context.runningBundleIdentifiers)
             || !(rule.activeProcessNames ?? []).isDisjoint(with: context.activeProcessNames)
             || ((rule.activeProcessNames?.isEmpty == false) && !context.activityProbeAvailable)
+        let cacheOwner = rule.category == .cache
+            && url.deletingLastPathComponent().standardizedFileURL.path == context.homeDirectory.appendingPathComponent("Library/Caches").path
+            ? applicationCacheOwner : nil
+        var verifiedBundles: [URL] = []
+        var requiresCacheReview = false
         var pending = [(url, identity, 0)]
         let protected = (rule.protectedRelativePaths ?? []).map { context.homeDirectory.appendingPathComponent($0) }
         let allowedSensitiveDirectoryNames = rule.allowedSensitiveDirectoryNames ?? []
@@ -201,7 +204,8 @@ public struct CleanupRuleEngine: Scanner {
             try Task.checkCancellation()
             // A framework link inside a known cache is part of that cache. Never follow it.
             if entryIdentity.kind == .symbolicLink,
-               CacheLinkPolicy.permitsInternalLink(entry, within: url, allowed: rule.allowsInternalLinks == true) {
+               CacheLinkPolicy.permitsInternalLink(entry, within: url, allowed: rule.allowsInternalLinks == true || cacheOwner != nil) {
+                if cacheOwner != nil { manualOnly = true; requiresCacheReview = true }
                 do { try context.protectionPolicy.validate(entry) } catch { blocked = true }
                 continue
             }
@@ -209,7 +213,14 @@ public struct CleanupRuleEngine: Scanner {
             catch { blocked = true; continue }
             let path = entry.standardizedFileURL.path
             if protected.contains(where: { path == $0.path || path.hasPrefix($0.path + "/") || $0.path.hasPrefix(path + "/") }) { blocked = true }
-            if sensitive(entry), !(entryIdentity.kind == .directory
+            if entryIdentity.kind == .directory, entry.pathExtension.lowercased() == "app",
+               let cacheOwner, CachedApplicationBundlePolicy.verifies(entry, owner: cacheOwner) {
+                verifiedBundles.append(entry)
+                manualOnly = true
+                requiresCacheReview = true
+            }
+            let isSealedProgramResource = verifiedBundles.contains { entry.path.hasPrefix($0.appendingPathComponent("Contents").path + "/") }
+            if sensitive(entry), !isSealedProgramResource, !(entryIdentity.kind == .directory
                 && allowedSensitiveDirectoryNames.contains(entry.lastPathComponent.lowercased())) {
                 blocked = true
             }
@@ -256,8 +267,13 @@ public struct CleanupRuleEngine: Scanner {
         if !blocked && !incomplete && rule.regenerable == true {
             evidence.append(Evidence(code: "verified-regenerable-cache", summary: rule.ruleID))
         }
+        if requiresCacheReview {
+            evidence.append(Evidence(code: "cache-manual-review", summary:
+                L10n.text("请手动确认；清理后可能需要重新下载更新或缓存。")))
+        }
         if manualOnly { evidence.append(Evidence(code: "manual-only", summary:
-            L10n.text(rule.manualExplanation ?? "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"))) }
+            L10n.text(requiresCacheReview ? "请手动确认；清理后可能需要重新下载更新或缓存。"
+                : rule.manualExplanation ?? "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"))) }
         if let regeneration = rule.regenerationEvidence { evidence.append(Evidence(code: "regeneration", summary: L10n.text(regeneration))) }
         if let ownership = rule.ownershipEvidence { evidence.append(Evidence(code: "ownership", summary: L10n.text(ownership))) }
         if active { evidence.append(Evidence(code: "active", summary: L10n.text("关联应用或工具正在使用，或活动状态无法验证"))) }

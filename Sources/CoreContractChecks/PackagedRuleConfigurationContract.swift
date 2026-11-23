@@ -5,7 +5,7 @@ import Foundation
 func runPackagedRuleConfigurationContract(application: String) async throws {
     let manager = FileManager.default
     let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Tests/local-ai-projects-disk/cli", isDirectory: true)
+        .deletingLastPathComponent().appendingPathComponent("Tests/temporary/local-ai-projects-disk/cli", isDirectory: true)
     let root = fixtures.appendingPathComponent("packaged-rule-config-" + UUID().uuidString)
     let app = root.appendingPathComponent("Fixture.app")
     let executable = app.appendingPathComponent("Contents/MacOS/CoreContractChecks")

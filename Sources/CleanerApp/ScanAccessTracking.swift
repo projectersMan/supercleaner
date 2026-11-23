@@ -66,7 +66,7 @@ actor ScanAccessTrackingFileSystem: FileSystemAccess {
     }
 }
 
-struct ScanAccessPresentation {
+struct ScanAccessPresentation: Sendable {
     let deniedPaths: Set<URL>
 
     func skips(_ url: URL) -> Bool {

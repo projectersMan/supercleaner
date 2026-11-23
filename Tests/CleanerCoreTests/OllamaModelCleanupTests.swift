@@ -376,7 +376,7 @@ private struct OllamaCleanupFixture {
 
     init() throws {
         root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("local-ai-model-granularity/fixtures/" + UUID().uuidString)
+            .appendingPathComponent("temporary/local-ai-model-granularity/fixtures/" + UUID().uuidString)
         home = root.appendingPathComponent("home")
         for (name, size) in [("a", 3), ("b", 100), ("c", 20), ("d", 30)] {
             let url = blob(name)

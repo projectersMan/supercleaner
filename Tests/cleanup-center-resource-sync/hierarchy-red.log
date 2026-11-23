@@ -1,8 +1,0 @@
-Building for debugging...
-[Using on-disk description]
-[2 / 5] CleanerApp-product
-[6 / 9] CleanerApp-product
-[7 / 9] CleanerApp-product
-[9 / 11] CleanerApp-product
-Build complete! (4.88秒)
-FAIL: navigation presentation deselecting an installer must also deselect a directory that would carry it

@@ -11,7 +11,7 @@ struct CleanupCenterSelectionSummary: Equatable {
         let count = String(metrics.itemCount)
         let size = ByteCountFormatter.cleanerString(bytes: metrics.bytes)
         switch kind {
-        case .recommended: return L10n.text("推荐清理：{0} 项 · {1}", count, size)
+        case .recommended: return L10n.text("推荐选中：{0} 项 · {1}", count, size)
         case .manual: return L10n.text("手动已选：{0} 项 · {1}", count, size)
         case .mixed: return L10n.text("当前已选：{0} 项 · {1}", count, size)
         }
@@ -28,7 +28,7 @@ extension AppModel {
                 metrics: .init(itemCount: summary.itemCount, bytes: summary.bytes))
         }
         let destination = module.cleanupDestination
-        let operations = executionSelectionCandidates(for: destination)
+        let operations = cleanupCenterSelection?.candidates(for: module) ?? []
         guard !operations.isEmpty else { return nil }
         let selected = Set(operations.map(\.id))
         let recommended = Set(defaultCleanupSelection?.candidates(for: module).map(\.id) ?? [])

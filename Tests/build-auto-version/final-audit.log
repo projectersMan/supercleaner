@@ -1,6 +1,0 @@
-Reviewed task diff by file: build-app version allocation placement/scalar error propagation/shared metadata; version.py prepare/next-build validation and atomic save; test_version isolated command and CI tests; Version.json automatic change; README/current architecture/development/checklist; plan/release/QA records. Earlier uncommitted changes preserved.
-PASS: actual normal build allocated once, 0.4.13(127) to0.4.14(128); invalid CI preflight preserved source.
-PASS: verify/DMG/install/mirror/native viewing left Version.json byte-for-byte equal to post-build snapshot; App/Helper/DMG and binaries matched.
-PASS: native Settings0.4.14/128 and idle Cleanup Center; own test backups/mount/temp homes cleaned. No scan, cleanup, Trash emptying, permission/Helper registration, commit or push.
-PASS: 590 local Markdown links; only pre-existing missing historical DMG preserved.
-PASS: version RED/GREEN11, actual invalid-CI guard, one actual automatic allocation, Release305, localization1271, package/DMG/mirror/install/native0.4.14(128), read-only version snapshots and cleanup cross-checked.

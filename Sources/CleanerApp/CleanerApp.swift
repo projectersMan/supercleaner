@@ -65,6 +65,8 @@ import SwiftUI
             Task { @MainActor in
                 do {
                     try await AppModel.checkProjectScanRootsSettings()
+                    try await AppModel.checkProjectConfigurationDuringAgentScan()
+                    try await AppModel.checkAgentContainmentRecalculationQueue()
                     try AppModel.checkConcurrentScanCleanup()
                     if let fixture = ProcessInfo.processInfo.environment["SUPERCLEANER_DUPLICATE_FIXTURE"] {
                         try await AppModel.checkDuplicateLargeFileSelection(home: URL(fileURLWithPath: fixture))

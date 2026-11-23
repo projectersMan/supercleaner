@@ -18,6 +18,7 @@ struct ApplicationScopePicker: View {
 struct ScopePicker: NSViewRepresentable {
     let labels: [String]
     @Binding var selection: Int
+    var accessibilityLabel: String = L10n.text("范围")
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
     func makeNSView(context: Context) -> NSSegmentedControl {
@@ -31,7 +32,7 @@ struct ScopePicker: NSViewRepresentable {
         control.segmentDistribution = .fillEqually
         control.controlSize = .small
         control.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        control.setAccessibilityLabel(L10n.text("范围"))
+        control.setAccessibilityLabel(accessibilityLabel)
         return control
     }
 
@@ -40,7 +41,13 @@ struct ScopePicker: NSViewRepresentable {
         for (index, label) in labels.enumerated() {
             control.setLabel(label, forSegment: index)
         }
+        control.setAccessibilityLabel(accessibilityLabel)
         control.selectedSegment = selection
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width,
+               height: nsView.intrinsicContentSize.height)
     }
 
     @MainActor final class Coordinator: NSObject {

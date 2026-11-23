@@ -1,7 +1,0 @@
-Building for debugging...
-[Planning 1 / 154]
-[Planning deferred tasks]
-[1 / 12] CleanerApp-product
-Build complete! (0.59秒)
-FAIL: navigation presentation all-default cleanup must include only selected recommendations and automatic Agent items
-PASS: resource receipt/protection reconciliation, independent filters, focus, hidden counts and visible-only bulk selection

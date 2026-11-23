@@ -36,7 +36,7 @@ final class ProtectionPolicyBatchTests: XCTestCase {
 
     private static func home() -> URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("application-first-entry/fixtures/\(UUID())")
+            .appendingPathComponent("temporary/application-first-entry/fixtures/\(UUID())")
     }
 
     private static func candidate(_ url: URL) -> CleanupCandidate {

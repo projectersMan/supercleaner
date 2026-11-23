@@ -1,9 +1,0 @@
-Building for debugging...
-[Using on-disk description]
-[4 / 7] CleanerApp-product
-[7 / 10] CleanerApp-product
-[8 / 10] CleanerApp-product
-[10 / 12] CleanerApp-product
-Build complete! (4.69秒)
-FAIL: navigation presentation pending Agent preselection must not expose stale parent defaults
-PASS: resource receipt/protection reconciliation, independent filters, focus, hidden counts and visible-only bulk selection

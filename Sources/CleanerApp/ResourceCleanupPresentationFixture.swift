@@ -4,7 +4,7 @@ import Foundation
 /// Read-only synthetic resources for the navigation regression check; no filesystem operation is performed.
 enum ResourceCleanupPresentationFixture {
     static let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Tests/dashboard-compact-trash/presentation-home")
+        .deletingLastPathComponent().appendingPathComponent("Tests/temporary/dashboard-compact-trash/presentation-home")
 
     static func report() throws -> SystemScanReport {
         let models = [candidate("models/alpha", source: .localAIModels, bytes: 100),

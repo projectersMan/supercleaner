@@ -1,2 +1,0 @@
-FAIL: application responsiveness Failure(message: "first application entry blocks the main thread for 0.9921520948410034s")
-Cold application entry: 114 apps / 4,560 items; list 0.004029989242553711s, summary 0.9879120588302612s, first 20 rows + total 0.9921520948410034s

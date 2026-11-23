@@ -166,10 +166,10 @@ git diff --check
 ```
 
 - [ ] 全部核心契约通过。
-- [ ] 六个扫描维度的导航、取消/继续及单模块结果保留通过；模型默认 Cleanable，无内容回退 All，始终手选且不加入首页默认队列；项目只有 All / Protected / Selected，有选项默认 Selected 否则 All。项目默认勾选设置初始关闭，开启后含 Git 跟踪项，关闭后保留手选且不加入首页队列。
+- [ ] 六个扫描维度的导航、取消/继续及单模块结果保留通过；模型默认 Cleanable，无内容回退 All，初始手选，选择后加入首页总计划；项目只有 All / Protected / Selected，有选项默认 Selected 否则 All。项目预选未配置时默认开启，尊重明确关闭的配置；含 Git 跟踪项，关闭后保留手选并加入首页总计划。
 - [ ] 模型供应商布局、项目 manifest/Git/凭据保护、忽略运行状态的选择/执行与执行前复验通过；不把 ignored 当作可删证明。
 - [ ] 卷容量按 `statfs` 展示总量、已用、可用，失败显示错误，清理累计量不冒充物理释放量。
-- [ ] 全部默认清理汇总仍勾选的系统/大文件/Agent 自动项及项目可清理预选项，手动维度和零统计不展示；用户取消勾选、保护和扫描门禁生效，副本保留证明在路径合并前验证。
+- [ ] 首页总计划汇总全部已选的推荐与手动项目，包括应用卸载、本地模型及项目产物；列表筛选不缩小计划；用户取消勾选、保护和扫描门禁生效，副本保留证明在路径合并前验证。
 - [ ] 首页无竖向滚动，顶部保留扫描与累计清理、计时在扫描按钮右侧；磁盘容量条和可用空间移至 Tools 下方侧栏底部；最小/默认窗口与中英文本均无裁切。
 - [ ] 清空废纸篓经用户确认后请求 Finder；成功才确认会话提醒，偏好不变，新清理可再次提醒，结束刷新容量；关闭/退出共用相同确认和执行入口，明确退出时 Cancel 保留 Trash 并退出，同意清空后等待执行、容量和错误提示结束再退出，失败不否决退出；取消/失败/重复与忙碌门禁回归通过，不实际清空验证机内容。
 - [ ] 主 App 含必要 Automation entitlement 和中英用途描述；保留安全签名门禁。
@@ -296,24 +296,24 @@ spctl --assess --type open --context context:primary-signature --verbose=4 \
 - [ ] 生产 DMG 已先上线，appcast 最后原子切换。
 - [ ] 没有上传私钥、公证凭据、日志或未分发 App。
 
-上一轮资源汇总和 DMG 归属见 [实施计划](../doc/cleanup-center-resource-sync-plan.md)。ProjectArtifactScanner 识别工程内独立及构建目录内的 DMG；Git 跟踪、路径/身份/活动检查继续用于执行复验。ProjectInstallerOwnership 从大文件展示清单和树中排除已归项目的 DMG，原始候选保留以便刷新与副本保留证明校验。项目/大文件渐进结果先后不影响最终归属。构建进程目录仅进入 projectActivePaths，具体文件仍进入 activePaths；项目目录保持活动保护，未打开 DMG 不因 cwd 被整目录保护。项目根待刷新时，首页排除旧项目默认项。验收与逐文件审计见 [本批记录](../Tests/cleanup-center-resource-sync/README.md)。
+上一轮资源汇总和 DMG 归属见 [实施计划](history.md)。ProjectArtifactScanner 识别工程内独立及构建目录内的 DMG；Git 跟踪、路径/身份/活动检查继续用于执行复验。ProjectInstallerOwnership 从大文件展示清单和树中排除已归项目的 DMG，原始候选保留以便刷新与副本保留证明校验。项目/大文件渐进结果先后不影响最终归属。构建进程目录仅进入 projectActivePaths，具体文件仍进入 activePaths；项目目录保持活动保护，未打开 DMG 不因 cwd 被整目录保护。项目根待刷新时，首页排除旧项目默认项。验收与逐文件审计见 [本批记录](history.md)。
 
-本轮更新见 [计划](../doc/project-installer-discovery-plan.md)。项目 DMG 发现与副本证明由 ProjectArtifactScanner 承担；大文件发布前依据同一项目根/manifest 规则排除其清单与容量树，避免临时默认数后续消失。正式 App 显式链接实际 SDK 与独立的 macOS 13 最低版本，记录 DTSDKName 并与 Mach-O 复核。删除手动标题栏背景干预，由原生 NavigationSplitView 和 unified 工具栏管理边界；不再混淆 SDK 与最低系统版本，不使用固定偏移。模型保留分类，但始终手选；证据见 [验证记录](../Tests/project-installer-discovery/README.md)。
+本轮更新见 [计划](history.md)。项目 DMG 发现与副本证明由 ProjectArtifactScanner 承担；大文件发布前依据同一项目根/manifest 规则排除其清单与容量树，避免临时默认数后续消失。正式 App 显式链接实际 SDK 与独立的 macOS 13 最低版本，记录 DTSDKName 并与 Mach-O 复核。删除手动标题栏背景干预，由原生 NavigationSplitView 和 unified 工具栏管理边界；不再混淆 SDK 与最低系统版本，不使用固定偏移。模型保留分类，但始终手选；证据见 [验证记录](history.md)。
 
-当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](../doc/dashboard-sidebar-footer-plan.md)和[逐文件验证](../Tests/dashboard-sidebar-footer/README.md)。
-
-
-本轮项目选择策略见 [实施计划](../doc/project-selection-preferences-plan.md) 和 [逐文件验证记录](../Tests/project-selection-preferences/README.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包和保护；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
+当前布局更新：磁盘从清理中心移至 Tools 下方的侧栏底部，显示硬盘图标和“磁盘空间”标题、容量条及可用空间；继续共用 AppModel 的读取、错误与自动刷新状态，不复制数据源。侧栏和清理中心底栏共用 SidebarSurface 的不透明系统底色，跟随系统外观，避免桌面透色差异；其它维度底栏继续使用原 bar 背景。见[实施计划](history.md)和[逐文件验证](history.md)。
 
 
-关闭/退出共用首页确认工厂与执行器，关闭独有“不再提醒”；扫描期间可提示但不执行清空，不排队删除；偏好可恢复，明确退出后不重复提示。见 [关闭提醒回归](../Tests/close-trash-reminder-choice/README.md)。
+本轮项目选择策略见 [实施计划](history.md) 和 [逐文件验证记录](history.md)。设置切换即时更新既有结果和首页缓存，关闭仅撤销自动选择，不清空人工决定；扫描或执行期间禁用开关。Git 跟踪 DMG 使用同一手选快照边界，仍检查路径、权限、云盘、包和保护；不加入自动副本保留证明。未知 Git 状态与其它保护继续执行复验。
 
-- [ ] 冷缓存首次进入应用卸载的数据准备预算通过，图标另测；不先预热再计时。单项/批量保护等价、保护目标变化、不可用策略、应用启动/退出、新报告失效及 receipt 选择回归通过，执行前仍实时复验。见 [性能验收](../Tests/application-first-entry/README.md)。
+
+关闭/退出共用首页确认工厂与执行器，关闭独有“不再提醒”；扫描期间可提示但不执行清空，不排队删除；偏好可恢复，明确退出后不重复提示。见 [关闭提醒回归](history.md)。
+
+- [ ] 冷缓存首次进入应用卸载的数据准备预算通过，图标另测；不先预热再计时。单项/批量保护等价、保护目标变化、不可用策略、应用启动/退出、新报告失效及 receipt 选择回归通过，执行前仍实时复验。见 [性能验收](history.md)。
 # 0.4.27 增量发布检查
 
 - 六个维度的扫描提示共用组件，模块完成后不受其它扫描阻塞，取消/失败不残留 spinner。
 - 主窗口繁忙期间关闭后，成功清理记账及互斥结束可触发一次原 Empty Trash 提醒；空清理不提示，不复制确认框。
-- 执行 [本轮验证记录](../Tests/module-progress-trash-reminder/README.md) 中的编译、验签、DMG 与安装检查；本轮不提交、不推送。
+- 执行 [本轮验证记录](history.md) 中的编译、验签、DMG 与安装检查；本轮不提交、不推送。
 
 - [x] 项目公钥/SwiftPM 依赖副本可选择并沿既有隔离恢复；混合公私钥、格式未知/超预算 PEM、真实凭据、非托管或 edited 仓库仍拒绝；本机验收不真实删除构建目录。见 [公钥与依赖回归源码](../Tests/CleanerCoreTests/ProjectArtifactPublicKeyTests.swift)。
 

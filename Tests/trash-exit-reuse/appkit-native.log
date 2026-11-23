@@ -1,7 +1,0 @@
-PASS: asynchronous cleanup dependency completed before AppKit quit
-probe: starting native run loop
-probe: native termination event started
-probe: reminder called
-probe: executor task started
-probe: executor task resumed
-PASS: verbatim production delegate waits through the real NSApplication terminateLater/reply loop; no Finder or user cleanup

@@ -10,6 +10,11 @@ SCRIPT_DIR=${0:A:h}
 [[ -d ${APP} && ! -L ${APP} && ${APP:e:l} == app ]] || { print -u2 "FAIL: source must be a regular .app bundle"; exit 1; }
 [[ ${OUTPUT:e:l} == dmg && ! -e ${OUTPUT} && ! -L ${OUTPUT} ]] || { print -u2 "FAIL: output must be a new .dmg path"; exit 1; }
 [[ -d ${OUTPUT:h} && ! -L ${OUTPUT:h} ]] || { print -u2 "FAIL: output parent must be an existing regular directory"; exit 1; }
+if [[ ${SUPERCLEANER_REQUIRE_STABLE_SIGNING:-0} == 1 ]]; then
+  /bin/zsh ${SCRIPT_DIR}/check-stable-signing.sh ${APP}
+else
+  /usr/bin/codesign --verify --deep --strict --all-architectures ${APP}
+fi
 
 STAGING=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/supercleaner-dmg.XXXXXX")
 MOUNT_POINT=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/supercleaner-dmg-mount.XXXXXX")
