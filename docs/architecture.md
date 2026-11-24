@@ -66,3 +66,5 @@ Ollama 按清单/tag 选择。所有引用模型均被选中时共享 blob 才�
 本地临时签名不代表 Developer ID、公证或干净机验收完成。Helper 的真实启用和发布阳性条件见 [激活审计](helper-activation-audit.md) 与 [生产发布清单](production-release-checklist.md)。已完成计划、旧布局和历史机器记录统一见 [归档](history.md)。
 
 正式 App 的 Core 策略和 Agent 模型从 `Contents/Resources` 的包内资源加载；开发或 XCTest 才回退 SwiftPM 资源。独立运行验证暂时隐藏编译目录，防止绝对构建路径的资源回退掩盖打包缺失。
+
+本地交付物为 [build/SuperCleaner.app](../build/SuperCleaner.app) 和同目录下带版本号的 DMG，镜像包含 App 与指向 `/Applications` 的拖放安装快捷方式。版本以 [Version.json](../Version.json) 为准，App、Helper 与镜像内副本必须一致；编译缓存独立位于 `.build/`。构建、打包和内容一致性验证入口见 [开发指南](development.md)。

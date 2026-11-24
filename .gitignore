@@ -4,7 +4,6 @@
 .worktrees/
 DerivedData/
 dist/
-build/
 *.xcarchive
 *.dSYM/
 __pycache__/

@@ -11,6 +11,27 @@ mkdir -p /tmp/supercleaner-history
 tar -xzf docs/archive/legacy-materials-2026-11-23.tar.gz -C /tmp/supercleaner-history
 ```
 
+## 2026-11-24 本地重编译与打包
+
+本次从提交 `4381608` 的源码重新编译，最终本地交付为 **0.6.14（190）**：
+
+- [SuperCleaner.app](../build/SuperCleaner.app)
+- [SuperCleaner-0.6.14.dmg](../build/SuperCleaner-0.6.14.dmg)，299,206,446 字节。
+
+首次构建分配 `0.6.13（189）` 后，原有工具栏布局回归测试发现英文应用范围四段控件的原生最小宽度为 352 pt，紧凑布局只分配了 348 pt。[ReviewToolbar.swift](../Sources/CleanerApp/ReviewToolbar.swift) 将每段宽度从 87 调至 88 pt，并把紧凑控件间距从 4 调至 3 pt，保持 760 pt 最小内容区可完整显示。原有中英文、多页面和多窗口宽度回归测试先失败、修改后通过，没有放宽断言。按现有失败构建不回退版本号的规则，重新运行构建得到 `0.6.14（190）`。
+
+验证结果：
+
+- Release XCTest 共 430 项通过（CleanerCore 379 项、CleanerApp 51 项），Python 版本及签名测试 18 项通过。
+- CoreContractChecks、Sparkle 签名互操作、1,335 条双语消息及当前文档链接检查通过。
+- App 结构、签名、双语设置及扫描、清理、权限、导航、响应和 Trash 自检通过。
+- 隐藏 `.build/` 后自检通过，包内模型生成了有效的 768 维向量，检查结束后原编译目录已恢复。
+- DMG 校验、只读挂载、镜像内签名和 App/Helper/Version.json 版本一致性通过；203 个目录、文件和链接条目与构建产物逐项一致，镜像已卸载。
+
+DMG SHA-256：`a03f2fd00a4bc8aa9a1a81984619969ce150ce5b626fae8c600e3db64d76e0ba`。
+
+本次使用默认 ad-hoc 本地签名，未作为 Developer ID 公证发行包发布。`build/` 已从 Git 忽略规则中移除，版本化 DMG 继续使用现有 Git LFS 属性；编译缓存和过程日志分别保留在被忽略的 `.build/` 与 `Tests/temporary/`。本次过程日志在 `Tests/temporary/rebuild-0.6.13-20261124/` 和 `Tests/temporary/rebuild-0.6.14-20261124/`，未替换已安装应用。
+
 ## 发布索引
 
 | 历史版本 | 原记录标题 |

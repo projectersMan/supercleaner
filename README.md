@@ -30,7 +30,15 @@ open build/SuperCleaner.app
 
 Each run of `build-app.sh` automatically increments the patch version and build number in [Version.json](Version.json) once before compilation. For an explicitly requested release, pass `--version <version>` to that script; the target must be greater than the current configured version. Subsequent ordinary builds resume patch increments. Separate verification and DMG creation reuse the assigned version.
 
-The configured version is recorded in [Version.json](Version.json). Build locally to generate [SuperCleaner.app](build/SuperCleaner.app) and the matching versioned DMG. The latest local packaging is not automatically installed or published. See the consolidated [documentation](docs/README.md), [build and verification guide](docs/development.md), and [historical releases](docs/history.md).
+After building, create and verify the matching versioned DMG:
+
+```bash
+version=$(python3 Scripts/version.py resolve | head -n 1)
+./Scripts/create-dmg.sh "$PWD/build/SuperCleaner.app" "$PWD/build/SuperCleaner-$version.dmg"
+python3 Scripts/check-artifacts.py
+```
+
+The configured version is recorded in [Version.json](Version.json). The application bundle [SuperCleaner.app](build/SuperCleaner.app) and versioned DMG are generated in `build/`. Local packaging is not automatically installed or published. See the consolidated [documentation](docs/README.md), [build and verification guide](docs/development.md), and [historical releases](docs/history.md).
 
 The Cleanup Center fits into one page with no vertical scrolling. Three compact safety cards sit below the title. The scan button stays aligned with the title text, with elapsed time to its right; session cleanup totals and the larger **Empty Trash…** button stay on the right. Disk capacity appears below **Tools** at the bottom of the sidebar, using a drive icon and **Disk Space** title above a capacity bar and available space. The sidebar and default cleanup footer share the same opaque system-based background, avoiding tint differences from transparent materials. Six scope rows remain visible. Click any scope row to open its page, including while waiting or scanning. Each active module page has its own Cancel Scan button; Resume Scan reruns only that canceled module and keeps results from the others. This is a module restart, not a filesystem traversal checkpoint. The sidebar and titlebar use the native unified toolbar layout, with the actual build SDK recorded separately from the minimum macOS version.
 
