@@ -4,13 +4,12 @@ import SwiftUI
 struct GuidedCleanupView: View {
     @ObservedObject var model: AppModel
     @State private var cleanupExpanded = true
-    @State private var retainedExpanded = false
+    @State private var deepExpanded = false
     private var centerCandidates: [CleanupCandidate] { model.candidates(for: .systemCleanup) }
     private var breakdown: CleanupRecommendationBreakdown { model.recommendationBreakdown(for: .systemCleanup) }
     private var cleanupCandidates: [CleanupCandidate] {
-        (breakdown.recommended + breakdown.deepClean).filter { $0.risk.isSelectable }
+        breakdown.recommendedGroupCandidates
     }
-    private var retainedCandidates: [CleanupCandidate] { breakdown.retained + breakdown.protected.filter { !$0.hasIncompleteScan } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,7 +23,7 @@ struct GuidedCleanupView: View {
                         DispositionCandidatesDisclosure(
                             model: model,
                             title: L10n.text("建议清理"),
-                            subtitle: cleanupCandidates.isEmpty ? L10n.text("本次扫描没有符合安全规则的可清理项目") : L10n.text("已按清理规则筛选，可直接批量清理"),
+                            subtitle: cleanupCandidates.isEmpty ? L10n.text("本次扫描没有符合安全规则的可清理项目") : L10n.text("已默认勾选可清理的缓存和日志；部分内容清理后需重新下载或构建"),
                             icon: "checkmark.shield",
                             candidates: cleanupCandidates,
                             showsRecommendationBadges: false,
@@ -34,15 +33,12 @@ struct GuidedCleanupView: View {
                         DispositionCandidatesDisclosure(
                             model: model,
                             title: L10n.text("深度清理"),
-                            subtitle: retainedCandidates.isEmpty
-                                ? L10n.text("本次扫描没有需要保留复核的项目")
-                                : L10n.text("可在自定义模式中逐项复核；受保护项目仍不能加入删除计划"),
-                            icon: "archivebox",
-                            candidates: retainedCandidates,
-                            isExpanded: $retainedExpanded,
+                            subtitle: L10n.text("逐项确认需要清理的内容；受保护项目不可删除"),
+                            icon: "arrow.down.circle",
+                            candidates: breakdown.deepReviewCandidates,
+                            isExpanded: $deepExpanded,
                             onSelectCandidate: focusCandidate
                         )
-
                     }
                     .padding(.horizontal, 24).padding(.bottom, 24)
                 }
@@ -141,18 +137,17 @@ private struct ApplicationCleanupGroupRow<Content: View>: View {
     @State private var isHovered = false
 
     private var application: CleanupApplication? { group.candidates.first?.cleanupApplication }
-    private var includesManualOnly: Bool { group.id == "system-and-unassigned" }
     private var selectionState: SelectionTriState {
-        model.cleanupSelectionState(for: group.candidates, includesManualOnly: includesManualOnly)
+        model.cleanupSelectionState(for: group.candidates)
     }
     private var isSelectable: Bool {
-        group.candidates.contains { $0.risk.isSelectable && (includesManualOnly || $0.requiresExplicitSelection != true) }
+        group.candidates.contains { $0.risk.isSelectable && $0.requiresExplicitSelection != true }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button { model.toggleCleanupCategory(group.candidates, includesManualOnly: includesManualOnly) } label: {
+                Button { model.toggleCleanupCategory(group.candidates) } label: {
                     Image(systemName: selectionState.icon)
                         .font(.title3).foregroundColor(selectionState == .none ? .secondary : .accentColor)
                 }

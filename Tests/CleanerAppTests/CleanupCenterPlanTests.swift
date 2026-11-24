@@ -92,6 +92,81 @@ final class CleanupCenterPlanTests: XCTestCase {
     }
 
     @MainActor
+    func testRecommendedSelectionIncludesVerifiedCachesInTheExecutionPlan() throws {
+        let (model, _) = makeModel()
+        let base = try ResourceCleanupPresentationFixture.report()
+        let home = ResourceCleanupPresentationFixture.home
+        let log = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/old.log"), displayName: "Old log",
+            category: .log, bytes: 10, risk: .safe, evidence: [],
+            identity: .init(device: 1, inode: 101, size: 10, modificationTime: 1, kind: .file),
+            source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true)
+        let cache = CleanupCandidate(url: home.appendingPathComponent(".npm/_cacache"), displayName: "Download cache",
+            category: .developerCache, bytes: 20, risk: .review,
+            evidence: [.init(code: "verified-cleanup-scope", summary: "fixture.download"),
+                       .init(code: "verified-regenerable-cache", summary: "fixture.download")],
+            identity: .init(device: 1, inode: 102, size: 20, modificationTime: 1, kind: .directory),
+            source: .general, lastAccessDate: nil, isActive: true, ruleID: "fixture.download", defaultSelection: false)
+        let data = CleanupCandidate(url: home.appendingPathComponent("Library/Application Support/old.user"), displayName: "User data",
+            category: .applicationSupport, bytes: 30, risk: .review, evidence: [],
+            identity: .init(device: 1, inode: 103, size: 30, modificationTime: 1, kind: .directory),
+            source: .historicalApplicationResidue, lastAccessDate: nil, isActive: false,
+            defaultSelection: false, requiresExplicitSelection: true)
+        model.install(SystemScanReport(metadata: base.metadata, modules: base.modules,
+            generalCandidates: [log, cache, data], applicationInventory: base.applicationInventory,
+            diskUsageTree: base.diskUsageTree, largeFileCandidates: [], agentAssets: []))
+        model.selection = .systemCleanup
+
+        model.setCleanupMode(.deep)
+        XCTAssertEqual(model.selectedIDs, [log.id, cache.id])
+        model.setCleanupMode(.smart)
+        XCTAssertEqual(model.selectedIDs, [log.id, cache.id])
+        XCTAssertEqual(Set(model.defaultCleanupSelection?.systemCleanup.map(\.id) ?? []), [log.id, cache.id])
+        model.toggle(cache)
+        XCTAssertEqual(model.selectedIDs, [log.id])
+        model.toggle(cache)
+
+        let selection = try XCTUnwrap(model.cleanupCenterSelection)
+        let plan = try selection.buildPlan(using: PlanBuilder())
+        XCTAssertEqual(Set(selection.systemCleanup.map(\.id)), [log.id, cache.id])
+        XCTAssertEqual(Set(plan.selectedItems.map(\.id)), [log.id, cache.id])
+        XCTAssertEqual(plan.selectedBytes, 30)
+        XCTAssertFalse(model.selectedIDs.contains(data.id))
+    }
+
+    @MainActor
+    func testSystemGroupCannotGrantIndividualConsentToUnknownOrHistoricalData() throws {
+        let (model, _) = makeModel()
+        let base = try ResourceCleanupPresentationFixture.report()
+        let items = [manualSystemCandidate("UnknownCache", category: .cache, source: .general),
+            manualSystemCandidate("HistoricalData", category: .applicationSupport, source: .historicalApplicationResidue),
+            manualSystemCandidate("SharedResidue", category: .cache, source: .historicalApplicationResidue)]
+        model.install(SystemScanReport(metadata: base.metadata, modules: base.modules,
+            generalCandidates: items, applicationInventory: base.applicationInventory,
+            diskUsageTree: base.diskUsageTree, largeFileCandidates: [], agentAssets: []))
+        model.selection = .systemCleanup
+        let group = try XCTUnwrap(SystemCleanupApplicationGroup.groups(items).first)
+        XCTAssertEqual(group.id, "system-and-unassigned")
+
+        model.toggleCleanupCategory(group.candidates, includesManualOnly: true)
+        XCTAssertTrue(model.selectedIDs.isEmpty)
+        XCTAssertEqual(model.cleanupSelectionState(for: group.candidates, includesManualOnly: true), .none)
+
+        for item in items { model.toggle(item) }
+        XCTAssertEqual(model.selectedIDs, Set(items.map(\.id)))
+        XCTAssertEqual(Set(try XCTUnwrap(model.cleanupCenterSelection).systemCleanup.map(\.id)), Set(items.map(\.id)))
+        model.clearCurrentSelection()
+        XCTAssertTrue(model.selectedIDs.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(model.cleanupCenterSelection).systemCleanup.isEmpty)
+    }
+
+    private func manualSystemCandidate(_ name: String, category: CleanupCategory, source: CandidateSource) -> CleanupCandidate {
+        CleanupCandidate(url: ResourceCleanupPresentationFixture.home.appendingPathComponent(name), displayName: name,
+            category: category, bytes: 10, risk: .review, evidence: [],
+            identity: .init(device: 1, inode: UInt64(name.count), size: 10, modificationTime: 1, kind: .directory),
+            source: source, lastAccessDate: nil, isActive: false, defaultSelection: false, requiresExplicitSelection: true)
+    }
+
+    @MainActor
     private func makeModel() -> (AppModel, UserDefaults) {
         let suite = "CleanupCenterPlanTests.\(UUID())"
         let preferences = UserDefaults(suiteName: suite)!

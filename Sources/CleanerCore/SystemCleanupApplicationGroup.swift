@@ -14,6 +14,11 @@ public struct SystemCleanupApplicationGroup: Identifiable, Sendable {
             .map { id, items in
                 Self(id: id, title: items.first?.cleanupApplication?.name ?? L10n.text("系统"),
                      candidates: items.sorted { $0.bytes > $1.bytes })
-            }.sorted { $0.bytes == $1.bytes ? $0.id < $1.id : $0.bytes > $1.bytes }
+            }.sorted {
+                if ($0.id == "system-and-unassigned") != ($1.id == "system-and-unassigned") {
+                    return $0.id == "system-and-unassigned"
+                }
+                return $0.bytes == $1.bytes ? $0.id < $1.id : $0.bytes > $1.bytes
+            }
     }
 }

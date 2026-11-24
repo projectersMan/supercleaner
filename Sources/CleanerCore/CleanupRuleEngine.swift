@@ -144,7 +144,7 @@ public struct CleanupRuleEngine: Scanner {
                 try Self.validateTraversal(candidate.url, context: context)
                 try context.protectionPolicy.validate(candidate.url)
             } catch { throw RuleScanError.executionRefused(id) }
-            guard candidate.matchesExecutionIdentity(currentIdentity), !sensitive(candidate.url),
+            guard candidate.matchesExecutionIdentity(currentIdentity), !Self.isSensitive(candidate.url),
                   rule.fileExtensions.map({ $0.contains(candidate.url.pathExtension.lowercased()) }) ?? true else {
                 throw RuleScanError.executionRefused(id)
             }
@@ -220,7 +220,7 @@ public struct CleanupRuleEngine: Scanner {
                 requiresCacheReview = true
             }
             let isSealedProgramResource = verifiedBundles.contains { entry.path.hasPrefix($0.appendingPathComponent("Contents").path + "/") }
-            if sensitive(entry), !isSealedProgramResource, !(entryIdentity.kind == .directory
+            if Self.isSensitive(entry), !isSealedProgramResource, !(entryIdentity.kind == .directory
                 && allowedSensitiveDirectoryNames.contains(entry.lastPathComponent.lowercased())) {
                 blocked = true
             }
@@ -250,8 +250,10 @@ public struct CleanupRuleEngine: Scanner {
         // Activity is advisory for general cleanup. The user may explicitly try
         // the item; the executor records a failed move and leaves it in place if
         // the owning process or filesystem refuses the operation.
+        var verifiedUnusedReference = false
         if let descriptor = rule.referenceInventory {
             let ownership = CacheReferenceInventory.state(of: url, descriptor: descriptor)
+            verifiedUnusedReference = ownership == .unused
             manualOnly = manualOnly || ownership != .unused || !context.activityProbeAvailable
             active = context.isActive(url)
             if ownership == .metadata { manualOnly = true }
@@ -264,7 +266,7 @@ public struct CleanupRuleEngine: Scanner {
         if !blocked && !incomplete {
             evidence.append(Evidence(code: "verified-cleanup-scope", summary: rule.ruleID))
         }
-        if !blocked && !incomplete && rule.regenerable == true {
+        if !blocked && !incomplete && (rule.regenerable == true || verifiedUnusedReference) {
             evidence.append(Evidence(code: "verified-regenerable-cache", summary: rule.ruleID))
         }
         if requiresCacheReview {
@@ -287,7 +289,8 @@ public struct CleanupRuleEngine: Scanner {
             url: url, displayName: url.lastPathComponent, category: rule.category, bytes: bytes,
             risk: risk, evidence: evidence, identity: identity, source: .general,
             lastAccessDate: Date(timeIntervalSince1970: Double(newest)), isActive: active,
-            ruleID: rule.ruleID, defaultSelection: risk == .safe && rule.defaultSelection == true && !manualOnly,
+            ruleID: rule.ruleID, defaultSelection: risk == .safe && rule.defaultSelection == true
+                && !manualOnly && rule.referenceInventory == nil,
             requiresExplicitSelection: manualOnly
         )
     }
@@ -297,7 +300,7 @@ public struct CleanupRuleEngine: Scanner {
             && (rule.maximumOSVersion.map { operatingSystemVersion.compare($0, options: .numeric) != .orderedDescending } ?? true)
     }
 
-    private func sensitive(_ url: URL) -> Bool {
+    static func isSensitive(_ url: URL) -> Bool {
         let name = url.lastPathComponent.lowercased()
         return [".git", "agents.md", "claude.md", "auth.json", "credentials.json", "id_rsa", "id_ed25519", "keychain", "keychain-db", "cookies", "login data", "history", "local storage", "indexeddb", "messages", "message", "msg", "attachments", "backup", "backups"].contains(name)
             || name == ".env" || name.hasPrefix(".env.") || ["pem", "p12", "pfx", "key"].contains(url.pathExtension.lowercased())

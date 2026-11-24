@@ -19,6 +19,9 @@ public struct CleanupRecommendationBreakdown: Equatable, Sendable {
     public let retained: [CleanupCandidate]
     public let protected: [CleanupCandidate]
 
+    public var recommendedGroupCandidates: [CleanupCandidate] { recommended + deepClean }
+    public var deepReviewCandidates: [CleanupCandidate] { retained + protected }
+
     public init(
         recommended: [CleanupCandidate],
         deepClean: [CleanupCandidate],
@@ -33,28 +36,18 @@ public struct CleanupRecommendationBreakdown: Equatable, Sendable {
 }
 
 public struct CleanupRecommendationPolicy: Sendable {
-    private static let deepCleanCategories: Set<CleanupCategory> = [
-        .cache,
-        .log,
-        .temporaryFile,
-        .installerArtifact,
-        .developerCache,
-        .agentModelCache,
-        .agentPackageCache,
-    ]
-
     public init() {}
 
     public func disposition(for candidate: CleanupCandidate) -> CleanupDisposition {
-        if candidate.risk == .blocked || candidate.hasIncompleteScan { return .protected }
+        if candidate.risk == .blocked || candidate.hasIncompleteScan || candidate.category == .credential { return .protected }
         if candidate.requiresExplicitSelection == true { return .retain }
+        if candidate.source == .historicalApplicationResidue
+            || [.applicationSupport, .configuration, .userKnowledge].contains(candidate.category) { return .retain }
         if candidate.isActive && !candidate.isDisposableRuntimeCache { return .retain }
-        if candidate.isDisposableRuntimeCache { return .recommended }
-        if candidate.risk == .safe { return .recommended }
-        if candidate.defaultSelection == false && !Self.deepCleanCategories.contains(candidate.category) {
-            return .retain
-        }
-        if Self.deepCleanCategories.contains(candidate.category) { return .deepClean }
+        // Keep low-impact and regeneration evidence distinct inside the merged
+        // recommended group so cleanup costs remain explainable.
+        if candidate.risk == .safe && candidate.defaultSelection == true { return .recommended }
+        if candidate.isDisposableRuntimeCache { return .deepClean }
         return .retain
     }
 
@@ -86,24 +79,16 @@ public struct CleanupRecommendationPolicy: Sendable {
         currentSelection: Set<UUID>
     ) -> Set<UUID> {
         switch mode {
-        case .smart:
-            return Set(candidates.filter { disposition(for: $0) == .recommended }.map(\.id))
-        case .deep:
-            return Set(candidates.filter { [.recommended, .deepClean].contains(disposition(for: $0)) }.map(\.id))
+        case .smart, .deep:
+            return defaultSelectedIDs(for: candidates)
         case .custom:
             let selectableIDs = Set(candidates.filter { $0.risk.isSelectable }.map(\.id))
             return currentSelection.intersection(selectableIDs)
         }
     }
 
-    /// Candidates shown in the recommended-cleanup section and eligible for
-    /// unattended one-click cleanup. Keeping this derived from the same
-    /// disposition prevents retained items from being selected behind a
-    /// collapsed "Recommended to keep" section.
+    /// The recommended group includes verified regenerable caches.
     public func defaultSelectedIDs(for candidates: [CleanupCandidate]) -> Set<UUID> {
-        Set(candidates.filter {
-            $0.risk.isSelectable
-                && [.recommended, .deepClean].contains(disposition(for: $0))
-        }.map(\.id))
+        Set(breakdown(for: candidates).recommendedGroupCandidates.filter(\.risk.isSelectable).map(\.id))
     }
 }

@@ -2,8 +2,8 @@ import CleanerCore
 import Foundation
 
 func runCleanupModeContracts() {
-    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("自动清理"), L10n.text("手动选择")], "cleanup center must expose automatic and manual modes")
-    require(CleanupMode.defaultMode == .deep, "automatic cleanup must be the default one-click plan")
+    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("推荐"), L10n.text("深度清理"), L10n.text("手动选择")], "cleanup center must expose automatic and manual modes")
+    require(CleanupMode.defaultMode == .smart, "merged recommendations must be the default one-click plan")
 
     let recommended = modeCandidate(name: "Recommended", category: .cache, risk: .safe)
     let deep = modeCandidate(name: "Deep", category: .developerCache, risk: .review)
@@ -23,7 +23,7 @@ func runCleanupModeContracts() {
     state = state.applying(.smart, to: candidates)
     require(state.mode == .smart, "smart transition records mode")
     require(
-        state.selectedIDs == Set([recommended.id, otherModuleSelectionID]),
+        state.selectedIDs == Set([recommended.id, deep.id, otherModuleSelectionID]),
         "smart transition must replace only the current module selection"
     )
     state = state.applying(.deep, to: candidates)
@@ -72,7 +72,7 @@ func runCleanupModeContracts() {
     )
     let centerScope = CleanupScopePolicy().cleanupCenterCandidates(from: [recommended, deep, large, agent])
     require(centerScope.map(\.id) == [recommended.id, deep.id], "cleanup center must include developer cache but exclude large-file and Agent modules")
-    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("自动清理"), L10n.text("手动选择")], "strategy names must communicate automatic versus manual control")
+    require(CleanupMode.userFacingCases.map(\.displayTitle) == [L10n.text("推荐"), L10n.text("深度清理"), L10n.text("手动选择")], "strategy names must communicate automatic versus manual control")
     require(ByteCountFormatter.cleanerString(bytes: 0) == "0 KB", "zero-byte formatting")
     require(ByteCountFormatter.cleanerString(bytes: 1) == "< 1 KB", "tiny nonzero values must not appear as zero")
     require(CleanupScopePolicy().candidates(for: .largeFiles, from: [recommended, large, agent]) == [large], "large-file plans stay inside the large-file page")
@@ -87,10 +87,13 @@ private func modeCandidate(name: String, category: CleanupCategory, risk: RiskLe
         category: category,
         bytes: 1,
         risk: risk,
-        evidence: [],
+        evidence: category == .developerCache ? [Evidence(code: "verified-cleanup-scope", summary: "fixture"),
+            Evidence(code: "verified-regenerable-cache", summary: "fixture")] : [],
         identity: FileIdentity(device: 1, inode: UInt64.random(in: 1...UInt64.max), size: 1, modificationTime: 1, kind: .directory),
         source: .general,
         lastAccessDate: nil,
-        isActive: false
+        isActive: false,
+        ruleID: category == .developerCache ? "fixture" : nil,
+        defaultSelection: risk == .safe
     )
 }

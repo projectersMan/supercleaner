@@ -23,7 +23,8 @@ public enum ResourceCleanupListPolicy {
     }
 
     public static func isSelectable(_ candidate: CleanupCandidate) -> Bool {
-        candidate.risk.isSelectable && !candidate.isActive && !candidate.hasIncompleteScan
+        candidate.risk.isSelectable && !candidate.hasIncompleteScan
+            && (!candidate.isActive || candidate.isDisposableRuntimeCache)
     }
 
     public static func selectableCandidates(_ candidates: [CleanupCandidate]) -> [CleanupCandidate] {

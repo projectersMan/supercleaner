@@ -3,7 +3,7 @@ import XCTest
 
 final class CacheReferenceCleanupTests: XCTestCase {
     private func fixture() -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".managed-cache-\(UUID())")
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("temporary/managed-cache-\(UUID())")
     }
     private func put(_ data: Data, _ path: String, home: URL) throws {
         let file = home.appendingPathComponent(path)
@@ -11,7 +11,7 @@ final class CacheReferenceCleanupTests: XCTestCase {
         try data.write(to: file)
     }
 
-    func testPlaywrightOnlyPreselectsUnusedVersionsAndRechecksNewReferences() async throws {
+    func testPlaywrightRecommendsOnlyUnusedVersionsAndRechecksReferences() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
         try put(Data([1]), "Library/Caches/ms-playwright/chromium-100/payload", home: home)
         try put(Data([2]), "Library/Caches/ms-playwright/chromium-200/payload", home: home)
@@ -26,6 +26,7 @@ final class CacheReferenceCleanupTests: XCTestCase {
         let old = try XCTUnwrap(found.first { $0.displayName == "chromium-100" })
         let selected = CleanupRecommendationPolicy().defaultSelectedIDs(for: found)
         XCTAssertEqual(selected, [old.id])
+        XCTAssertEqual(CleanupRecommendationPolicy().selectedIDs(for: found, mode: .deep, currentSelection: []), [old.id])
         try await engine.validateForExecution(old, context: context)
         try put(Data(json.replacingOccurrences(of: "200", with: "100").utf8), "project/node_modules/playwright-core/browsers.json", home: home)
         do { try await engine.validateForExecution(old, context: context); XCTFail("newly referenced browser must not be deleted automatically") }
@@ -45,13 +46,13 @@ final class CacheReferenceCleanupTests: XCTestCase {
         let context = ScanContext(homeDirectory: home)
         let found = try await engine.scan(context: context)
         XCTAssertEqual(found.count, 2, "reference metadata must not become a cleanup target")
-        XCTAssertEqual(found.filter { CleanupRecommendationPolicy().defaultSelectedIDs(for: found).contains($0.id) }.map(\.displayName), ["toolchain-7"])
+        XCTAssertEqual(found.filter { CleanupRecommendationPolicy().selectedIDs(for: found, mode: .deep, currentSelection: []).contains($0.id) }.map(\.displayName), ["toolchain-7"])
         try FileManager.default.removeItem(at: client.appendingPathComponent("dependencies.json"))
         let uncertain = try await engine.scan(context: context)
         XCTAssertTrue(CleanupRecommendationPolicy().defaultSelectedIDs(for: uncertain).isEmpty)
         try FileManager.default.removeItem(at: client)
         let unreferenced = try await engine.scan(context: context)
-        XCTAssertEqual(CleanupRecommendationPolicy().defaultSelectedIDs(for: unreferenced).count, 2,
+        XCTAssertEqual(CleanupRecommendationPolicy().selectedIDs(for: unreferenced, mode: .deep, currentSelection: []).count, 2,
             "a registration whose client no longer exists must not retain old artifacts")
 
         let cacheRule = CleanupRule(ruleID: "unrelated-rule-name", category: .developerCache, relativePaths: ["Rebuildable"],
@@ -60,6 +61,7 @@ final class CacheReferenceCleanupTests: XCTestCase {
         let cacheEngine = CleanupRuleEngine(pack: .init(version: "fixture", issuedAt: Date(), rules: [cacheRule], revokedRuleIDs: []))
         let cache = try await cacheEngine.scan(context: .init(homeDirectory: home, activeProcessNames: ["generic-worker"]))
         XCTAssertEqual(CleanupRecommendationPolicy().defaultSelectedIDs(for: cache).count, 1)
+        XCTAssertEqual(CleanupRecommendationPolicy().selectedIDs(for: cache, mode: .deep, currentSelection: []).count, 1)
     }
 
 }

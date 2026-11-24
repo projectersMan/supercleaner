@@ -3,6 +3,21 @@ import Foundation
 import XCTest
 
 final class SystemCleanupApplicationGroupTests: XCTestCase {
+    func testSystemStaysFirstEvenWhenApplicationsUseMoreSpace() {
+        let system = candidate(name: "system", application: nil)
+        let first = CleanupApplication(bundleIdentifier: "example.first", name: "System", kind: "Cache")
+        let second = CleanupApplication(bundleIdentifier: "example.second", name: "Other", kind: "Cache")
+        let items = [candidate(name: "a1", application: first), candidate(name: "b1", application: second),
+            system, candidate(name: "a2", application: first), candidate(name: "b2", application: second),
+            candidate(name: "b3", application: second)]
+        let groups = SystemCleanupApplicationGroup.groups(items)
+        XCTAssertEqual(groups.map(\.id), ["system-and-unassigned", "example.second", "example.first"])
+        XCTAssertEqual(groups.map(\.bytes), [10, 30, 20])
+        XCTAssertEqual(Set(groups.flatMap(\.candidates).map(\.id)), Set(items.map(\.id)))
+        XCTAssertEqual(SystemCleanupApplicationGroup.groups(items.filter { $0 != system }).map(\.id),
+            ["example.second", "example.first"])
+    }
+
     func testSystemFallbackDoesNotMergeItsLabelWithApplications() throws {
         let system = candidate(name: "system", application: nil)
         let app = candidate(name: "app", application: CleanupApplication(
@@ -20,7 +35,7 @@ final class SystemCleanupApplicationGroupTests: XCTestCase {
         CleanupCandidate(url: URL(fileURLWithPath: "/fixture/\(name)"), displayName: name,
             category: .cache, bytes: 10, risk: .safe, evidence: [],
             identity: FileIdentity(device: 1, inode: 1, size: 10, modificationTime: 1, kind: .directory),
-            source: .general, lastAccessDate: nil, isActive: false, cleanupApplication: application)
+            source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true, cleanupApplication: application)
     }
 
     func testFlatGroupsKeepSystemAndNamedApplicationsAtTheSameLevel() {

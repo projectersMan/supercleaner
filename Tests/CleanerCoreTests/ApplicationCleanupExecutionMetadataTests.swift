@@ -53,8 +53,8 @@ final class ApplicationCleanupExecutionMetadataTests: XCTestCase {
     }
 
     private func fixture(declared: String = componentID, claimed: String = componentID) async throws -> Fixture {
-        let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent(".application-metadata-fixture-\(UUID())")
+        let home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("temporary/application-metadata-fixture-\(UUID())")
         addTeardownBlock { try FileManager.default.removeItem(at: home) }
         let app = home.appendingPathComponent("Applications/Main.app")
         let component = app.appendingPathComponent("Contents/Resources/Services/Component.app")
@@ -75,7 +75,7 @@ final class ApplicationCleanupExecutionMetadataTests: XCTestCase {
         let discovery = await scanner.discover(applications: [application], context: context)
         let scanned = try await scanner.scan(discovery: discovery, context: context)
         let candidate = try XCTUnwrap(scanned.candidates.first { $0.url.standardizedFileURL.path == cache.standardizedFileURL.path }, "targets=\(discovery.targets.map { $0.url.path }) failures=\(scanned.failures)")
-        XCTAssertEqual(candidate.risk, .safe)
+        XCTAssertEqual(candidate.risk, .review)
         return Fixture(home: home, app: app, component: component, candidate: candidate)
     }
 

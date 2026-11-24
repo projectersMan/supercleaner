@@ -51,6 +51,17 @@ extension OllamaModelProof {
 }
 
 extension CleanupCandidate {
+    var ollamaStorageRoot: URL? {
+        if ruleID == "local-ai-model.ollama-blob", url.deletingLastPathComponent().lastPathComponent == "blobs" {
+            return url.deletingLastPathComponent().deletingLastPathComponent()
+        }
+        guard ruleID == "local-ai-model.ollama", ollamaModelProof != nil else { return nil }
+        var root = url
+        for _ in 0..<5 { root.deleteLastPathComponent() }
+        guard url.path.hasPrefix(root.appendingPathComponent("manifests").path + "/") else { return nil }
+        return root
+    }
+
     func removingOllamaReferences(_ removed: CleanupPathIndex) -> CleanupCandidate {
         guard let proof = ollamaModelProof else { return self }
         let blobs = proof.blobs.map { blob in
@@ -126,7 +137,7 @@ extension LocalAIModelScanner {
     }
 
     func validateOllamaBlob(_ candidate: CleanupCandidate, context: ScanContext) async throws {
-        let root = context.homeDirectory.appendingPathComponent(".ollama/models")
+        let root = try authorizedOllamaRoot(for: candidate.url, context: context)
         let name = candidate.url.lastPathComponent
         guard candidate.source == .localAIModels, candidate.category == .agentModelCache,
               candidate.risk == .review, !candidate.isActive, candidate.defaultSelection == false,
@@ -149,7 +160,7 @@ extension LocalAIModelScanner {
     func validateUnreferencedOllamaBlob(_ candidate: CleanupCandidate, context: ScanContext) async throws {
         guard candidate.ruleID == "local-ai-model.ollama-blob" else { return }
         try await validateOllamaBlob(candidate, context: context)
-        let root = context.homeDirectory.appendingPathComponent(".ollama/models")
+        let root = try authorizedOllamaRoot(for: candidate.url, context: context)
         var budget = InspectionBudget(remaining: maximumEntries, deadline: .now.advanced(by: .seconds(timeLimit)))
         for manifest in try await ollamaManifests(root: root, context: context, budget: &budget) {
             for layer in manifest.document.layers + [manifest.document.config] {

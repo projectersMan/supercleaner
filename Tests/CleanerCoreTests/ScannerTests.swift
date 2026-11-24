@@ -31,7 +31,7 @@ final class ScannerTests: XCTestCase {
         XCTAssertEqual(report.failures.map(\.scannerID), ["fixture.failure"])
     }
 
-    func testHistoricalResiduePreselectsConfirmedAppData() async {
+    func testHistoricalResidueRequiresExplicitSelectionOfAppData() async {
         let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
         let now = Date(timeIntervalSince1970: 10_000_000)
         let cacheRoot = home.appendingPathComponent("Library/Caches", isDirectory: true)
@@ -52,10 +52,10 @@ final class ScannerTests: XCTestCase {
         let results = await HistoricalResidueScanner().scan(context: context)
 
         XCTAssertEqual(results.map(\.url.path), [oldCache.path, oldSupport.path, emptyContainer.path].sorted())
-        XCTAssertEqual(results.first { $0.url == oldCache }?.risk, .safe)
-        XCTAssertEqual(results.first { $0.url == oldSupport }?.risk, .safe)
-        XCTAssertEqual(results.first { $0.url == emptyContainer }?.risk, .safe)
-        XCTAssertTrue(results.allSatisfy { $0.source == .historicalApplicationResidue })
+        XCTAssertEqual(results.first { $0.url == oldCache }?.risk, .review)
+        XCTAssertEqual(results.first { $0.url == oldSupport }?.risk, .review)
+        XCTAssertEqual(results.first { $0.url == emptyContainer }?.risk, .review)
+        XCTAssertTrue(results.allSatisfy { $0.source == .historicalApplicationResidue && $0.defaultSelection == false && $0.requiresExplicitSelection == true })
     }
 }
 

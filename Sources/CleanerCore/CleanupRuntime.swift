@@ -10,6 +10,7 @@ public struct CleanupRuntime: Sendable {
     public let protections: ProtectionStore
     public let fileSystem: any FileSystemAccess
     public let projectRoots: ProjectScanRootsStore
+    public let modelRoots: ModelStorageRootsStore
 
     public init(home: URL, fileSystem: any FileSystemAccess = LocalFileSystem(), rulePublicKey: Data? = nil) {
         self.home = home
@@ -19,12 +20,14 @@ public struct CleanupRuntime: Sendable {
         rules = RuleStore(directory: support.appendingPathComponent("Rules"), publicKey: configuredKey, bundledURL: BundledCleanupRules.url)
         protections = ProtectionStore(url: support.appendingPathComponent("protected-paths.json"), homeDirectory: home)
         projectRoots = ProjectScanRootsStore(url: support.appendingPathComponent("project-scan-roots.json"), home: home)
+        modelRoots = ModelStorageRootsStore(url: support.appendingPathComponent("model-scan-roots.json"), home: home)
     }
 
     public func configuration(
         activePaths: Set<URL> = [], runningBundleIdentifiers: Set<String> = [], includeProjectActivity: Bool = false,
         includeProcessActivity: Bool = true,
-        enforcesEntryBudgets: Bool = true
+        enforcesEntryBudgets: Bool = true,
+        includeModelRoots: Bool = false
     ) async throws -> (context: ScanContext, pack: RulePack) {
         let pack = try await rules.currentPack()
         let protection: ProtectionPolicy
@@ -37,7 +40,7 @@ public struct CleanupRuntime: Sendable {
             runningBundleIdentifiers: runningBundleIdentifiers,
             includeProjectActivity: includeProjectActivity,
             includeProcessActivity: includeProcessActivity,
-            enforcesEntryBudgets: enforcesEntryBudgets
+            enforcesEntryBudgets: enforcesEntryBudgets, includeModelRoots: includeModelRoots
         )
     }
 
@@ -48,7 +51,8 @@ public struct CleanupRuntime: Sendable {
         runningBundleIdentifiers: Set<String> = [],
         includeProjectActivity: Bool = false,
         includeProcessActivity: Bool = true,
-        enforcesEntryBudgets: Bool = true
+        enforcesEntryBudgets: Bool = true,
+        includeModelRoots: Bool = false
     ) async throws -> (context: ScanContext, pack: RulePack) {
         let activity = includeProcessActivity || includeProjectActivity
             ? await ActivitySnapshot.capture()
@@ -66,11 +70,12 @@ public struct CleanupRuntime: Sendable {
             paths.formUnion(ProjectActivityProbe.activeFilePaths(in: projectActivity.paths))
             projectActivityAvailable = projectActivity.isAvailable
         }
+        let currentModelRoots = includeModelRoots ? try await modelRoots.roots() : []
         return (ScanContext(
             homeDirectory: home, fileSystem: fileSystem, activePaths: paths, projectActivePaths: projectActivePaths,
             protectionPolicy: protection, runningBundleIdentifiers: bundleIDs,
             activeProcessNames: activity.processNames, activityProbeAvailable: activity.isAvailable,
-            projectActivityAvailable: projectActivityAvailable, enforcesEntryBudgets: enforcesEntryBudgets
+            projectActivityAvailable: projectActivityAvailable, enforcesEntryBudgets: enforcesEntryBudgets, modelRoots: currentModelRoots
         ), pack)
     }
 
@@ -117,7 +122,8 @@ public struct CleanupRuntime: Sendable {
         let configuration = try await configuration(
             pack: snapshot.pack,
             protection: protection,
-            includeProcessActivity: needsProcessActivity, enforcesEntryBudgets: false
+            includeProcessActivity: needsProcessActivity, enforcesEntryBudgets: false,
+            includeModelRoots: candidates.contains { $0.source == .localAIModels }
         )
         guard try await rules.executionStateFingerprint() == snapshot.fingerprint else {
             throw RuleStoreError.interruptedCommit
@@ -212,7 +218,7 @@ public struct CleanupRuntime: Sendable {
         // needs a fresh system-wide process listing for every individual file.
         let configuration = try await configuration(
             includeProcessActivity: candidate.source == .agentWorkspace || candidate.source == .historicalApplicationResidue,
-            enforcesEntryBudgets: false)
+            enforcesEntryBudgets: false, includeModelRoots: candidate.source == .localAIModels)
         try await validateForExecution(candidate, configuration: configuration)
     }
 

@@ -2,8 +2,8 @@ import Foundation
 
 /// Finds narrowly identifiable application data left in user library locations
 /// after the corresponding application bundle disappeared. The scanner is
-/// limited to identifiable reverse-DNS names. Verified unowned
-/// data is included in recommended cleanup; uncertain ownership stays manual.
+/// limited to identifiable reverse-DNS names. Missing application ownership
+/// never proves that the remaining user data is disposable.
 public struct HistoricalResidueScanner: Sendable {
     public let maximumEntries: Int
     /// Legacy compatibility only; directory traversal has no depth cutoff.
@@ -26,18 +26,18 @@ public struct HistoricalResidueScanner: Sendable {
     func scan(context: ScanContext, inventory: ApplicationInventory) async -> [CleanupCandidate] {
         let inventoryComplete = inventory.coverage.unavailableRoots.isEmpty
             && !inventory.coverage.budgetLimitedModules.contains(.applications)
-        let roots: [(String, CleanupCategory, Bool)] = [
-            ("Library/Caches", .cache, true),
-            ("Library/Application Support", .applicationSupport, false),
-            ("Library/Preferences", .applicationSupport, false),
-            ("Library/Saved Application State", .applicationSupport, false),
-            ("Library/Containers", .applicationSupport, false),
-            ("Library/Group Containers", .applicationSupport, false),
+        let roots: [(String, CleanupCategory)] = [
+            ("Library/Caches", .cache),
+            ("Library/Application Support", .applicationSupport),
+            ("Library/Preferences", .applicationSupport),
+            ("Library/Saved Application State", .applicationSupport),
+            ("Library/Containers", .applicationSupport),
+            ("Library/Group Containers", .applicationSupport),
         ]
         var remaining = maximumEntries
         var results: [CleanupCandidate] = []
 
-        for (relativeRoot, category, cacheRoot) in roots {
+        for (relativeRoot, category) in roots {
             guard !Task.isCancelled else { break }
             guard (!context.enforcesEntryBudgets || remaining > 0) else { break }
             let sharedContainer = relativeRoot == "Library/Group Containers"
@@ -62,7 +62,7 @@ public struct HistoricalResidueScanner: Sendable {
                 let sharedOwnershipComplete = !(sharedContainer || container)
                     || HistoricalResidueOwnership.sharedOwnershipComplete(inventory, context: context)
                 let confirmed = inventoryComplete && inspection.complete && sharedOwnershipComplete
-                let risk: RiskLevel = !inspection.complete ? .blocked : (confirmed ? .safe : .review)
+                let risk: RiskLevel = !inspection.complete ? .blocked : .review
                 var evidence = [
                     Evidence(code: "historical-residue", summary: L10n.text("当前未发现对应应用")),
                     Evidence(code: "residue-bundle-id", summary: identifier),
@@ -70,8 +70,7 @@ public struct HistoricalResidueScanner: Sendable {
                 ]
                 if sharedContainer { evidence.append(Evidence(code: "shared-residue", summary: identifier)) }
                 if confirmed {
-                    evidence.append(Evidence(code: "confirmed-residue", summary: L10n.text("已完成应用归属检查，未发现对应应用；此残留默认加入推荐清理")))
-                    if cacheRoot { evidence.append(Evidence(code: "rebuildable-cache", summary: L10n.text("缓存目录可由应用重新生成"))) }
+                    evidence.append(Evidence(code: "confirmed-residue", summary: L10n.text("已完成应用归属检查，未发现对应应用；仍可能包含用户数据，请逐项确认")))
                 } else if !inspection.complete {
                     evidence.append(Evidence(code: "scan-incomplete-residue", summary: L10n.text("未完成目录验证，不可删除")))
                 } else {
@@ -91,7 +90,7 @@ public struct HistoricalResidueScanner: Sendable {
                     lastAccessDate: Date(timeIntervalSince1970: Double(identity.modificationTime)),
                     isActive: false,
                     ruleID: nil,
-                    defaultSelection: confirmed, requiresExplicitSelection: !confirmed
+                    defaultSelection: false, requiresExplicitSelection: true
                 ))
                 results.append(candidate)
             }
@@ -125,6 +124,7 @@ public struct HistoricalResidueScanner: Sendable {
             // Sandboxed app containers include standard links to Desktop, Keychains,
             // etc. Removing the container removes these links, never their targets.
             if identity.kind == .symbolicLink { continue }
+            if CleanupRuleEngine.isSensitive(current) { complete = false; continue }
             // Ownership applies to the whole residue; payload readability is not
             // needed for a no-follow move (container metadata may be unreadable).
             guard identity.kind == .file || identity.kind == .directory else { complete = false; continue }

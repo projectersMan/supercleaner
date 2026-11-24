@@ -17,7 +17,7 @@ actor TrashEmptyingFixture {
         let log = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/fixture.log"), displayName: "Fixture.log",
             category: .log, bytes: 100, risk: .safe, evidence: [],
             identity: .init(device: 1, inode: 1, size: 100, modificationTime: 1, kind: .file),
-            source: .general, lastAccessDate: nil, isActive: false)
+            source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true)
         let application = InstalledApplication(bundleURL: home.appendingPathComponent("Applications/Fixture.app"),
             bundleIdentifier: "org.example.trash-fixture", name: "Fixture", version: "1", isRunning: false, isSystem: false)
         let applicationItem = CleanupCandidate(url: application.bundleURL, displayName: "Fixture", category: .application,

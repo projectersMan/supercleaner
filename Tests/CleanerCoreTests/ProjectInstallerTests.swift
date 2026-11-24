@@ -3,6 +3,84 @@ import XCTest
 @testable import CleanerCore
 
 @MainActor final class ProjectInstallerTests: XCTestCase {
+    func testHiddenProjectDMGsAreEligibleForProjectPreselectionAndRecoverableCleanup() async throws {
+        let home = Self.home()
+        addTeardownBlock { try FileManager.default.removeItem(at: home) }
+        let relative = ".codex/worktrees/fixture/Example"
+        let project = home.appendingPathComponent(relative)
+        _ = try Self.write(relative + "/Package.swift", home: home, byte: 1)
+        let direct = try Self.write(relative + "/Release.dmg", home: home, byte: 2)
+        let built = try Self.write(relative + "/.build/Build.dmg", home: home, byte: 3)
+        let dependency = try Self.write(relative + "/node_modules/vendor.dmg", home: home, byte: 4)
+        let scanner = ProjectArtifactScanner(roots: [project])
+        let context = ScanContext(homeDirectory: home)
+        let resources = try await scanner.scan(context: context)
+        let installers = resources.artifacts.map(\.candidate).filter { $0.url == direct || $0.url == built }
+        XCTAssertEqual(installers.count, 2)
+        XCTAssertTrue(installers.allSatisfy(ResourceCleanupListPolicy.isSelectable))
+        XCTAssertEqual(resources.artifacts.first { $0.candidate.url == dependency }?.candidate.risk, .blocked)
+        XCTAssertFalse(LargeFileCleanupScope(homeDirectory: home).allowsInstaller(direct), "General large-file recommendations stay conservative")
+        let empty = await SystemScanCoordinator().scan(context: context, modules: [])!
+        let report = empty.replacing(moduleResult: .init(generationID: empty.generationID,
+            status: .init(module: .projects, state: .completed), payload: .projects(resources)))
+        let selection = DefaultCleanupPolicy(preselectProjectArtifacts: true).selection(for: report)
+        XCTAssertTrue(selection.projects.contains { $0.url == direct })
+        XCTAssertTrue(selection.projects.contains { $0.url == built.deletingLastPathComponent() })
+        XCTAssertTrue(DefaultCleanupPolicy(preselectProjectArtifacts: false).selection(for: report).projects.isEmpty)
+        let candidate = try XCTUnwrap(installers.first { $0.url == direct })
+        try await scanner.validateForExecution(candidate, context: context)
+        let plan = try PlanBuilder(ruleVersion: "fixture").build(candidates: [candidate], selectedIDs: [candidate.id])
+        let executor = CleanupExecutor(pathPolicy: context.pathPolicy, quarantineRoot: home.appendingPathComponent("quarantine"),
+            currentRuleVersion: "fixture", validateCandidate: { try await scanner.validateForExecution($0, context: context) })
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.first?.disposition, .quarantined)
+        let restored = await executor.restore(receipt: receipt)
+        XCTAssertEqual(restored.results.first?.disposition, .restored)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: direct.path))
+        let protectedContext = ScanContext(homeDirectory: home,
+            protectionPolicy: ProtectionPolicy(entries: [ProtectedPath(url: direct)], homeDirectory: home))
+        let protected = try await scanner.scan(context: protectedContext)
+        XCTAssertFalse(protected.artifacts.contains { $0.candidate.url == direct && ResourceCleanupListPolicy.isSelectable($0.candidate) })
+    }
+
+    func testHiddenProjectDuplicateDMGsRetainKeeperAndItsBuildDirectory() async throws {
+        let home = Self.home()
+        addTeardownBlock { try FileManager.default.removeItem(at: home) }
+        let relative = ".codex/worktrees/fixture/Example"
+        _ = try Self.write(relative + "/Package.swift", home: home, byte: 1)
+        let keeper = try Self.write(relative + "/build/A.dmg", home: home, byte: 42)
+        let copy = try Self.write(relative + "/build/B.dmg", home: home, byte: 42)
+        let context = ScanContext(homeDirectory: home)
+        let resources = try await ProjectArtifactScanner(roots: [home.appendingPathComponent(relative)]).scan(context: context)
+        XCTAssertEqual(resources.artifacts.filter { ResourceCleanupListPolicy.isSelectable($0.candidate) }.map(\.candidate.url), [copy])
+        let candidate = try XCTUnwrap(resources.artifacts.first { $0.candidate.url == copy }?.candidate)
+        XCTAssertNotNil(candidate.largeFileProof)
+        XCTAssertEqual(candidate.largeFileProof?.retained.map(\.url), [keeper])
+        XCTAssertEqual(resources.artifacts.first { $0.candidate.url == keeper }?.candidate.risk, .blocked)
+        XCTAssertEqual(resources.artifacts.first { $0.candidate.url == keeper.deletingLastPathComponent() }?.candidate.risk, .blocked)
+        XCTAssertThrowsError(try PlanBuilder().build(candidates: resources.artifacts.map(\.candidate), selectedIDs: Set(resources.artifacts.map(\.candidate.id))))
+    }
+
+    func testHiddenProjectDMGsStillRespectCredentialDirectoriesPackagesAndLinks() async throws {
+        let home = Self.home()
+        addTeardownBlock { try FileManager.default.removeItem(at: home) }
+        let relative = "code/.Example"
+        _ = try Self.write(relative + "/Package.swift", home: home, byte: 1)
+        let credential = try Self.write(relative + "/.build/.env/runtime.dmg", home: home, byte: 2)
+        let ssh = try Self.write(relative + "/.build/.ssh/key.dmg", home: home, byte: 3)
+        let package = try Self.write(relative + "/.build/Payload.app/Contents/payload.dmg", home: home, byte: 4)
+        let target = try Self.write(relative + "/Real.dmg", home: home, byte: 5)
+        let link = home.appendingPathComponent(relative + "/Alias.dmg")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let scanner = ProjectArtifactScanner(roots: [home.appendingPathComponent(relative)])
+        let context = ScanContext(homeDirectory: home)
+        let report = try await scanner.scan(context: context)
+        for url in [credential, ssh, package, link] {
+            XCTAssertFalse(report.artifacts.contains { $0.candidate.url == url && ResourceCleanupListPolicy.isSelectable($0.candidate) }, url.path)
+        }
+        XCTAssertTrue(report.artifacts.contains { $0.candidate.url == target && ResourceCleanupListPolicy.isSelectable($0.candidate) })
+    }
+
     func testProjectDMGsAreDiscoveredAtRootAndInsideBuild() async throws {
         let home = Self.home()
         addTeardownBlock { try FileManager.default.removeItem(at: home) }

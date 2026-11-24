@@ -241,7 +241,7 @@ public struct ProjectArtifactScanner: Sendable {
         }
         let git = await trackedFiles(in: url, project: repository, context: context)
         let snapshot = LargeFileContentAnalyzer.eligibleSnapshot(url, context: context, installer: true,
-            forManualSelection: git == .tracked, ignoringActivity: true)
+            forManualSelection: git == .tracked, ignoringActivity: true, includingHiddenPaths: true)
         let eligible = identity.kind == .file && git != .unknown && snapshot != nil
         var evidence = [Evidence(code: "project-root", summary: L10n.text("项目：{0}", project.lastPathComponent), details: project.path),
             InstallerDiscovery.formatEvidence("dmg"),

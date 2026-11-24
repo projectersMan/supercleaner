@@ -3,14 +3,14 @@ import XCTest
 
 final class CleanupClassificationTests: XCTestCase {
     private func fixture() -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".classification-\(UUID())")
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("temporary/classification-\(UUID())")
     }
     private func put(_ path: String, home: URL) throws {
         let file = home.appendingPathComponent(path)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data([1]).write(to: file)
     }
-    func testUnrelatedToolProcessesDoNotRetainVerifiedDownloadCaches() async throws {
+    func testUnrelatedToolProcessesLeaveVerifiedDownloadCachesInDeepCleanup() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
         for path in [".npm/_cacache/content/payload", "Library/Caches/pip/http-v2/payload", "Library/Caches/org.swift.swiftpm/repositories/payload"] {
             try put(path, home: home)
@@ -20,7 +20,7 @@ final class CleanupClassificationTests: XCTestCase {
         let found = try await CleanupRuleEngine(pack: .init(version: "fixture", issuedAt: Date(), rules: rules, revokedRuleIDs: []))
             .scan(context: .init(homeDirectory: home, activeProcessNames: ["node", "python", "swift"]))
         XCTAssertEqual(found.count, 3)
-        XCTAssertTrue(found.allSatisfy { CleanupRecommendationPolicy().disposition(for: $0) == .recommended })
+        XCTAssertTrue(found.allSatisfy { CleanupRecommendationPolicy().disposition(for: $0) == .deepClean })
     }
     func testReinstallableBrowserInternalLinkIsSelectableButNeverAutomatic() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
@@ -47,17 +47,17 @@ final class CleanupClassificationTests: XCTestCase {
         XCTAssertEqual(archive.requiresExplicitSelection, true)
     }
 
-    func testConfirmedResidueIsRecommendedAndPreselected() async throws {
+    func testConfirmedResidueRetainsUserDataForExplicitSelection() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
         for path in ["Library/Application Support/com.removed.example/payload", "Library/Containers/com.removed.example/payload", "Library/Preferences/com.removed.example.plist"] { try put(path, home: home) }
         let found = await HistoricalResidueScanner().scan(context: .init(homeDirectory: home), inventory: .init(applications: [], coverage: .init(), scannedAt: Date()))
         XCTAssertEqual(found.count, 3)
-        XCTAssertTrue(found.allSatisfy { $0.defaultSelection == true && $0.requiresExplicitSelection != true })
-        XCTAssertEqual(CleanupRecommendationPolicy().defaultSelectedIDs(for: found), Set(found.map(\.id)))
-        XCTAssertTrue(found.allSatisfy { CleanupRecommendationPolicy().disposition(for: $0) == .recommended })
+        XCTAssertTrue(found.allSatisfy { $0.defaultSelection == false && $0.requiresExplicitSelection == true })
+        XCTAssertTrue(CleanupRecommendationPolicy().defaultSelectedIDs(for: found).isEmpty)
+        XCTAssertTrue(found.allSatisfy { CleanupRecommendationPolicy().disposition(for: $0) == .retain })
     }
 
-    func testUncertainInventoryIsRetainedButConfirmedSharedResidueIsPreselected() async throws {
+    func testBothUncertainAndConfirmedSharedResidueRequireExplicitSelection() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
         try put("Library/Containers/com.removed.example/payload", home: home)
         try put("Library/Group Containers/TEAM.com.removed.example/payload", home: home)
@@ -66,7 +66,7 @@ final class CleanupClassificationTests: XCTestCase {
         XCTAssertEqual(incomplete.count, 2)
         XCTAssertTrue(CleanupRecommendationPolicy().defaultSelectedIDs(for: incomplete).isEmpty)
         let complete = await scanner.scan(context: .init(homeDirectory: home), inventory: .init(applications: [], coverage: .init(), scannedAt: Date()))
-        XCTAssertEqual(complete.first { $0.url.path.contains("Group Containers") }?.defaultSelection, true)
+        XCTAssertEqual(complete.first { $0.url.path.contains("Group Containers") }?.defaultSelection, false)
     }
 
     func testSharedGroupIdentifiersRequireCompleteDeclarationsAndExcludeOwners() async throws {
@@ -83,7 +83,7 @@ final class CleanupClassificationTests: XCTestCase {
         XCTAssertTrue(CleanupRecommendationPolicy().defaultSelectedIDs(for: unknown).isEmpty)
         let known = await scanner.scan(context: .init(homeDirectory: home), inventory: .init(applications: [app(groups: [], complete: true)], coverage: .init(), scannedAt: Date()))
         XCTAssertEqual(known.count, 1)
-        XCTAssertEqual(known.first?.defaultSelection, true)
+        XCTAssertEqual(known.first?.defaultSelection, false)
         let owned = await scanner.scan(context: .init(homeDirectory: home), inventory: .init(applications: [app(groups: ["group.example.shared"], complete: true)], coverage: .init(), scannedAt: Date()))
         XCTAssertTrue(owned.isEmpty)
         let runningUnknown = await scanner.scan(context: .init(homeDirectory: home, runningBundleIdentifiers: ["com.external.app"]), inventory: .init(applications: [], coverage: .init(), scannedAt: Date()))
@@ -121,7 +121,7 @@ final class CleanupClassificationTests: XCTestCase {
         let fs = ClassificationFileSystem(home: home, unreadableNames: [".com.apple.containermanagerd.metadata.plist"])
         let found = await HistoricalResidueScanner().scan(context: .init(homeDirectory: home, fileSystem: fs), inventory: .init(applications: [], coverage: .init(), scannedAt: Date()))
         XCTAssertEqual(found.count, 1)
-        XCTAssertEqual(found.first?.defaultSelection, true)
+        XCTAssertEqual(found.first?.defaultSelection, false)
     }
 
     func testContainerLinksDoNotPreventCleanupOrTouchTheirTargets() async throws {
@@ -134,7 +134,7 @@ final class CleanupClassificationTests: XCTestCase {
         let candidate = try XCTUnwrap(found.first)
         XCTAssertEqual(found.count, 1)
         XCTAssertEqual(candidate.bytes, 1, "must not count files outside the container")
-        XCTAssertEqual(CleanupRecommendationPolicy().defaultSelectedIDs(for: found), [candidate.id])
+        XCTAssertTrue(CleanupRecommendationPolicy().defaultSelectedIDs(for: found).isEmpty)
         let plan = try PlanBuilder(ruleVersion: "fixture").build(candidates: found, selectedIDs: [candidate.id])
         let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: .init(homeDirectory: home),
             quarantineRoot: home.appendingPathComponent("Quarantine"), currentRuleVersion: plan.ruleVersion,
@@ -165,7 +165,7 @@ final class CleanupClassificationTests: XCTestCase {
         let found = await HistoricalResidueScanner().scan(context: .init(homeDirectory: home, fileSystem: ClassificationFileSystem(home: home)))
         XCTAssertFalse(found.contains { $0.displayName == "com.example.photo.flags.123.plist" })
         XCTAssertFalse(found.contains { $0.displayName == "com.example.photo.Share" })
-        XCTAssertEqual(found.first { $0.displayName == "com.example.photo2" }?.risk, .safe)
+        XCTAssertEqual(found.first { $0.displayName == "com.example.photo2" }?.risk, .review)
     }
 }
 

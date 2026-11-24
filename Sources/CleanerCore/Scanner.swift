@@ -34,6 +34,7 @@ public struct ScanContext: Sendable {
     public let activityProbeAvailable: Bool
     public let projectActivityAvailable: Bool
     public let enforcesEntryBudgets: Bool
+    public let modelRoots: [ModelStorageRoot]
 
     public init(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -47,7 +48,8 @@ public struct ScanContext: Sendable {
         activeProcessNames: Set<String> = [],
         activityProbeAvailable: Bool = true,
         projectActivityAvailable: Bool = true,
-        enforcesEntryBudgets: Bool = true
+        enforcesEntryBudgets: Bool = true,
+        modelRoots: [ModelStorageRoot] = []
     ) {
         self.homeDirectory = homeDirectory.standardizedFileURL
         self.fileSystem = fileSystem
@@ -61,6 +63,16 @@ public struct ScanContext: Sendable {
         self.activityProbeAvailable = activityProbeAvailable
         self.projectActivityAvailable = projectActivityAvailable
         self.enforcesEntryBudgets = enforcesEntryBudgets
+        self.modelRoots = modelRoots
+    }
+
+    public func replacingModelRoots(_ roots: [ModelStorageRoot]) -> ScanContext {
+        ScanContext(homeDirectory: homeDirectory, fileSystem: fileSystem, pathPolicy: pathPolicy,
+            now: now, activePaths: activePaths, projectActivePaths: projectActivePaths,
+            protectionPolicy: protectionPolicy, runningBundleIdentifiers: runningBundleIdentifiers,
+            activeProcessNames: activeProcessNames, activityProbeAvailable: activityProbeAvailable,
+            projectActivityAvailable: projectActivityAvailable, enforcesEntryBudgets: enforcesEntryBudgets,
+            modelRoots: roots)
     }
 
     public func isActive(_ url: URL) -> Bool {

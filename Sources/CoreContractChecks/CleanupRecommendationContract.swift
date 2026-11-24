@@ -25,8 +25,8 @@ func runCleanupRecommendationContracts() {
 
     let candidates = [safe, cache, model, session, activeCache, blocked]
     require(
-        policy.selectedIDs(for: candidates, mode: .smart, currentSelection: []) == Set([safe.id]),
-        "smart mode selects only recommended candidates"
+        policy.selectedIDs(for: candidates, mode: .smart, currentSelection: []) == Set([safe.id, cache.id, model.id]),
+        "smart mode selects the merged recommended group, including verified regenerable caches"
     )
     require(
         policy.selectedIDs(for: candidates, mode: .deep, currentSelection: []) == Set([safe.id, cache.id, model.id]),
@@ -53,10 +53,14 @@ private func recommendationCandidate(
         category: category,
         bytes: 1,
         risk: risk,
-        evidence: [Evidence(code: "fixture", summary: "Fixture")],
+        evidence: !isActive && [.cache, .agentModelCache].contains(category) && risk == .review
+            ? [Evidence(code: "verified-cleanup-scope", summary: "fixture"),
+               Evidence(code: "verified-regenerable-cache", summary: "fixture")] : [],
         identity: FileIdentity(device: 1, inode: UInt64.random(in: 1...UInt64.max), size: 1, modificationTime: 1, kind: .directory),
         source: source,
         lastAccessDate: nil,
-        isActive: isActive
+        isActive: isActive,
+        ruleID: "fixture",
+        defaultSelection: risk == .safe
     )
 }

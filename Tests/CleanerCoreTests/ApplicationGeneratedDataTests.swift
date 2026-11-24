@@ -24,7 +24,7 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         XCTAssertFalse(result.candidates.contains { $0.url.path.contains("db_storage") || $0.url.lastPathComponent == "msg" })
     }
 
-    func testRegenerableApplicationCacheRestoresRecommendedCleanup() async throws {
+    func testVerifiedApplicationNetworkCacheJoinsRecommendedGroup() async throws {
         let f = try Fixture(); defer { f.remove() }
         try f.put("Library/Caches/com.example.generated/nested/payload")
         let scanner = ApplicationCleanupScanner(), context = ScanContext(homeDirectory: f.home)
@@ -34,12 +34,13 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         let cache = try XCTUnwrap(result.candidates.first)
         XCTAssertEqual(cache.bytes, 7)
         XCTAssertEqual(cache.requiresExplicitSelection, false)
-        XCTAssertEqual(cache.defaultSelection, true)
-        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: cache), .recommended)
+        XCTAssertEqual(cache.defaultSelection, false)
+        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: cache), .deepClean)
+        XCTAssertEqual(CleanupRecommendationPolicy().defaultSelectedIDs(for: [cache]), [cache.id])
         try await scanner.validateForExecution(cache, context: context, applications: [f.app("com.example.generated")])
     }
 
-    func testRecommendationRestorationSelectsCacheAndLogsButKeepsOfflineAndSharedData() async throws {
+    func testDefaultsIncludeVerifiedCachesAndLogsWhileOfflineDataStaysManual() async throws {
         let f = try Fixture(); defer { f.remove() }
         let app = f.app("com.example.generated")
         let paths = ["Library/Caches/com.example.generated",
@@ -59,7 +60,8 @@ final class ApplicationGeneratedDataTests: XCTestCase {
         XCTAssertEqual(cleanup.reduce(0) { $0 + $1.bytes }, 14)
         XCTAssertEqual(result.candidates.filter { !selected.contains($0.id) }.reduce(0) { $0 + $1.bytes }, 14)
         XCTAssertTrue(cleanup.allSatisfy { !$0.evidence.contains { $0.code == "manual-only" } })
-        XCTAssertTrue(result.candidates.filter { !selected.contains($0.id) }.allSatisfy { $0.requiresExplicitSelection == true })
+        XCTAssertEqual(result.candidates.filter { CleanupRecommendationPolicy().disposition(for: $0) == .deepClean }.count, 1)
+        XCTAssertEqual(result.candidates.filter { CleanupRecommendationPolicy().disposition(for: $0) == .retain }.count, 2)
     }
 
     func testEmptyApplicationCacheDoesNotCreateZeroByteRows() async throws {
@@ -121,8 +123,8 @@ final class ApplicationGeneratedDataTests: XCTestCase {
     private struct Fixture {
         let home: URL
         init() throws {
-            home = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-                .appendingPathComponent(".application-cleanup-" + UUID().uuidString)
+            home = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("temporary/application-cleanup-" + UUID().uuidString)
             try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         }
         func remove() { try? FileManager.default.removeItem(at: home) }

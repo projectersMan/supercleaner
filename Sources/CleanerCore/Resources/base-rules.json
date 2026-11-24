@@ -18,13 +18,14 @@
         "Library/Caches"
       ],
       "sourceReference": "SRC-APPLE-CACHE-001",
-      "regenerationEvidence": "标准用户缓存目录中的可再生数据；完整扫描排除凭证、用户数据和离线内容后推荐清理",
-      "regenerable": true
+      "regenerationEvidence": "缓存目录名称与完整遍历不能证明内容可再生；未知内容只供人工复核",
+      "requiresExplicitSelection": true,
+      "manualExplanation": "未确认缓存的内容语义与清理影响；请逐项确认，不自动加入清理"
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "review",
-      "defaultSelection": false,
+      "defaultRisk": "safe",
+      "defaultSelection": true,
       "minimumOSVersion": "13.0",
       "granularity": "descendantFiles",
       "ownershipEvidence": "精确的当前用户工具产物目录",
@@ -46,12 +47,13 @@
         "json"
       ],
       "activeProcessNames": [],
-      "regenerable": true
+      "regenerable": true,
+      "regenerationEvidence": "过期诊断日志；清理不影响登录、已下载内容或应用运行"
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "safe",
-      "defaultSelection": true,
+      "defaultRisk": "review",
+      "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "root",
       "ownershipEvidence": "精确的当前用户工具产物目录",
@@ -98,8 +100,8 @@
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "safe",
-      "defaultSelection": true,
+      "defaultRisk": "review",
+      "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
       "ownershipEvidence": "精确的当前用户工具产物目录",
@@ -124,8 +126,8 @@
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "safe",
-      "defaultSelection": true,
+      "defaultRisk": "review",
+      "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "root",
       "ownershipEvidence": "Go 官方默认 GOCACHE 在 macOS 用户缓存目录的 go-build 子目录",
@@ -262,8 +264,8 @@
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "safe",
-      "defaultSelection": true,
+      "defaultRisk": "review",
+      "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
       "ownershipEvidence": "精确的当前用户工具产物目录",
@@ -284,12 +286,13 @@
         "swift-frontend",
         "clang"
       ],
-      "regenerationEvidence": "Xcode DerivedData 是构建和索引产物，可以重新构建"
+      "regenerationEvidence": "Xcode DerivedData 是构建和索引产物，可以重新构建",
+      "regenerable": true
     },
     {
       "minimumAgeDays": 30,
-      "defaultRisk": "safe",
-      "defaultSelection": true,
+      "defaultRisk": "review",
+      "defaultSelection": false,
       "minimumOSVersion": "13.0",
       "granularity": "children",
       "ownershipEvidence": "精确的当前用户工具产物目录",
@@ -308,7 +311,8 @@
         "java",
         "gradle"
       ],
-      "regenerationEvidence": "Gradle 缓存与 daemon 运行产物可重新生成"
+      "regenerationEvidence": "Gradle 缓存与 daemon 运行产物可重新生成",
+      "regenerable": true
     },
     {
       "minimumAgeDays": 30,
@@ -398,7 +402,9 @@
       "activeBundleIdentifiers": [
         "com.apple.configurator.ui"
       ],
-      "activeProcessNames": []
+      "activeProcessNames": [],
+      "regenerable": true,
+      "regenerationEvidence": "已下载的设备固件缓存；清理后再次更新设备可能需要重新下载"
     }
   ]
 }

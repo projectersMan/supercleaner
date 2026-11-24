@@ -160,7 +160,7 @@ import XCTest
             category: source == .diskAnalysis ? .largeFile : source == .agentWorkspace ? .agentSandbox : .log,
             bytes: 100, risk: .safe, evidence: [],
             identity: .init(device: 1, inode: 1, size: 100, modificationTime: 1, kind: directory ? .directory : .file),
-            source: source, lastAccessDate: nil, isActive: false)
+            source: source, lastAccessDate: nil, isActive: false, defaultSelection: source == .general)
     }
 
     private static func report(general: [CleanupCandidate], large: [CleanupCandidate], agent: [CleanupCandidate]) -> SystemScanReport {

@@ -16,6 +16,10 @@ public struct ApplicationCleanupTarget: Sendable {
 
     var requiresManualSelection: Bool { manualOnly || allowOfflineContent || userFiles }
     var allowRuntimeCleanup: Bool { logExtensions == nil && !manualOnly }
+    var hasLowUserImpact: Bool {
+        logExtensions != nil || ["Code Cache", "GPUCache", "DawnCache", "DawnGraphiteCache", "DawnWebGPUCache",
+                                "CachedData", "ShaderCache", "GrShaderCache", "GraphiteDawnCache"].contains(url.lastPathComponent)
+    }
     var manualExplanation: String {
         if userFiles { return "仅手动选择；会删除本机聊天文件，请确认已备份，并先退出微信。" }
         return "必须逐项手动选择；清理后离线内容或共享缓存可能不可用"
@@ -36,15 +40,18 @@ public struct ApplicationCleanupTarget: Sendable {
         CleanupRule(ruleID: ruleID, category: userFiles ? .applicationSupport : logExtensions == nil ? .cache : .log,
             relativePaths: [String(url.path.dropFirst(home.standardizedFileURL.path.count + 1))],
             minimumAgeDays: 0,
-            defaultRisk: logExtensions == nil && !manualOnly ? .safe : .review,
+            defaultRisk: !requiresManualSelection && hasLowUserImpact ? .safe : .review,
             ownershipEvidence: application.bundleIdentifier,
-            regenerationEvidence: manualOnly ? nil : "缓存可能需要重新下载，日志将不再保留",
-            defaultSelection: logExtensions == nil && !requiresManualSelection, sourceKind: "platform-convention-and-local-observation",
+            regenerationEvidence: requiresManualSelection ? nil : hasLowUserImpact
+                ? "本地派生缓存可自动生成，日志清理不影响登录和已下载内容"
+                : "缓存可能需要重新下载；不包含用户配置和登录凭证",
+            defaultSelection: hasLowUserImpact && !requiresManualSelection, sourceKind: "platform-convention-and-local-observation",
             sourceReference: "SRC-SYSTEM-APP-CLEANUP-001", testFixture: "SystemCleanupContract",
             granularity: logExtensions == nil ? .root : .descendantFiles,
             fileExtensions: logExtensions,
             activeBundleIdentifiers: logExtensions == nil ? [application.bundleIdentifier] : [],
             maximumEntries: maximumEntries,
+            regenerable: !requiresManualSelection,
             allowedSensitiveDirectoryNames: allowedSensitiveDirectoryNames,
             requiresExplicitSelection: requiresManualSelection, manualExplanation: requiresManualSelection ? manualExplanation : nil)
     }

@@ -105,7 +105,7 @@ extension SystemScanReport {
             LocalAIModelInventory(models: $0.models.filter { !isRemoved($0.candidate.url) }.map {
                 LocalAIModelRecord(provider: $0.provider, candidate: updatingProof($0.candidate))
             },
-                coverage: $0.coverage, limitations: $0.limitations, scannedAt: $0.scannedAt)
+                coverage: $0.coverage, limitations: $0.limitations, scannedAt: $0.scannedAt, modelRoots: $0.modelRoots)
         }
         let projects = projectScanReport.map {
             ProjectScanReport(startedAt: $0.startedAt, completedAt: $0.completedAt, roots: $0.roots,

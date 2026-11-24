@@ -305,7 +305,11 @@ public struct SystemScanCoordinator: Sendable {
                     let module = ScanModuleID.localAIModels
                     let started = Date()
                     await progress(await tracker.event(module: module, state: .scanning))
-                    let result = await cancellableScanResult(Task { try await LocalAIModelScanner().scan(context: context) })
+                    let result = await cancellableScanResult(Task {
+                        let configuration = context.homeDirectory.appendingPathComponent("Library/Application Support/SuperCleaner/model-scan-roots.json")
+                        let roots = try await ModelStorageRootsStore(url: configuration, home: context.homeDirectory).roots()
+                        return try await LocalAIModelScanner().scan(context: context.replacingModelRoots(roots))
+                    })
                     let inventory: LocalAIModelInventory
                     let status: ScanModuleStatus
                     switch result {

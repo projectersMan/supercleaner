@@ -215,9 +215,9 @@ private struct InspectorFact: View {
 private extension RiskLevel {
     var explanation: String {
         switch self {
-        case .safe: L10n.text("证据足以表明内容可重建，因此默认加入计划。")
-        case .review: L10n.text("内容可能有重建成本或上下文价值，因此系统默认保留；你仍可在自定义模式中加入计划。")
-        case .blocked: L10n.text("权限、活跃状态或资产类型不允许自动处理，此项目不会进入计划。")
+        case .safe: L10n.text("当前安全检查已通过；推荐清理包含低影响内容和已验证可再生缓存。")
+        case .review: L10n.text("请确认清理影响；已验证可再生缓存可推荐，其他内容需逐项复核。")
+        case .blocked: L10n.text("权限、完整性或资产类型检查未通过，此项目不能加入清理计划。")
         }
     }
 }
@@ -265,8 +265,8 @@ extension CleanupCategory {
 extension CleanupDisposition {
     var displayTitle: String {
         switch self {
-        case .recommended: L10n.text("低风险")
-        case .deepClean: L10n.text("可重建")
+        case .recommended: L10n.text("建议清理")
+        case .deepClean: L10n.text("建议清理")
         case .retain: L10n.text("建议保留")
         case .protected: L10n.text("始终保护")
         }

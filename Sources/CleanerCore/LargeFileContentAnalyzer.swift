@@ -129,21 +129,22 @@ struct LargeFileContentAnalyzer {
 
     private func snapshot(_ candidate: CleanupCandidate, installer: Bool = false) -> LargeFileContentSnapshot? {
         guard let file = Self.eligibleSnapshot(candidate.url, context: context, installer: installer,
-            ignoringActivity: candidate.source == .projectArtifacts), !file.isDirectory,
+            ignoringActivity: candidate.source == .projectArtifacts,
+            includingHiddenPaths: candidate.source == .projectArtifacts), !file.isDirectory,
               file.bytes == candidate.bytes, file.device == candidate.identity.device,
               file.inode == candidate.identity.inode, file.modifiedSeconds == candidate.identity.modificationTime else { return nil }
         return file
     }
 
     static func eligibleSnapshot(_ url: URL, context: ScanContext, installer: Bool = false,
-        forManualSelection: Bool = false, ignoringActivity: Bool = false) -> LargeFileContentSnapshot? {
+        forManualSelection: Bool = false, ignoringActivity: Bool = false, includingHiddenPaths: Bool = false) -> LargeFileContentSnapshot? {
         let excluded = ["Library/CloudStorage", "Library/Mobile Documents"]
         let home = context.homeDirectory.resolvingSymlinksInPath().standardizedFileURL
         let literal = url.standardizedFileURL
         let path = literal.path
         let scope = LargeFileCleanupScope(homeDirectory: context.homeDirectory)
         let allowed = forManualSelection ? scope.allows(url, forManualSelection: true)
-            : installer ? scope.allowsInstaller(url) : scope.allows(url)
+            : installer ? scope.allowsInstaller(url, includingHiddenPaths: includingHiddenPaths) : scope.allows(url)
         guard allowed,
               path.hasPrefix(home.path + "/"),
               !excluded.contains(where: { path.hasPrefix(home.appendingPathComponent($0).path + "/") }),

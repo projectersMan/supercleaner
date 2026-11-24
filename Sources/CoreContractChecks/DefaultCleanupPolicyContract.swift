@@ -83,15 +83,15 @@ func runDefaultCleanupPolicyContracts() {
     )
 
     let selection = DefaultCleanupPolicy().selection(for: report)
-    require(Set(selection.systemCleanup.map(\.id)) == [systemSafe.id, systemReview.id], "default system cleanup must match the recommended groups and exclude active or explicit-selection items")
+    require(Set(selection.systemCleanup.map(\.id)) == [systemSafe.id], "default system cleanup must match the recommended groups and exclude active or explicit-selection items")
     require(selection.agentEnvironment.isEmpty, "Agent 环境默认不应进入一键清理；必须由用户显式选择目录后再执行")
     require(selection.applicationUninstall.isEmpty, "applications must require manual selection, even when uninstall items are safe")
     require(selection.largeFiles.isEmpty, "large files must require manual selection, even when candidates are safe")
     require(
-        Set(selection.candidates.map(\.id)) == [systemSafe.id, systemReview.id],
+        Set(selection.candidates.map(\.id)) == [systemSafe.id],
         "one-click cleanup must include selected system items and exclude other dimensions"
     )
-    require(selection.bytes == systemSafe.bytes + systemReview.bytes, "one-click totals must match recommended system items and exclude retained content")
+    require(selection.bytes == systemSafe.bytes, "one-click totals must match recommended system items and exclude retained content")
     let summary = ScanDiscoverySummary(report: report)
     require(summary.applicationCount == 1, "application summary must count installed apps, not uninstall items")
     require(summary.largeFileCount == 2, "large-file summary must count discovered files, not selections")

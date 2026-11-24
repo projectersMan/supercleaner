@@ -97,8 +97,10 @@ private struct ReceiptRow: View {
                         .font(.caption).foregroundColor(.secondary)
                 } else if !quarantined.isEmpty {
                     Button(L10n.text("恢复 {0} 项", String(describing: quarantined.count))) { model.requestRestore(receipt) }
+                        .disabled(model.trashEmptyingInProgress)
                         .help(L10n.text("恢复到原路径；若路径已有内容，将保存到相邻位置而不覆盖"))
                     Button(L10n.text("彻底删除"), role: .destructive) { model.requestPermanentDeletion(receipt) }
+                        .disabled(model.trashEmptyingInProgress)
                         .foregroundColor(.red)
                         .help(L10n.text("仅彻底删除本应用保留的已删除项目；不可恢复"))
                 } else {
@@ -251,6 +253,7 @@ private struct PermanentDeletionSheet: View {
                 Button(L10n.text("取消")) { model.dismissPermanentDeletion() }
                 Spacer()
                 Button(L10n.text("彻底删除"), role: .destructive) { model.confirmPermanentDeletion() }
+                    .disabled(model.trashEmptyingInProgress)
                     .buttonStyle(.borderedProminent).tint(.red)
             }
         }
@@ -276,6 +279,7 @@ private struct RestoreConfirmationSheet: View {
                 Button(L10n.text("取消")) { model.dismissRestoreConfirmation() }
                 Spacer()
                 Button(L10n.text("确认恢复")) { model.confirmRestore() }
+                    .disabled(model.trashEmptyingInProgress)
                     .buttonStyle(.borderedProminent)
             }
         }

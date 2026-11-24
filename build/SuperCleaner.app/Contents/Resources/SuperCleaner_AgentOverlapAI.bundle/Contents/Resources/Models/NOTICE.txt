@@ -1,0 +1,7 @@
+EmbeddingGemma 2 Q8_0 GGUF
+
+Model artifact: ggml-org/embeddinggemma-2-GGUF
+Source: https://huggingface.co/ggml-org/embeddinggemma-2-GGUF
+File: embeddinggemma-2-Q8_0.gguf
+SHA-256: 2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135
+License: Apache License 2.0 (see LICENSE.txt)

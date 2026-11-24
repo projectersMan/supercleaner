@@ -5,10 +5,10 @@ import Foundation
 struct LargeFileCleanupScope {
     let homeDirectory: URL
 
-    func allowsInstaller(_ url: URL) -> Bool {
+    func allowsInstaller(_ url: URL, includingHiddenPaths: Bool = false) -> Bool {
         guard InstallerDiscovery.fileExtensions.contains(url.pathExtension.lowercased()), url.isFileURL else { return false }
-        return allowsPath(url.standardizedFileURL, home: homeDirectory.standardizedFileURL, forManualSelection: false, installer: true)
-            && allowsPath(url.resolvingSymlinksInPath().standardizedFileURL, home: homeDirectory.resolvingSymlinksInPath().standardizedFileURL, forManualSelection: false, installer: true)
+        return allowsPath(url.standardizedFileURL, home: homeDirectory.standardizedFileURL, forManualSelection: false, installer: true, includingHiddenPaths: includingHiddenPaths)
+            && allowsPath(url.resolvingSymlinksInPath().standardizedFileURL, home: homeDirectory.resolvingSymlinksInPath().standardizedFileURL, forManualSelection: false, installer: true, includingHiddenPaths: includingHiddenPaths)
     }
 
     func allows(_ url: URL, forManualSelection: Bool = false) -> Bool {
@@ -20,7 +20,7 @@ struct LargeFileCleanupScope {
             && allowsPath(physical, home: home, forManualSelection: forManualSelection)
     }
 
-    private func allowsPath(_ url: URL, home: URL, forManualSelection: Bool, installer: Bool = false) -> Bool {
+    private func allowsPath(_ url: URL, home: URL, forManualSelection: Bool, installer: Bool = false, includingHiddenPaths: Bool = false) -> Bool {
         guard url.path.hasPrefix(home.path + "/") else { return false }
         if forManualSelection { return true }
         let components = Array(url.pathComponents.dropFirst(home.pathComponents.count))
@@ -32,10 +32,12 @@ struct LargeFileCleanupScope {
             "miniforge3", "mambaforge", "venv", "env", "envs", "site-packages", "dist-packages",
             "node_modules", "bower_components", "vendor", "sdk", "sdks", "toolchains",
             "bin", "sbin", "lib", "lib64", "include",
+            ".git", ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".env",
         ]
         let packages: Set<String> = ["app", "framework", "bundle", "plugin", "xcodeproj", "xcworkspace", "photoslibrary", "photolibrary"]
         for component in components {
-            if component.hasPrefix(".") || protected.contains(component.lowercased())
+            if (component.hasPrefix(".") && !includingHiddenPaths) || protected.contains(component.lowercased())
+                || component.lowercased().hasPrefix(".env.")
                 || packages.contains((component as NSString).pathExtension.lowercased()) { return false }
         }
         if ["dylib", "so", "dll", "exe", "a", "o", "pyc"].contains(url.pathExtension.lowercased()) { return false }

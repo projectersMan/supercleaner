@@ -37,13 +37,13 @@ struct ContentView: View {
                     minHeight: 560,
                     maxHeight: .infinity
                 )
-                .disabled((model.updateInProgress && model.selection != .settings) || model.checkingScanPermissions || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
+                .disabled((model.updateInProgress && model.selection != .settings) || model.checkingScanPermissions || model.projectRootsOperationInProgress)
                 if showsOneClickBar {
                     OneClickCleanupActionBar(model: model)
-                        .disabled(model.updateInProgress || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
+                        .disabled(model.updateInProgress || model.projectRootsOperationInProgress)
                 } else if showsDimensionActionBar {
                     DimensionActionBar(model: model)
-                        .disabled(model.updateInProgress || model.trashEmptyingInProgress || model.projectRootsOperationInProgress)
+                        .disabled(model.updateInProgress || model.projectRootsOperationInProgress)
                 }
             }
             .navigationTitle("SuperCleaner")

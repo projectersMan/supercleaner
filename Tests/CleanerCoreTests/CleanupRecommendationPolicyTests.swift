@@ -6,7 +6,7 @@ final class CleanupRecommendationPolicyTests: XCTestCase {
     func testDeepModeSelectsOnlyRebuildableInactiveCandidates() {
         let policy = CleanupRecommendationPolicy()
         let safe = candidate(category: .log, risk: .safe)
-        let cache = candidate(category: .developerCache, risk: .review)
+        let cache = selectedCandidate(category: .developerCache, risk: .review, hasRegenerationProof: true)
         let session = candidate(category: .agentSession, risk: .review)
         let active = candidate(category: .cache, risk: .review, active: true)
         let blocked = candidate(category: .credential, risk: .blocked)
@@ -31,8 +31,8 @@ final class CleanupRecommendationPolicyTests: XCTestCase {
     func testDefaultSelectionMatchesRecommendedCleanupGroups() {
         let policy = CleanupRecommendationPolicy()
         let safe = selectedCandidate(category: .cache, risk: .safe)
-        let review = selectedCandidate(category: .cache, risk: .review)
-        let notDefault = selectedCandidate(category: .cache, risk: .safe, defaultSelection: false)
+        let review = selectedCandidate(category: .cache, risk: .review, hasRegenerationProof: true)
+        let notDefault = selectedCandidate(category: .cache, risk: .safe, defaultSelection: false, hasRegenerationProof: true)
         let active = selectedCandidate(category: .cache, risk: .safe, active: true)
         let manual = selectedCandidate(category: .cache, risk: .safe, requiresExplicitSelection: true)
         let unassignedSystemReview = selectedCandidate(
@@ -70,11 +70,12 @@ final class CleanupRecommendationPolicyTests: XCTestCase {
             policy.defaultSelectedIDs(for: candidates),
             Set((breakdown.recommended + breakdown.deepClean).filter(\.risk.isSelectable).map(\.id))
         )
+        XCTAssertEqual(Set(breakdown.deepClean.map(\.id)), [review.id, notDefault.id])
         XCTAssertTrue(policy.defaultSelectedIDs(for: candidates).isDisjoint(with: Set(breakdown.retained.map(\.id))))
     }
 
     private func candidate(category: CleanupCategory, risk: RiskLevel, active: Bool = false) -> CleanupCandidate {
-        selectedCandidate(category: category, risk: risk, active: active, defaultSelection: nil)
+        selectedCandidate(category: category, risk: risk, active: active, defaultSelection: risk == .safe)
     }
 
     private func selectedCandidate(
@@ -83,7 +84,8 @@ final class CleanupRecommendationPolicyTests: XCTestCase {
         active: Bool = false,
         defaultSelection: Bool? = true,
         requiresExplicitSelection: Bool? = false,
-        hasApplication: Bool = true
+        hasApplication: Bool = true,
+        hasRegenerationProof: Bool = false
     ) -> CleanupCandidate {
         CleanupCandidate(
             url: URL(fileURLWithPath: "/tmp/\(UUID().uuidString)"),
@@ -91,11 +93,13 @@ final class CleanupRecommendationPolicyTests: XCTestCase {
             category: category,
             bytes: 1,
             risk: risk,
-            evidence: [],
+            evidence: hasRegenerationProof ? [Evidence(code: "verified-cleanup-scope", summary: "fixture"),
+                                             Evidence(code: "verified-regenerable-cache", summary: "fixture")] : [],
             identity: FileIdentity(device: 1, inode: UInt64.random(in: 1...UInt64.max), size: 1, modificationTime: 1, kind: .directory),
             source: .general,
             lastAccessDate: nil,
             isActive: active,
+            ruleID: hasRegenerationProof ? "fixture" : nil,
             defaultSelection: defaultSelection,
             requiresExplicitSelection: requiresExplicitSelection,
             cleanupApplication: hasApplication

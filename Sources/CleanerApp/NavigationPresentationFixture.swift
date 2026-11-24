@@ -5,14 +5,16 @@ import Foundation
 enum NavigationPresentationFixture {
     static let home = URL(fileURLWithPath: "/tmp/SuperCleaner-Navigation-Fixture")
 
+    private static func candidate(_ index: Int, agent: Bool) -> CleanupCandidate {
+        let url = home.appendingPathComponent(agent ? "agent/cache/item-\(index)" : "Library/Logs/item-\(index).log")
+        return CleanupCandidate(url: url, displayName: url.lastPathComponent,
+            category: agent ? .agentSandbox : .log, bytes: 100, risk: .safe, evidence: [],
+            identity: .init(device: 1, inode: UInt64(index + 1), size: 100, modificationTime: 1, kind: .file),
+            source: agent ? .agentWorkspace : .general, lastAccessDate: nil, isActive: false,
+            defaultSelection: !agent)
+    }
+
     static func report() -> SystemScanReport {
-        func candidate(_ index: Int, agent: Bool) -> CleanupCandidate {
-            let url = home.appendingPathComponent(agent ? "agent/cache/item-\(index)" : "Library/Logs/item-\(index).log")
-            return CleanupCandidate(url: url, displayName: url.lastPathComponent,
-                category: agent ? .agentSandbox : .log, bytes: 100, risk: .safe, evidence: [],
-                identity: .init(device: 1, inode: UInt64(index + 1), size: 100, modificationTime: 1, kind: .file),
-                source: agent ? .agentWorkspace : .general, lastAccessDate: nil, isActive: false)
-        }
         let assets = (0..<20_000).map { index in
             let item = candidate(index, agent: true)
             return AgentAssetRecord(candidate: item, provider: .codex, scope: .global,

@@ -68,8 +68,9 @@ func runRuleEngineContracts() async throws {
         try manager.setAttributes([.modificationDate: now.addingTimeInterval(-40 * 86_400)], ofItemAtPath: path.path)
     }
     let bundledCandidates = try await CleanupRuleEngine(pack: bundled, operatingSystemVersion: "15.0").scan(context: context)
-    require(bundledCandidates.contains { $0.ruleID == "developer.go-build-cache" && $0.risk == .safe && $0.defaultSelection == true },
-            "precise Go build cache rule must override broad cache discovery and remain regenerable")
+    require(bundledCandidates.contains { $0.ruleID == "developer.go-build-cache" && $0.risk == .review
+        && CleanupRecommendationPolicy().disposition(for: $0) == .deepClean && $0.defaultSelection == false },
+            "precise Go build cache is rebuildable but requires a deep-clean choice")
     let encoded = try JSONEncoder().encode(pack)
     try await store.install(update: SignedRuleUpdate(packData: encoded, signature: try key.signature(for: encoded)))
     let firstIdentity = try await store.currentPack().executionVersion

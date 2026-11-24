@@ -108,7 +108,8 @@ public struct SystemScanReport: Sendable {
         var seenPaths = Set<String>()
         let reviewedProjects = preservingProjectInstallerProofs(projects, largeFiles: largeFileCandidates)
         let projectInstallers = reviewedProjects.filter { $0.identity.kind == .file && $0.url.pathExtension.lowercased() == "dmg" }
-        return (projectInstallers + generalCandidates + largeFileCandidates + agentAssets.map(\.candidate) + localAIModels + reviewedProjects)
+        // Specific model/project checks own their paths; Agent discovery remains a fallback.
+        return (projectInstallers + generalCandidates + largeFileCandidates + localAIModels + reviewedProjects + agentAssets.map(\.candidate))
             .filter { seenPaths.insert($0.url.standardizedFileURL.path).inserted }
             .sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
     }

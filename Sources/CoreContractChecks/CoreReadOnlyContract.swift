@@ -26,8 +26,8 @@ func runCoreReadOnlyContracts() async throws {
     require(preview.selectedItems.map(\.candidate.id) == [candidate.id], "preview must bind the selected scanned candidate")
     let eligible = CleanupScopePolicy().cleanupCenterCandidates(from: scan.candidates)
     let defaults = try builder.build(candidates: eligible, selectedIDs: CleanupRecommendationPolicy().defaultSelectedIDs(for: eligible))
-    require(defaults.selectedItems.map { $0.candidate.url.resolvingSymlinksInPath().path } == [cache.resolvingSymlinksInPath().path],
-            "default preview must reflect selectable system cleanup items")
+    require(defaults.selectedItems.isEmpty,
+            "unknown cache content must remain outside the default preview despite being manually selectable")
     let support = home.appendingPathComponent("Library/Application Support/SuperCleaner")
     let receipts = try await HistoryStore(url: support.appendingPathComponent("history.json")).receipts()
     require(receipts.isEmpty, "missing history must produce an empty read-only result")

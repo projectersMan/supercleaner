@@ -3,7 +3,7 @@ import XCTest
 
 final class CleanupPerformanceTests: XCTestCase {
     private func fixture() -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".cleanup-performance-\(UUID())")
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("temporary/cleanup-performance-\(UUID())")
     }
     func testRuleEntryLimitDoesNotBlockCompleteCache() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
@@ -17,7 +17,7 @@ final class CleanupPerformanceTests: XCTestCase {
         XCTAssertEqual(found.first?.risk, .safe)
         XCTAssertEqual(found.first?.bytes, 12)
     }
-    func testDeepRegenerableCacheIsRecommendedAndCredentialsStayBlocked() async throws {
+    func testDeepUnknownCacheIsRetainedAndCredentialsStayBlocked() async throws {
         let home = fixture(); defer { try? FileManager.default.removeItem(at: home) }
         let cache = home.appendingPathComponent("Library/Caches/Test")
         let leaf = (0..<80).reduce(cache) { $0.appendingPathComponent("level-\($1)") }
@@ -28,7 +28,7 @@ final class CleanupPerformanceTests: XCTestCase {
         let found = try await engine.scan(context: context)
         let candidate = try XCTUnwrap(found.first { $0.url.path == cache.path })
         XCTAssertNotEqual(candidate.risk, .blocked)
-        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: candidate), .recommended)
+        XCTAssertEqual(CleanupRecommendationPolicy().disposition(for: candidate), .retain)
         try Data([2]).write(to: leaf.appendingPathComponent("credentials.json"))
         let protected = try await engine.scan(context: context)
         XCTAssertEqual(protected.first { $0.url.path == cache.path }?.risk, .blocked)

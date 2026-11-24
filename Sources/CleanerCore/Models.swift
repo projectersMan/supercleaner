@@ -274,6 +274,7 @@ public struct OperationResult: Identifiable, Codable, Hashable, Sendable {
     public let bytes: UInt64
     public let message: String?
     public let verificationNotBefore: Date?
+    public let modelStorageRoot: URL?
 
     public init(
         id: UUID = UUID(),
@@ -284,7 +285,8 @@ public struct OperationResult: Identifiable, Codable, Hashable, Sendable {
         status: OperationStatus? = nil,
         bytes: UInt64,
         message: String? = nil,
-        verificationNotBefore: Date? = nil
+        verificationNotBefore: Date? = nil,
+        modelStorageRoot: URL? = nil
     ) {
         self.id = id
         self.candidateID = candidateID
@@ -295,6 +297,13 @@ public struct OperationResult: Identifiable, Codable, Hashable, Sendable {
         self.bytes = bytes
         self.message = message
         self.verificationNotBefore = verificationNotBefore
+        self.modelStorageRoot = modelStorageRoot
+    }
+
+    func recordingModelStorageRoot(_ root: URL?) -> Self {
+        Self(id: id, candidateID: candidateID, originalURL: originalURL, destinationURL: destinationURL,
+            disposition: disposition, status: status, bytes: bytes, message: message,
+            verificationNotBefore: verificationNotBefore, modelStorageRoot: root)
     }
 }
 
@@ -465,6 +474,7 @@ extension CleanupCandidate {
         risk.isSelectable && evidence.contains { $0.code == "verified-cleanup-scope" && $0.summary == ruleID }
     }
     var isDisposableRuntimeCache: Bool {
+        // This proves a disposable scope; rebuilding costs remain separate.
         source == .general && hasVerifiedCleanupScope && requiresExplicitSelection != true
             && evidence.contains { $0.code == "verified-regenerable-cache" && $0.summary == ruleID }
     }

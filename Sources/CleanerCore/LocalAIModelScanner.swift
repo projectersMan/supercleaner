@@ -9,6 +9,22 @@ public enum LocalAIModelProvider: String, CaseIterable, Codable, Hashable, Senda
     case whisper
     case keras
     case gpt4All
+    case modelScope
+    case comfyUI
+
+    public var displayName: String {
+        switch self {
+        case .huggingFace: "Hugging Face"
+        case .lmStudio: "LM Studio"
+        case .ollama: "Ollama"
+        case .pytorch: "PyTorch"
+        case .whisper: "Whisper"
+        case .keras: "Keras"
+        case .gpt4All: "GPT4All"
+        case .modelScope: "ModelScope"
+        case .comfyUI: "ComfyUI"
+        }
+    }
 }
 
 public struct LocalAIModelRecord: Identifiable, Codable, Hashable, Sendable {
@@ -27,17 +43,20 @@ public struct LocalAIModelInventory: Codable, Sendable {
     public let coverage: CoverageSummary
     public let limitations: [ScanLimitation]
     public let scannedAt: Date
+    public let modelRoots: [ModelStorageRoot]
     public var candidates: [CleanupCandidate] { models.map(\.candidate) }
 
-    public init(models: [LocalAIModelRecord], coverage: CoverageSummary, limitations: [ScanLimitation], scannedAt: Date) {
+    public init(models: [LocalAIModelRecord], coverage: CoverageSummary, limitations: [ScanLimitation], scannedAt: Date,
+                modelRoots: [ModelStorageRoot] = []) {
         self.models = models
         self.coverage = coverage
         self.limitations = limitations
         self.scannedAt = scannedAt
+        self.modelRoots = modelRoots
     }
 }
 
-/// Discovers only fixed, model-specific storage layouts, never tool support/configuration roots.
+/// Discovers model-specific layouts in fixed locations and explicitly configured storage roots.
 public struct LocalAIModelScanner: Sendable {
     public let maximumEntries: Int
     public let timeLimit: TimeInterval
@@ -58,16 +77,21 @@ public struct LocalAIModelScanner: Sendable {
         var models: [LocalAIModelRecord] = []
         var scannedRoots: [URL] = []
         var limitations: [ScanLimitation] = []
-        for storage in Self.storages {
+        var seenModels = Set<URL>()
+        for storage in storages(context: context) {
             try Task.checkCancellation()
-            let root = context.homeDirectory.appendingPathComponent(storage.relativePath).standardizedFileURL
+            let root = storage.root(home: context.homeDirectory)
             var rootVerified = false
             do {
                 _ = try await validatedIdentity(root, context: context)
                 rootVerified = true
                 scannedRoots.append(root)
                 if storage.provider == .ollama {
-                    models.append(contentsOf: try await ollamaModels(root: root, context: context, budget: &budget))
+                    let records = try await ollamaModels(root: root, context: context, budget: &budget)
+                    for record in records where seenModels.insert(record.candidate.url).inserted {
+                        models.append(LocalAIModelRecord(provider: record.provider,
+                            candidate: record.candidate))
+                    }
                     continue
                 }
                 let targets = try await targets(in: root, storage: storage, context: context, budget: &budget, limitations: &limitations)
@@ -75,7 +99,9 @@ public struct LocalAIModelScanner: Sendable {
                     try Task.checkCancellation()
                     do {
                         let result = try await inspect(target, root: root, storage: storage, context: context, budget: &budget)
-                        models.append(LocalAIModelRecord(provider: storage.provider, candidate: result.candidate))
+                        if seenModels.insert(result.candidate.url).inserted {
+                            models.append(LocalAIModelRecord(provider: storage.provider, candidate: result.candidate))
+                        }
                         limitations.append(contentsOf: result.limitations)
                     } catch is CancellationError {
                         throw CancellationError()
@@ -86,8 +112,8 @@ public struct LocalAIModelScanner: Sendable {
                 }
             } catch is CancellationError {
                 throw CancellationError()
-            } catch FileSystemError.missing where !rootVerified {
-                // An absent configured cache is expected; all other read failures remain visible.
+            } catch FileSystemError.missing where !rootVerified && storage.absoluteRoot == nil {
+                // An absent built-in cache is expected; all other read failures remain visible.
                 continue
             } catch {
                 limitations.append(limitation(error, path: root))
@@ -101,7 +127,7 @@ public struct LocalAIModelScanner: Sendable {
             coverage: CoverageSummary(scannedRoots: scannedRoots, unavailableRoots: unavailable,
                 budgetLimitedModules: uniqueLimitations.contains { $0.reason == .budget } ? [.localAIModels] : []),
             limitations: uniqueLimitations,
-            scannedAt: context.now
+            scannedAt: context.now, modelRoots: context.modelRoots
         )
     }
 
@@ -114,11 +140,11 @@ public struct LocalAIModelScanner: Sendable {
         guard candidate.source == .localAIModels, candidate.category == .agentModelCache,
               candidate.risk == .review, !candidate.isActive,
               candidate.defaultSelection == false, candidate.requiresExplicitSelection == true,
-              let storage = Self.storages.first(where: { $0.contains(candidate.url, home: context.homeDirectory) }),
+              let storage = storages(context: context).first(where: { $0.contains(candidate.url, home: context.homeDirectory) }),
               candidate.ruleID == "local-ai-model.\(storage.provider.rawValue)" else {
             throw RuleScanError.executionRefused("invalid-local-ai-model-scope")
         }
-        let root = context.homeDirectory.appendingPathComponent(storage.relativePath).standardizedFileURL
+        let root = storage.root(home: context.homeDirectory)
         let identity = try await validatedIdentity(candidate.url, context: context)
         guard identity == candidate.identity else { throw RuleScanError.executionRefused("local-ai-model-identity-changed") }
         var budget = InspectionBudget(remaining: maximumEntries, deadline: .now.advanced(by: .seconds(timeLimit)))
@@ -148,6 +174,19 @@ public struct LocalAIModelScanner: Sendable {
         limitations: inout [ScanLimitation]
     ) async throws -> [URL] {
         var targets: [URL] = []
+        if storage.layout == .recursiveFiles {
+            var pending = [root]
+            while let directory = pending.popLast() {
+                for child in try await children(directory, context: context) {
+                    try Task.checkCancellation()
+                    try budget.consume(child)
+                    let identity = try await validatedIdentity(child, context: context)
+                    if identity.kind == .directory { pending.append(child) }
+                    else if storage.accepts(child, kind: identity.kind) { targets.append(child) }
+                }
+            }
+            return targets
+        }
         for child in try await children(root, context: context) {
             try Task.checkCancellation()
             try budget.consume(child)
@@ -280,7 +319,11 @@ public struct LocalAIModelScanner: Sendable {
         try Task.checkCancellation()
         let clean = url.standardizedFileURL
         let home = context.homeDirectory.standardizedFileURL
-        guard url.isFileURL, !url.pathComponents.contains(".."), clean.path.hasPrefix(home.path + "/"),
+        let inModelRoot = context.modelRoots.contains { root in
+            clean.path == root.url.path || clean.path.hasPrefix(root.url.path + "/")
+        }
+        guard url.isFileURL, !url.pathComponents.contains(".."),
+              clean.path.hasPrefix(home.path + "/") || inModelRoot,
               !url.path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { throw InspectionError.scope(url) }
         var ancestors: [URL] = []
         var current = clean.deletingLastPathComponent()
@@ -357,22 +400,26 @@ public struct LocalAIModelScanner: Sendable {
     enum InspectionError: Error {
         case budget(URL), scope(URL), sensitive(URL), changed(URL), unreadable(URL)
     }
-    private enum Layout { case huggingFace, publisherModel, ollama, files, children }
+    private enum Layout { case huggingFace, publisherModel, ollama, files, children, recursiveFiles }
     private struct Storage {
         let provider: LocalAIModelProvider
         let relativePath: String
         let layout: Layout
         let isDataset: Bool
+        var absoluteRoot: URL? = nil
+        func root(home: URL) -> URL { (absoluteRoot ?? home.appendingPathComponent(relativePath)).standardizedFileURL }
+
         static let modelExtensions: Set<String> = ["gguf", "ggml", "bin", "safetensors", "pt", "pth", "ckpt", "onnx", "h5", "hdf5", "keras"]
 
         func contains(_ url: URL, home: URL) -> Bool {
-            let root = home.appendingPathComponent(relativePath).standardizedFileURL
+            let root = root(home: home)
             let path = url.standardizedFileURL.path
             if layout == .ollama {
                 let prefix = root.appendingPathComponent("manifests").path + "/"
                 return path.hasPrefix(prefix) && path.dropFirst(prefix.count).split(separator: "/").count == 4
             }
             guard path.hasPrefix(root.path + "/") else { return false }
+            if layout == .recursiveFiles { return accepts(url, kind: .file) }
             let parts = path.dropFirst(root.path.count + 1).split(separator: "/")
             return parts.count == (layout == .publisherModel ? 2 : 1) && accepts(url, kind: layout == .files ? .file : .directory)
         }
@@ -396,6 +443,33 @@ public struct LocalAIModelScanner: Sendable {
             if provider == .keras { return ["h5", "hdf5", "keras"].contains(ext) }
             return Self.modelExtensions.contains(ext)
         }
+    }
+
+    private func storages(context: ScanContext) -> [Storage] {
+        var result = Self.storages
+        var seen = Set(result.map { $0.provider.rawValue + "|" + $0.root(home: context.homeDirectory).path })
+        for root in context.modelRoots where seen.insert(root.id).inserted {
+            let layout: Layout
+            switch root.provider {
+            case .huggingFace: layout = .huggingFace
+            case .lmStudio, .modelScope: layout = .publisherModel
+            case .ollama: layout = .ollama
+            case .keras: layout = .children
+            case .comfyUI: layout = .recursiveFiles
+            case .pytorch, .whisper, .gpt4All: layout = .files
+            }
+            result.append(Storage(provider: root.provider, relativePath: "", layout: layout,
+                isDataset: false, absoluteRoot: root.url))
+        }
+        return result
+    }
+
+    func authorizedOllamaRoot(for url: URL, context: ScanContext) throws -> URL {
+        let roots = storages(context: context).filter { $0.provider == .ollama }
+        guard let root = roots.first(where: { url.path.hasPrefix($0.root(home: context.homeDirectory).path + "/") }) else {
+            throw InspectionError.scope(url)
+        }
+        return root.root(home: context.homeDirectory)
     }
 
     private static let storages: [Storage] = [

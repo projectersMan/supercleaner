@@ -872,7 +872,7 @@ public actor CleanupExecutor {
             let destination = uniqueDestination(for: candidate, in: directory)
             guard !(await fileSystem.fileExists(destination)), await fileSystem.fileExists(candidate.url) else { continue }
             let attempted = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
-                disposition: .failed, status: .failed, bytes: candidate.bytes)
+                disposition: .failed, status: .failed, bytes: candidate.bytes, modelStorageRoot: candidate.ollamaStorageRoot)
             if let failure = await modelRecoveryDisposalFailure(attempted, planID: plan.id, moveToTrash: false) {
                 let result = OperationResult(candidateID: candidate.id, originalURL: candidate.url, destinationURL: destination,
                     disposition: .failed, status: .failed, bytes: candidate.bytes, message: failure,
@@ -881,7 +881,8 @@ public actor CleanupExecutor {
                 else { updated.append(result) }
             }
         }
-        return updated
+        let candidates = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.candidate.id, $0.candidate) })
+        return updated.map { $0.recordingModelStorageRoot(candidates[$0.candidateID]?.ollamaStorageRoot) }
     }
 
     private func modelRecoveryDisposalFailure(_ result: OperationResult, planID: UUID, moveToTrash: Bool) async -> String? {
@@ -904,8 +905,10 @@ public actor CleanupExecutor {
 
     private func validateModelReferencesBeforeMove(_ candidate: CleanupCandidate) async throws {
         guard candidate.ruleID == "local-ai-model.ollama-blob" else { return }
+        guard let root = candidate.ollamaStorageRoot else { throw PathPolicyError.invalidSyntax }
         try await LocalAIModelScanner().validateUnreferencedOllamaBlob(candidate,
-            context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem))
+            context: ScanContext(homeDirectory: pathPolicy.homeDirectory, fileSystem: fileSystem,
+                modelRoots: [.init(provider: .ollama, url: root)]))
     }
 
     private func matchesExecutionIdentity(_ current: FileIdentity, candidate: CleanupCandidate) -> Bool {

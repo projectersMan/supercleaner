@@ -19,6 +19,7 @@ struct PermissionsView: View {
             Divider()
             Form {
                 projectScanRootsSection
+                ModelStorageRootsSettingsSection(model: model)
                 largeFileSection
                 quarantineSection
                 protectionSection

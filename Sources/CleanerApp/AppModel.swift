@@ -200,6 +200,10 @@ struct ResourceReviewFilter: Equatable {
     @Published private(set) var projectScanRootsLoaded = false
     @Published private(set) var projectScanRootsError: String?
     @Published private(set) var projectRootsOperationInProgress = false
+    @Published private(set) var modelScanRoots: [ModelStorageRoot] = []
+    @Published private(set) var modelScanRootsError: String?
+    @Published private(set) var modelScanRootsLoaded = false
+    @Published private(set) var modelRootsOperationInProgress = false
     @Published private(set) var cleanupFailures: [DefaultCleanupFailure] = [] {
         didSet { cachedDefaultCleanupSelection = nil }
     }
@@ -454,10 +458,9 @@ struct ResourceReviewFilter: Equatable {
     func checkTrashEmptyingExecutionGate(additionalBytes: UInt64) throws {
         let plan = try planBuilder.build(candidates: [], selectedIDs: [])
         executeSelection(plan: plan)
-        startFullScan()
         guard phase != .executing, executionTask == nil, !checkingScanPermissions, !isScanRunning,
               !canStartUpdate else {
-            throw TrashEmptyingCheckFailure(description: "direct execution, scanning and updating must remain blocked")
+            throw TrashEmptyingCheckFailure(description: "direct execution and updating must remain blocked")
         }
         // Simulate a new receipt arriving after the button captured its reminder baseline.
         sessionCleanupSummary = CleanupSessionSummary(itemCount: sessionCleanupSummary.itemCount + 1, bytes: sessionCleanupSummary.bytes + additionalBytes)
@@ -639,7 +642,7 @@ struct ResourceReviewFilter: Equatable {
         !isScanRunning && !agentOverlapAnalysisIsRunning && !preparingAgentSkillPresentation
             && agentPreselectionCalculationTask == nil
             && phase != .executing && !oneClickCleanupIsRunning && !updateInProgress
-            && !bootstrapInProgress && !trashEmptyingInProgress && !projectRootsOperationInProgress
+            && !bootstrapInProgress && !projectRootsOperationInProgress
             && deepScanningApplicationID == nil && recoveryActionReceiptID == nil
             && !checkingScanPermissions && !preparingScanPermissions && !showsScanPermissionPreparation
     }
@@ -1219,7 +1222,7 @@ struct ResourceReviewFilter: Equatable {
             agentEnvironment: hasScanResult(for: .agentEnvironment)
                 && agentPreselectionCalculationTask == nil && !preparingAgentSkillPresentation
                 ? defaults.agentEnvironment : [],
-            localAIModels: hasScanResult(for: .localAIModels) ? defaults.localAIModels : [],
+            localAIModels: hasScanResult(for: .localAIModels) && !modelScanRootsNeedRefresh ? defaults.localAIModels : [],
             projects: hasScanResult(for: .projects) && !projectScanRootsNeedRefresh ? defaults.projects : []
         )
     }
@@ -1249,7 +1252,7 @@ struct ResourceReviewFilter: Equatable {
             agentEnvironment: hasScanResult(for: .agentEnvironment)
                 && agentPreselectionCalculationTask == nil && !preparingAgentSkillPresentation
                 ? selected.agentEnvironment : [],
-            localAIModels: hasScanResult(for: .localAIModels) ? selected.localAIModels : [],
+            localAIModels: hasScanResult(for: .localAIModels) && !modelScanRootsNeedRefresh ? selected.localAIModels : [],
             projects: hasScanResult(for: .projects) && !projectScanRootsNeedRefresh ? selected.projects : [])
     }
 
@@ -1383,7 +1386,7 @@ struct ResourceReviewFilter: Equatable {
             itemCount: files.itemCount + receipts.count, bytes: files.bytes)
     }
     private func canExecuteCleanup(in module: ScanModuleID, hasSelection: Bool) -> Bool {
-        hasScanResult(for: module) && hasSelection
+        hasScanResult(for: module) && hasSelection && (module != .localAIModels || !modelScanRootsNeedRefresh)
             && !trashEmptyingInProgress && !projectRootsOperationInProgress && !updateInProgress && deepScanningApplicationID == nil
             && !isLoadingApplications && phase != .executing && !oneClickCleanupIsRunning
     }
@@ -1551,6 +1554,58 @@ struct ResourceReviewFilter: Equatable {
         guard let report = systemReport?.projectScanReport else { return false }
         guard projectScanRootsLoaded else { return projectScanRootsError != nil }
         return Set(report.roots.map(\.standardizedFileURL)) != Set(projectScanRoots.map(\.standardizedFileURL))
+    }
+
+    var modelScanRootsNeedRefresh: Bool {
+        if modelScanRootsError != nil { return true }
+        guard modelScanRootsLoaded, let inventory = systemReport?.localAIModelInventory else { return false }
+        return Set(inventory.modelRoots) != Set(modelScanRoots)
+    }
+
+    func loadModelScanRoots() async {
+        let result = await Task { try await runtime.modelRoots.roots() }.result
+        switch result {
+        case let .success(roots):
+            modelScanRoots = roots
+            modelScanRootsLoaded = true
+            modelScanRootsError = nil
+        case let .failure(error):
+            modelScanRootsLoaded = false
+            modelScanRootsError = error.localizedDescription
+        }
+        invalidateCandidatePresentationCaches()
+    }
+
+    @discardableResult
+    func saveModelScanRoots(_ roots: [ModelStorageRoot]) async -> Bool {
+        guard !modelRootsOperationInProgress else { return false }
+        modelRootsOperationInProgress = true
+        let result = await Task { try await runtime.modelRoots.save(roots) }.result
+        modelRootsOperationInProgress = false
+        switch result {
+        case let .success(saved):
+            modelScanRoots = saved
+            modelScanRootsLoaded = true
+            modelScanRootsError = nil
+            invalidateCandidatePresentationCaches()
+            if !isScanRunning, !isDeletionInProgress, systemReport != nil { refreshModule(.localAIModels) }
+            return true
+        case let .failure(error):
+            modelScanRootsError = error.localizedDescription
+            statusMessage = modelScanRootsError
+            invalidateCandidatePresentationCaches()
+            return false
+        }
+    }
+
+    func selectModelRootFolders(provider: LocalAIModelProvider) -> [ModelStorageRoot]? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.message = L10n.text("选择模型存储目录；保存后将检查归属和共享引用。")
+        guard panel.runModal() == .OK else { return nil }
+        return panel.urls.map { ModelStorageRoot(provider: provider, url: $0) }
     }
 
     func loadProjectScanRoots() async {
@@ -1763,7 +1818,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func startFullScan() {
-        guard !trashEmptyingInProgress, !projectRootsOperationInProgress, !bootstrapInProgress, !updateInProgress, deepScanningApplicationID == nil else { return }
+        guard !projectRootsOperationInProgress, !bootstrapInProgress, !updateInProgress, deepScanningApplicationID == nil else { return }
         guard !isScanRunning, phase != .executing, !oneClickCleanupIsRunning,
               !checkingScanPermissions, !preparingScanPermissions else { return }
         checkingScanPermissions = true
@@ -1779,7 +1834,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func preparePermissionsAndScan() {
-        guard !trashEmptyingInProgress, !preparingScanPermissions, !isScanRunning else { return }
+        guard !preparingScanPermissions, !isScanRunning else { return }
         preparingScanPermissions = true
         Task { [weak self] in
             guard let self else { return }
@@ -1801,7 +1856,7 @@ struct ResourceReviewFilter: Equatable {
         }
         preferences.removeObject(forKey: Self.pendingPermissionScanDefaultsKey)
         showsScanPermissionPreparation = false
-        guard !trashEmptyingInProgress, !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
+        guard !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
         beginFullScan()
     }
 
@@ -1812,7 +1867,7 @@ struct ResourceReviewFilter: Equatable {
 
     private func resumePendingPermissionScanIfPossible() async {
         guard preferences.bool(forKey: Self.pendingPermissionScanDefaultsKey),
-              !trashEmptyingInProgress, !bootstrapInProgress, !isScanRunning, phase != .executing else { return }
+              !bootstrapInProgress, !isScanRunning, phase != .executing else { return }
         await loadPermissions()
         guard permissionSnapshot?.fullDiskAccess.status == .granted else {
             showsScanPermissionPreparation = true
@@ -1827,7 +1882,7 @@ struct ResourceReviewFilter: Equatable {
 
     private func beginFullScan() {
         guard canScanWithCurrentPermissions else { requireDiskAccessRenewal(); return }
-        guard !trashEmptyingInProgress, !projectRootsOperationInProgress, !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
+        guard !projectRootsOperationInProgress, !updateInProgress, phase != .executing, !oneClickCleanupIsRunning, !isScanRunning else { return }
         guard deepScanningApplicationID == nil, !isLoadingApplications else { return }
         refreshDiskCapacity()
         scanTask?.cancel()
@@ -1901,7 +1956,7 @@ struct ResourceReviewFilter: Equatable {
     func canResumeScan(_ module: ScanModuleID) -> Bool {
         scanProgressByModule[module]?.state == .cancelled
             && ((moduleScanSession != nil && scanTask == nil) || (moduleScanSession == nil && scanTask != nil))
-            && !trashEmptyingInProgress && !projectRootsOperationInProgress && !updateInProgress && phase != .executing && !oneClickCleanupIsRunning
+            && !projectRootsOperationInProgress && !updateInProgress && phase != .executing && !oneClickCleanupIsRunning
             && deepScanningApplicationID == nil && moduleScanTokens[module] == nil
     }
 
@@ -1957,6 +2012,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func toggle(_ candidate: CleanupCandidate) {
+        guard selection != .localAIModels || !modelScanRootsNeedRefresh else { return }
         guard candidate.risk.isSelectable else { return }
         if selection == .projects {
             setProjectSelection([candidate], selected: !selectedIDs.contains(candidate.id))
@@ -2000,7 +2056,7 @@ struct ResourceReviewFilter: Equatable {
         reconcileFocus()
         switch resolvedMode {
         case .smart:
-            statusMessage = L10n.text("已默认勾选明确安全、非活跃且当前可执行的内容")
+            statusMessage = L10n.text("已按清理规则筛选，可直接批量清理")
         case .deep:
             statusMessage = L10n.text("已加入低风险和可重建内容，可能需要重新下载或构建")
         case .custom:
@@ -2021,11 +2077,12 @@ struct ResourceReviewFilter: Equatable {
             selectedIDs: selectedIDs,
             excludedBaseIDs: excludedBaseIDs
         ).selectionState(for: Set(candidates.filter {
-            $0.risk.isSelectable && (includesManualOnly || $0.requiresExplicitSelection != true)
+            $0.risk.isSelectable && ((includesManualOnly && selection != .systemCleanup) || $0.requiresExplicitSelection != true)
         }.map(\.id)))
     }
 
     func toggleCleanupCategory(_ candidates: [CleanupCandidate], includesManualOnly: Bool = false) {
+        guard selection != .localAIModels || !modelScanRootsNeedRefresh else { return }
         guard let generationID = systemReport?.generationID else { return }
         if selection == .projects {
             let selectable = ResourceCleanupListPolicy.selectableCandidates(candidates)
@@ -2039,7 +2096,8 @@ struct ResourceReviewFilter: Equatable {
             selectedIDs: selectedIDs,
             excludedBaseIDs: excludedBaseIDs
         )
-        state.toggleCategory(candidates: candidates, baseEligibleIDs: cleanupBaseEligibleIDs, includesManualOnly: includesManualOnly)
+        state.toggleCategory(candidates: candidates, baseEligibleIDs: cleanupBaseEligibleIDs,
+            includesManualOnly: includesManualOnly && selection != .systemCleanup)
         selectedIDs = state.selectedIDs
         excludedBaseIDs = state.excludedBaseIDs
         reconcileFocus()
@@ -2179,7 +2237,10 @@ struct ResourceReviewFilter: Equatable {
         let selected = selectedCandidates
         guard !selected.isEmpty else { return }
         if selection == .systemCleanup {
-            toggleCleanupCategory(selected, includesManualOnly: true)
+            let clearingIDs = Set(selected.map(\.id))
+            selectedIDs.subtract(clearingIDs)
+            excludedBaseIDs.formUnion(clearingIDs.intersection(cleanupBaseEligibleIDs))
+            reconcileFocus()
         } else if selection == .projects {
             setProjectSelection(selected, selected: false)
             reconcileFocus()
@@ -2745,7 +2806,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func refreshApplications() {
-        guard !trashEmptyingInProgress, !updateInProgress, deepScanningApplicationID == nil, !isLoadingApplications, !isScanRunning, phase != .executing else { return }
+        guard !updateInProgress, deepScanningApplicationID == nil, !isLoadingApplications, !isScanRunning, phase != .executing else { return }
         guard systemReport != nil else { selection = .cleanupCenter; return }
         Task { [weak self] in await self?.reloadApplicationModule() }
     }
@@ -3234,7 +3295,7 @@ struct ResourceReviewFilter: Equatable {
             selectedIDs.formUnion(defaults.systemCleanup.map(\.id))
         }
         if completedModule == .agentEnvironment {
-            selectedIDs.subtract(next.agentAssets.map(\.id))
+            selectedIDs.subtract(scopePolicy.candidates(for: .agentEnvironment, from: next.candidates).map(\.id))
             selectedIDs.formUnion(defaults.agentEnvironment.map(\.id))
         }
         if completedModule == .applications {
@@ -3318,6 +3379,7 @@ struct ResourceReviewFilter: Equatable {
 
     private func bootstrapPersistentState() async {
         await loadProjectScanRoots()
+        await loadModelScanRoots()
         do {
             rulesetVersion = try await runtime.rules.currentPack().executionVersion
             protectionPolicy = try await runtime.protections.snapshot()
@@ -3400,7 +3462,7 @@ struct ResourceReviewFilter: Equatable {
         }
     }
     private func reloadApplicationModule(observeRunning: Bool = true) async {
-        guard !trashEmptyingInProgress, !updateInProgress else { return }
+        guard !updateInProgress else { return }
         guard let current = systemReport else { return }
         isLoadingApplications = true
         defer { isLoadingApplications = false }
@@ -3440,7 +3502,7 @@ struct ResourceReviewFilter: Equatable {
     }
 
     func refreshModule(_ module: ScanModuleID) {
-        guard !trashEmptyingInProgress, !projectRootsOperationInProgress, !updateInProgress, deepScanningApplicationID == nil, systemReport != nil,
+        guard !projectRootsOperationInProgress, !updateInProgress, deepScanningApplicationID == nil, systemReport != nil,
               [.largeFiles, .agentEnvironment, .localAIModels, .projects].contains(module), !isScanRunning,
               phase != .executing, !oneClickCleanupIsRunning else { return }
         isFullScanTimingSession = false
@@ -3579,8 +3641,7 @@ struct ResourceReviewFilter: Equatable {
     private var cleanupBaseEligibleIDs: Set<UUID> {
         let allowed: Set<CleanupDisposition>
         switch cleanupMode {
-        case .smart: allowed = [.recommended]
-        case .deep: allowed = [.recommended, .deepClean]
+        case .smart, .deep: allowed = [.recommended, .deepClean]
         case .custom: allowed = Set(CleanupDisposition.allCases)
         }
         return Set(candidates(for: .systemCleanup).filter {
@@ -4711,6 +4772,35 @@ extension AppModel {
                 throw Failure(description: "progressive publication must preselect only the resource module that finished")
             }
         }
+        for keepSelected in [true, false] {
+            let progressive = makeResourceCheckModel()
+            let publicationToken = UUID()
+            progressive.isScanRunning = true
+            progressive.activeScanToken = publicationToken
+            progressive.activeScanGenerationID = report.generationID
+            progressive.scanProgressByModule = report.modules
+            progressive.selection = .projects
+            progressive.installProgressive(report, completedModule: .projects, token: publicationToken)
+            if !keepSelected { progressive.toggle(projects[0]) }
+            let preservedSelection = progressive.selectedIDs
+            let preservedBytes = progressive.selectedBytes
+            let duplicates = projects.map { item in
+                let candidate = CleanupCandidate(url: item.url, displayName: item.displayName, category: .agentWorktree,
+                    bytes: item.bytes, risk: .blocked, evidence: [], identity: item.identity, source: .agentWorkspace,
+                    lastAccessDate: nil, isActive: false)
+                return AgentAssetRecord(candidate: candidate, provider: .codex, scope: .project,
+                    resourceKind: .gitWorktree, activity: .unknown, cleanupEligibility: .protected, cleanupUnitURL: item.url)
+            }
+            let incoming = report.replacing(moduleResult: .init(generationID: report.generationID,
+                status: .init(module: .agentEnvironment, state: .completed),
+                payload: .agentEnvironment(.init(assets: duplicates, reachedBudget: false))))
+            progressive.installProgressive(incoming, completedModule: .agentEnvironment, token: publicationToken)
+            guard Set(progressive.candidates(for: .projects).map(\.id)) == projectIDs,
+                  progressive.selectedIDs == preservedSelection, progressive.selectedBytes == preservedBytes,
+                  progressive.cleanupCenterSelection?.bytes == preservedBytes else {
+                throw Failure(description: "late Agent publication must preserve project ownership, capacity and manual selection")
+            }
+        }
         let baseline = makeResourceCheckModel()
         baseline.install(report)
         let generation = UUID()
@@ -5085,7 +5175,7 @@ extension AppModel {
         let item = CleanupCandidate(url: app.bundleURL, displayName: "Fixture", category: .application,
             bytes: 100, risk: .review, evidence: [], identity: .init(device: 1, inode: 2, size: 100, modificationTime: 1, kind: .directory), source: .application, lastAccessDate: nil, isActive: false)
         let log = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/fixture.log"), displayName: "fixture.log", category: .log,
-            bytes: 50, risk: .safe, evidence: [], identity: .init(device: 1, inode: 3, size: 50, modificationTime: 1, kind: .file), source: .general, lastAccessDate: nil, isActive: false)
+            bytes: 50, risk: .safe, evidence: [], identity: .init(device: 1, inode: 3, size: 50, modificationTime: 1, kind: .file), source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true)
         let kept = CleanupCandidate(url: home.appendingPathComponent("Library/Logs/keep.log"), displayName: "keep.log", category: .log,
             bytes: 25, risk: .safe, evidence: [], identity: .init(device: 1, inode: 4, size: 25, modificationTime: 1, kind: .file), source: .general, lastAccessDate: nil, isActive: false, defaultSelection: true)
         let apps = ApplicationInventory(applications: [app], coverage: .init(), scannedAt: Date())

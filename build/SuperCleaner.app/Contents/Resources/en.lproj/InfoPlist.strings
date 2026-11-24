@@ -1,0 +1,2 @@
+"NSAppBundlesUsageDescription" = "Analyze applications and, after your explicit selection, safely quarantine them and their recoverable associated files.";
+"NSAppleEventsUsageDescription" = "Ask Finder to empty the Trash only after you confirm permanent deletion.";

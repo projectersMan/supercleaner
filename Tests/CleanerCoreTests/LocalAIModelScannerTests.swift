@@ -25,7 +25,7 @@ final class LocalAIModelScannerTests: XCTestCase {
         let inventory = try await LocalAIModelScanner().scan(context: fixture.context())
 
         XCTAssertEqual(inventory.models.count, 9)
-        XCTAssertEqual(Set(inventory.models.map(\.provider)), Set(LocalAIModelProvider.allCases.filter { $0 != .ollama }))
+        XCTAssertEqual(Set(inventory.models.map(\.provider)), [.huggingFace, .lmStudio, .pytorch, .whisper, .keras, .gpt4All])
         XCTAssertTrue(inventory.candidates.allSatisfy { $0.risk == .review && $0.defaultSelection == false && $0.requiresExplicitSelection == true })
         XCTAssertTrue(inventory.candidates.allSatisfy { $0.source == .localAIModels && $0.category == .agentModelCache })
         XCTAssertTrue(inventory.candidates.allSatisfy { !PlanItem(candidate: $0).isSelected })

@@ -32,15 +32,18 @@ struct OllamaModelRecovery {
 
     func restoreDependencies(_ result: OperationResult, receipt: OperationReceipt) async throws {
         let scanner = LocalAIModelScanner()
-        let root = context.homeDirectory.appendingPathComponent(".ollama/models")
+        let root = try storageRoot(for: result)
+        let recoveryContext = ScanContext(homeDirectory: context.homeDirectory, fileSystem: context.fileSystem,
+            protectionPolicy: context.protectionPolicy,
+            modelRoots: [.init(provider: .ollama, url: root)])
         if result.originalURL.deletingLastPathComponent().path == root.appendingPathComponent("blobs").path {
             let digest = result.originalURL.lastPathComponent.replacingOccurrences(of: "sha256-", with: "sha256:")
             guard try scanner.ollamaBlobURL(digest, root: root) == result.originalURL else { throw PathPolicyError.invalidSyntax }
-            try await ensureDirectory(result.originalURL.deletingLastPathComponent())
+            try await ensureDirectory(result.originalURL.deletingLastPathComponent(), within: root)
             return
         }
         guard let source = result.destinationURL, try directory(for: result) != nil else { return }
-        try await ensureDirectory(result.originalURL.deletingLastPathComponent())
+        try await ensureDirectory(result.originalURL.deletingLastPathComponent(), within: root)
         let document = try JSONDecoder().decode(OllamaManifestDocument.self,
             from: await context.fileSystem.readData(at: source, maximumBytes: 1_048_576))
         let ownFiles = Dictionary(receipt.results.filter { $0.disposition == .quarantined }.map { ($0.originalURL, $0) },
@@ -48,7 +51,7 @@ struct OllamaModelRecovery {
         for layer in document.layers + [document.config] {
             let original = try scanner.ollamaBlobURL(layer.digest, root: root)
             if await context.fileSystem.fileExists(original) {
-                let identity = try await scanner.validatedIdentity(original, context: context)
+                let identity = try await scanner.validatedIdentity(original, context: recoveryContext)
                 guard identity.kind == .file, identity.size == layer.size else { throw FileSystemError.invalidAttributes(original) }
                 continue
             }
@@ -62,12 +65,12 @@ struct OllamaModelRecovery {
             let snapshot = source.appendingPathExtension("ollama-files").appendingPathComponent(original.lastPathComponent)
             let identity = try await validatedArchiveIdentity(snapshot)
             guard identity.kind == .file, identity.size == layer.size else { throw FileSystemError.invalidAttributes(snapshot) }
-            try await ensureDirectory(original.deletingLastPathComponent())
+            try await ensureDirectory(original.deletingLastPathComponent(), within: root)
             try await context.fileSystem.cloneFile(snapshot, to: original)
         }
     }
 
-    private func ensureDirectory(_ url: URL) async throws {
+    private func ensureDirectory(_ url: URL, within root: URL) async throws {
         var ancestors: [URL] = []
         var current = url
         while true {
@@ -77,9 +80,11 @@ struct OllamaModelRecovery {
         }
         for ancestor in ancestors.reversed() {
             if !(await context.fileSystem.fileExists(ancestor)) {
-                guard ancestor.path.hasPrefix(context.homeDirectory.path + "/") else {
+                guard ancestor.path == root.path || ancestor.path.hasPrefix(root.path + "/") else {
                     throw PathPolicyError.outsideAllowedHome
                 }
+                _ = try context.pathPolicy.validateCandidate(ancestor)
+                try context.protectionPolicy.validate(ancestor)
                 try await context.fileSystem.createDirectory(ancestor)
             }
             guard try await context.fileSystem.identity(at: ancestor).kind == .directory else {
@@ -89,12 +94,18 @@ struct OllamaModelRecovery {
     }
 
     func directory(for result: OperationResult) throws -> URL? {
-        let prefix = context.homeDirectory.appendingPathComponent(".ollama/models/manifests").path + "/"
+        let prefix = try storageRoot(for: result).appendingPathComponent("manifests").path + "/"
         guard result.originalURL.path.hasPrefix(prefix),
               result.originalURL.path.dropFirst(prefix.count).split(separator: "/").count == 4 else { return nil }
         guard let destination = result.destinationURL else { return nil }
         try validateArchiveURL(destination, candidateID: result.candidateID, original: result.originalURL)
         return destination.appendingPathExtension("ollama-files")
+    }
+
+    private func storageRoot(for result: OperationResult) throws -> URL {
+        let root = result.modelStorageRoot ?? context.homeDirectory.appendingPathComponent(".ollama/models")
+        try ModelStorageRoot.validate(root, home: context.homeDirectory)
+        return root
     }
 
     private func validateArchiveURL(_ url: URL, candidateID: UUID, original: URL) throws {

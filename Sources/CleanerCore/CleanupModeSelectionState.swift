@@ -36,13 +36,13 @@ public struct CleanupModeSelectionState: Codable, Hashable, Sendable {
 }
 
 public extension CleanupMode {
-    static let defaultMode: CleanupMode = .deep
-    static let userFacingCases: [CleanupMode] = [.deep, .custom]
+    static let defaultMode: CleanupMode = .smart
+    static let userFacingCases: [CleanupMode] = [.smart, .deep, .custom]
 
     var displayTitle: String {
         switch self {
         case .smart: L10n.text("推荐")
-        case .deep: L10n.text("自动清理")
+        case .deep: L10n.text("深度清理")
         case .custom: L10n.text("手动选择")
         }
     }

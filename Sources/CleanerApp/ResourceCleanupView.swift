@@ -16,7 +16,7 @@ struct ResourceCleanupView: View {
     }
     private var sortOrder: LargeFileSortOrder { reviewFilter.wrappedValue.sortOrder }
     private var selectableItems: [CleanupCandidate] { ResourceCleanupListPolicy.selectableCandidates(visibleItems) }
-    private var selectionIsDisabled: Bool { model.isDeletionInProgress || model.updateInProgress || model.isCurrentModuleScanning }
+    private var selectionIsDisabled: Bool { model.isDeletionInProgress || model.updateInProgress || model.isCurrentModuleScanning || (isModels && model.modelScanRootsNeedRefresh) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +35,10 @@ struct ResourceCleanupView: View {
             } else {
                 filterBar
                 Divider()
+                if isModels && model.modelScanRootsNeedRefresh {
+                    Label(L10n.text("模型目录已更改或无法读取，请在设置中检查后重新扫描。"), systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundColor(.orange).padding(8)
+                }
                 if !isModels, model.projectScanRootsError == nil, model.projectScanRootsNeedRefresh {
                     Label(L10n.text("扫描目录已更改，请重新扫描项目产物。"), systemImage: "arrow.clockwise")
                         .font(.caption).foregroundColor(.orange)
@@ -377,20 +381,6 @@ private extension ResourceCleanupListScope {
         case .cleanable: L10n.text("可清理")
         case .protected: L10n.text("受保护")
         case .selected: L10n.text("已选择")
-        }
-    }
-}
-
-private extension LocalAIModelProvider {
-    var displayName: String {
-        switch self {
-        case .huggingFace: "Hugging Face"
-        case .lmStudio: "LM Studio"
-        case .ollama: "Ollama"
-        case .pytorch: "PyTorch"
-        case .whisper: "Whisper"
-        case .keras: "Keras"
-        case .gpt4All: "GPT4All"
         }
     }
 }

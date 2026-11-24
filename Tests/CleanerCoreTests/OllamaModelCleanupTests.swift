@@ -3,6 +3,37 @@ import XCTest
 @testable import CleanerCore
 
 final class OllamaModelCleanupTests: XCTestCase {
+    func testCustomExternalRootKeepsSharedReferencesAndRestoresFromRecordedRoot() async throws {
+        let fixture = try makeFixture()
+        let external = fixture.root.appendingPathComponent("external-models")
+        try FileManager.default.moveItem(at: fixture.storage, to: external)
+        let context = ScanContext(homeDirectory: fixture.home, modelRoots: [
+            .init(provider: .ollama, url: external),
+        ])
+        let inventory = try await LocalAIModelScanner().scan(context: context)
+        XCTAssertEqual(inventory.candidates.count, 2)
+        let plan = try PlanBuilder().build(candidates: inventory.candidates, selectedIDs: Set(inventory.candidates.map(\.id)))
+        let executor = CleanupExecutor(fileSystem: LocalFileSystem(), pathPolicy: context.pathPolicy,
+            quarantineRoot: fixture.home.appendingPathComponent("Library/Application Support/SuperCleaner/Quarantine"),
+            currentRuleVersion: "bundled-1", loadProtection: { context.protectionPolicy },
+            validateCandidate: { try await LocalAIModelScanner().validateForExecution($0, context: context) },
+            finalCandidateCheck: { try await LocalAIModelScanner().validateForExecution($0, context: context) })
+        let receipt = await executor.execute(plan: plan)
+        XCTAssertEqual(receipt.results.count, 6)
+        XCTAssertTrue(receipt.results.allSatisfy { $0.disposition == .quarantined && $0.modelStorageRoot?.path == external.path },
+            String(describing: receipt.results))
+        let saved = try JSONDecoder().decode(OperationReceipt.self, from: JSONEncoder().encode(receipt))
+        let restored = await executor.restore(receipt: saved)
+        XCTAssertTrue(restored.results.allSatisfy { $0.disposition == .restored }, String(describing: restored.results))
+        let fresh = try await LocalAIModelScanner().scan(context: context)
+        XCTAssertEqual(fresh.candidates.map(\.displayName), inventory.candidates.map(\.displayName))
+        XCTAssertTrue(fresh.limitations.isEmpty)
+        for result in receipt.results {
+            let source = try XCTUnwrap(result.destinationURL)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: source.appendingPathExtension("ollama-files").path))
+        }
+    }
+
     func testFailedSelectedManifestKeepsSharedBlobsButDoesNotBlockOtherModel() async throws {
         let fixture = try makeFixture()
         let inventory = try await LocalAIModelScanner().scan(context: fixture.context)
