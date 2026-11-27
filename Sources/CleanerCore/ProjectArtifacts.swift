@@ -189,6 +189,7 @@ public struct ProjectArtifactScanner: Sendable {
         var bytes: UInt64 = 0
         var pending = [url]
         var installers: [CleanupCandidate] = []
+        var pythonResources = PythonEnvironmentPEMResources(environment: Self.pythonEnvironmentNames.contains(url.lastPathComponent) ? url : nil)
         while let directory = pending.popLast() {
             try Task.checkCancellation()
             do {
@@ -202,7 +203,7 @@ public struct ProjectArtifactScanner: Sendable {
                        !(try await isManagedSwiftPMCheckout(child, artifact: url, project: project, context: context)) {
                         blocked = true; evidence.append(Evidence(code: "nested-git", summary: L10n.text("产物目录内含版本库，保持保护"))); continue
                     }
-                    if try await sensitive(child, identity: childIdentity, context: context) {
+                    if try await sensitive(child, identity: childIdentity, context: context, pythonResources: &pythonResources) {
                         blocked = true; evidence.append(Evidence(code: "deployment-key", summary: L10n.text("含部署密钥或环境凭证，保持保护")))
                     }
                     if childIdentity.kind == .directory { pending.append(child) }
@@ -276,23 +277,18 @@ public struct ProjectArtifactScanner: Sendable {
         } catch { return .unknown }
     }
 
-    private func sensitive(_ url: URL, identity: FileIdentity, context: ScanContext) async throws -> Bool {
+    private func sensitive(_ url: URL, identity: FileIdentity, context: ScanContext, pythonResources: inout PythonEnvironmentPEMResources) async throws -> Bool {
         let name = url.lastPathComponent.lowercased()
         if name == ".env" || name.hasPrefix(".env.") || ["id_rsa", "id_ed25519", "credentials.json", "keypair.json"].contains(name)
             || ["key", "p12", "pfx"].contains(url.pathExtension.lowercased()) { return true }
         guard url.pathExtension.lowercased() == "pem" else { return false }
-        guard identity.kind == .file, identity.size <= 65_536 else { return true }
+        guard identity.kind == .file, identity.size <= UInt64(ProjectPublicPEM.maximumBytes) else { return true }
         let path = try context.pathPolicy.validateCandidate(url)
         guard path.literal.path == path.physical.path else { return true }
         try context.protectionPolicy.validate(url)
-        let data = try await context.fileSystem.readData(at: url, maximumBytes: 65_536)
-        guard let text = String(data: data, encoding: .utf8) else { return true }
-        let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
-        guard lines.count >= 3, ["PUBLIC KEY", "RSA PUBLIC KEY"].contains(where: {
-            lines.first == "-----BEGIN \($0)-----" && lines.last == "-----END \($0)-----"
-        }),
-              let payload = Data(base64Encoded: lines.dropFirst().dropLast().joined()), !payload.isEmpty else { return true }
-        return false
+        let data = try await context.fileSystem.readData(at: url, maximumBytes: ProjectPublicPEM.maximumBytes)
+        if ProjectPublicPEM.containsOnlyPublicMaterial(data) { return false }
+        return !(try await pythonResources.contains(url, data: data, context: context))
     }
 
     private func isManagedSwiftPMCheckout(_ git: URL, artifact: URL, project: URL, context: ScanContext) async throws -> Bool {

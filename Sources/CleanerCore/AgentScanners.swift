@@ -531,7 +531,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         )
                     }
 
-                    let candidate = context.protectionPolicy.applying(to: CleanupCandidate(
+                    let candidate = CleanupCandidate(
                         url: url,
                         displayName: url.lastPathComponent,
                         category: classification.category,
@@ -542,7 +542,7 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
                         source: .agentWorkspace,
                         lastAccessDate: Date(timeIntervalSince1970: Double(identity.modificationTime)),
                         isActive: context.isActive(url)
-                    ))
+                    )
                     let activity = activity(for: url, identity: identity, context: context)
                     let resourceKind = resourceKind(for: classification, candidate: candidate)
                     let resourceScope = resourceRule?.scope
@@ -636,6 +636,25 @@ public struct AgentWorkspaceScanner: CleanerCore.Scanner {
         let reachedBudget = traversals.contains { $0.cursor < $0.queue.count }
         for traversal in traversals where traversal.cursor < traversal.queue.count {
             limitations.append(Self.limitation(traversal.queue[traversal.cursor].url, L10n.text("达到 Agent 条目预算")))
+        }
+        // Keep these provisional assets private until protection has been applied.
+        // Resolve protection roots afresh for each short, synchronous batch after
+        // traversal; no resolved roots survive an await. The policy still resolves
+        // every candidate's current physical path, and execution revalidates it.
+        for start in stride(from: 0, to: assets.count, by: 128) {
+            try Task.checkCancellation()
+            let end = min(start + 128, assets.count)
+            let candidates = context.protectionPolicy.applying(to: assets[start..<end].map(\.candidate))
+            for (offset, candidate) in candidates.enumerated() {
+                let position = start + offset
+                let asset = assets[position]
+                assets[position] = AgentAssetRecord(
+                    candidate: candidate, provider: asset.provider, scope: asset.scope,
+                    resourceKind: asset.resourceKind, activity: asset.activity,
+                    cleanupEligibility: eligibility(for: asset.resourceKind, risk: candidate.risk, activity: asset.activity),
+                    cleanupUnitURL: asset.cleanupUnitURL
+                )
+            }
         }
         let sortedAssets = assets.sorted { $0.candidate.url.path.localizedStandardCompare($1.candidate.url.path) == .orderedAscending }
         let canonicalSkills = skillsByRootPath.keys.map { id in

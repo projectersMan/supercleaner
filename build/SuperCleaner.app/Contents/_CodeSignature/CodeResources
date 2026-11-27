@@ -12,33 +12,29 @@
 		<data>
 		K4uBUimqimHkg/tLoFiLi2xJGJA=
 		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Info.plist</key>
-		<data>
-		tOyqbSXfUR8QtNrA8stzfVyLEms=
-		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Attention.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Attention.metal</key>
 		<data>
 		OSRoLwEhg1RaX54k5qKcDetNXL8=
 		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Audio.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Audio.metal</key>
 		<data>
 		dkz2+yeSmW+H7gb3ni6Vrg94QtQ=
 		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Common.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Common.metal</key>
 		<data>
 		/j1MMJsbQFa0wA/RcTrUiYN4k/Q=
 		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Elementwise.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Elementwise.metal</key>
 		<data>
 		49zf2zJ2Ufm3JuX4pHUhHH8Lh20=
 		</data>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/GEMM.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/GEMM.metal</key>
 		<data>
 		BWKSmljB3hkL5Gwwu1SV38wSh/I=
 		</data>
 		<key>Resources/HelperInfo.plist</key>
 		<data>
-		fV13S+TGvGVVeEc7g1ASvLblV5k=
+		Jx36Y+QP3ZUl/e9/QVLvGdrHQ8Q=
 		</data>
 		<key>Resources/Rules/base-rules.json</key>
 		<data>
@@ -48,35 +44,35 @@
 		<data>
 		mOjbjtiy4MLeRUA1svgpagNeQGQ=
 		</data>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Info.plist</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Info.plist</key>
 		<data>
-		0WeRqtQzNiqQ7d+HRmbLGQ3VYI0=
+		7g0CDUAAkeHXoZohLhU1fyFxbzA=
 		</data>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/LICENSE.txt</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/LICENSE.txt</key>
 		<data>
 		K4uBUimqimHkg/tLoFiLi2xJGJA=
 		</data>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/NOTICE.txt</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/NOTICE.txt</key>
 		<data>
 		sDSSR6XkMgN0x5qbW+/SH4LOmMs=
 		</data>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/embeddinggemma-2-Q8_0.gguf</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/embeddinggemma-2-Q8_0.gguf</key>
 		<data>
 		+VwxxCvzSMf1bOXyQ4zG1JO//Ic=
 		</data>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Info.plist</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/Info.plist</key>
 		<data>
-		iJbBumJ2+MqpVjkhjqB+Q2ss4sM=
+		7g0CDUAAkeHXoZohLhU1fyFxbzA=
 		</data>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/agent-overlap-policy.json</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/agent-overlap-policy.json</key>
 		<data>
 		k1SHS2ImndtfwTtiywtxvQjgftw=
 		</data>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/base-rules.json</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/base-rules.json</key>
 		<data>
 		mVAqhb0Xmg+5qY7tbOrkQizE2po=
 		</data>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/en.lproj/Localizable.strings</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/en.lproj/Localizable.strings</key>
 		<dict>
 			<key>hash</key>
 			<data>
@@ -85,7 +81,7 @@
 			<key>optional</key>
 			<true/>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/zh-Hans.lproj/Localizable.strings</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/zh-hans.lproj/Localizable.strings</key>
 		<dict>
 			<key>hash</key>
 			<data>
@@ -119,10 +115,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			X/51/uXDADEiTsqqIGkQxlfHf5M=
+			G8eGcLEBQ1cGU9in2g75BvL+ZUQ=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"5ffe75fee5c30031224ecaaa206910c657c77f93" or cdhash H"9382c3da27da6bd591677e150a0eae128fc9b5d1"</string>
+			<string>cdhash H"1bc78670b10143570653d8a7da0ef906f2fe6544" or cdhash H"16449c4db68b819f026f7cb4665e53a062f8ab51"</string>
 		</dict>
 		<key>Library/LaunchDaemons/com.example.SuperCleaner.helper.plist</key>
 		<dict>
@@ -135,17 +131,17 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			+Xg6+VsddVZycyrkOL6O+ABICeM4nBeudlj8mslJ4yk=
+			Hhr9qoX8hE1qzrbJbQPvZWEEkCnakIvInYpyjB29xPg=
 			</data>
 		</dict>
 		<key>MacOS/AgentInference</key>
 		<dict>
 			<key>cdhash</key>
 			<data>
-			C2nE8PVeBbZyjid7AJHNqL+tNrI=
+			TiwLvj8o7bAWb+pieQGZYDCPz8E=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"0b69c4f0f55e05b6728e277b0091cda8bfad36b2"</string>
+			<string>cdhash H"4e2c0bbe3f28edb0166fea6279019960308fcfc1"</string>
 		</dict>
 		<key>Resources/AppIcon.icns</key>
 		<dict>
@@ -161,42 +157,35 @@
 			z8d0m5b2O9McPEK1xHG/dWgUBT6EfBDz6wA0F7xSPTA=
 			</data>
 		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Info.plist</key>
-		<dict>
-			<key>hash2</key>
-			<data>
-			+8B7REI7VLxVHERJTmSh5VrDC1FHp3jYvrlh6GnMbnw=
-			</data>
-		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Attention.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Attention.metal</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			eI+FfxC0u1mGzsbTseJ81xCJRXsAh0lxuHa0sxfNY8U=
 			</data>
 		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Audio.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Audio.metal</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			DgRNihEvnT8C8aNfszCpJouhcpjIGYMTyVseySPmiGs=
 			</data>
 		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Common.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Common.metal</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			ihfY29ilDz2qNYYM2tAs2DG+ZKCqiXnehpQSdEktw1A=
 			</data>
 		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/Elementwise.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/Elementwise.metal</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			53SVg0JLnZn0ClEVrivsQCXg811oGUNqpgpHGKts+Y4=
 			</data>
 		</dict>
-		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Contents/Resources/Shaders/GEMM.metal</key>
+		<key>Resources/GemmaEmbed_GemmaEmbed.bundle/Shaders/GEMM.metal</key>
 		<dict>
 			<key>hash2</key>
 			<data>
@@ -207,7 +196,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			N4G98DOK8OPaF4OqyVOP/WxeXXwInoZNT+i42g/aI/M=
+			niLfTJN2IQ3AiEPsfvurtjYfN78Yz3Zir7jg2C+IEDk=
 			</data>
 		</dict>
 		<key>Resources/Rules/base-rules.json</key>
@@ -224,56 +213,56 @@
 			OJpOTpoy8Fl3WxOgbiWlkURboinSg40m3T58DEUSfP4=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Info.plist</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Info.plist</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			XNfXyMkw44Nz1zfnYXgfD+xGTOXs6ySSp/BVWFDu1nc=
+			gKHF1DfWkXCgTGeZFxc9Gf4BGXaoHulXcZK9V4EjKtY=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/LICENSE.txt</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/LICENSE.txt</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			z8d0m5b2O9McPEK1xHG/dWgUBT6EfBDz6wA0F7xSPTA=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/NOTICE.txt</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/NOTICE.txt</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			yxtwTIOnhWFhnvGSBZfPEmOWuvyHuyVGxs36yP8Q9QQ=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Contents/Resources/Models/embeddinggemma-2-Q8_0.gguf</key>
+		<key>Resources/SuperCleaner_AgentOverlapAI.bundle/Models/embeddinggemma-2-Q8_0.gguf</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			IYisHeykt33/79YDwndqnXbZ107AGEE5KYLruECwkTU=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Info.plist</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/Info.plist</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			G6/lVf9Wiz+dAI4M3qcJ9wLJwyOJV7pASYIv+S54UNs=
+			gKHF1DfWkXCgTGeZFxc9Gf4BGXaoHulXcZK9V4EjKtY=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/agent-overlap-policy.json</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/agent-overlap-policy.json</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			R0WWDGNFxzaN+pSMmuLE7z5jCXgJdfMOoSn6UIk8PcM=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/base-rules.json</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/base-rules.json</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			9MXeKeUrugNGsMfWtp5zP9vs5J6Jv7GipdbYYyfsSfA=
 			</data>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/en.lproj/Localizable.strings</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/en.lproj/Localizable.strings</key>
 		<dict>
 			<key>hash2</key>
 			<data>
@@ -282,7 +271,7 @@
 			<key>optional</key>
 			<true/>
 		</dict>
-		<key>Resources/SuperCleaner_CleanerCore.bundle/Contents/Resources/zh-Hans.lproj/Localizable.strings</key>
+		<key>Resources/SuperCleaner_CleanerCore.bundle/zh-hans.lproj/Localizable.strings</key>
 		<dict>
 			<key>hash2</key>
 			<data>
